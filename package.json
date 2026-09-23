@@ -10,7 +10,7 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc -b --pretty",
+    "typecheck": "tsc -b --pretty && tsc -p packages/schema/tsconfig.test.json && tsc -p packages/mcp/tsconfig.test.json",
     "test": "vitest run --passWithNoTests",
     "build": "pnpm -r --filter=./packages/* build",
     "release": "pnpm build && changeset publish"

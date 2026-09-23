@@ -32,12 +32,12 @@ repository root.
 
 **Purpose**: Branch, dependencies, and test tooling
 
-- [ ] T001 Create branch `001-ha-snapshot` from an up-to-date `main` (`git checkout -b 001-ha-snapshot`), carrying the uncommitted `specs/001-ha-snapshot/` directory. Commit it alone as `docs: add ha-snapshot spec, plan, and tasks`. `main` is protected (constitution §9), so all work happens on this branch.
-- [ ] T002 Update `packages/mcp/package.json`: add `"zod": "^4.6.5"` to `dependencies` (the SDK takes zod schemas, and the package imports zod directly). Add `"ws"` and `"@types/ws"` to `devDependencies`. Remove the dangling `"main"` and `"types"` fields (there is no `src/index.ts`) and keep `"bin": { "domusops-mcp": "./dist/cli.js" }`. Then run `pnpm install`. Never hand-edit `pnpm-lock.yaml`; the `guard-scope` hook blocks it.
-- [ ] T003 [P] Create `vitest.config.ts` at the repository root. Include `packages/*/test/**/*.test.ts`, and alias `@domusops/schema` to `packages/schema/src/index.ts`, so that tests never depend on a prior `tsc -b` build. Remove the per-package `"test"` scripts from `packages/schema/package.json` and `packages/mcp/package.json`; tests run from the root config only.
-- [ ] T004 [P] Extend `eslint.config.js` so its TypeScript `files` glob covers `packages/*/test/**/*.ts` in addition to `packages/*/src/**/*.ts`. Keep the `recommended` rules only.
-- [ ] T005 [P] Create `packages/schema/tsconfig.test.json` and `packages/mcp/tsconfig.test.json`. Each extends `../../tsconfig.base.json` with `"noEmit": true`, `"composite": false`, `"rootDir": "."`, and `"include": ["src", "test"]`.
-- [ ] T006 Update the `typecheck` script in the root `package.json` to `tsc -b --pretty && tsc -p packages/schema/tsconfig.test.json && tsc -p packages/mcp/tsconfig.test.json` (depends on T005).
+- [X] T001 Create branch `001-ha-snapshot` from an up-to-date `main` (`git checkout -b 001-ha-snapshot`), carrying the uncommitted `specs/001-ha-snapshot/` directory. Commit it alone as `docs: add ha-snapshot spec, plan, and tasks`. `main` is protected (constitution §9), so all work happens on this branch.
+- [X] T002 Update `packages/mcp/package.json`: add `"zod": "^4.6.5"` to `dependencies` (the SDK takes zod schemas, and the package imports zod directly). Add `"ws"` and `"@types/ws"` to `devDependencies`. Remove the dangling `"main"` and `"types"` fields (there is no `src/index.ts`) and keep `"bin": { "domusops-mcp": "./dist/cli.js" }`. Then run `pnpm install`. Never hand-edit `pnpm-lock.yaml`; the `guard-scope` hook blocks it.
+- [X] T003 [P] Create `vitest.config.ts` at the repository root. Include `packages/*/test/**/*.test.ts`, and alias `@domusops/schema` to `packages/schema/src/index.ts`, so that tests never depend on a prior `tsc -b` build. Remove the per-package `"test"` scripts from `packages/schema/package.json` and `packages/mcp/package.json`; tests run from the root config only.
+- [X] T004 [P] Extend `eslint.config.js` so its TypeScript `files` glob covers `packages/*/test/**/*.ts` in addition to `packages/*/src/**/*.ts`. Keep the `recommended` rules only.
+- [X] T005 [P] Create `packages/schema/tsconfig.test.json` and `packages/mcp/tsconfig.test.json`. Each extends `../../tsconfig.base.json` with `"noEmit": true`, `"composite": false`, `"rootDir": "."`, and `"include": ["src", "test"]`.
+- [X] T006 Update the `typecheck` script in the root `package.json` to `tsc -b --pretty && tsc -p packages/schema/tsconfig.test.json && tsc -p packages/mcp/tsconfig.test.json` (depends on T005).
 
 ---
 
