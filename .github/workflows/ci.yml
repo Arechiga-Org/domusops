@@ -30,4 +30,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: sandbox not implemented yet
-        run: echo "TODO: ./packages/sandbox/ci/run.sh --ha ${{ matrix.ha-version }}"
+        run: |
+          echo "TODO: ./packages/sandbox/ci/run.sh --ha ${{ matrix.ha-version }}"
