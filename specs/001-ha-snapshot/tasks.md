@@ -50,20 +50,20 @@ every story depends on
 
 ### Format contract (`@domusops/schema`)
 
-- [ ] T007 [P] Create `packages/schema/src/format.ts`:
+- [X] T007 [P] Create `packages/schema/src/format.ts`:
   - `FORMAT = "domusops.snapshot/0.1"` and `DetailLevel = "summary" | "standard" | "full"`.
   - The envelope type, with `format`, `detail`, `ha_version`, and `compression_ratio`, all snake_case (data-model §2).
   - Types for the `standard` document (`config`, `areas`, `entries`, `templates`, `devices`, `integrations`; data-model §3), the `summary` document (data-model §4), and the `full` document (the same structure as `standard`, with `detail: "full"`; data-model §5).
   - `Template = { const: Record<string, unknown>; cols: string[] }`.
   - Raw input record types for core config, state, entity registry entry, device, area, and config entry (data-model §1). Every field except the record's own ID is optional, and each type has an index signature for unknown fields.
-- [ ] T008 [P] Create `packages/schema/src/omitted.ts` exporting `OMITTED_FIELDS`, keyed by record kind, verbatim from data-model §6:
+- [X] T008 [P] Create `packages/schema/src/omitted.ts` exporting `OMITTED_FIELDS`, keyed by record kind, verbatim from data-model §6:
   - entity registry: `id`, `unique_id`, `created_at`, `modified_at`
   - device: `connections`, `identifiers`, `created_at`, `modified_at`
   - area: `created_at`, `modified_at`
   - config entry: `created_at`, `modified_at`
   - state: `last_changed`, `last_updated`, `last_reported`, `context`
   - core config: `config_dir`, `allowlist_external_dirs`, `allowlist_external_urls`, `whitelist_external_dirs`, `components`, `internal_url`, `external_url`
-- [ ] T009 [P] Create `packages/schema/src/defaults.ts` exporting `DEFAULTS`, keyed by record kind, verbatim from data-model §7:
+- [X] T009 [P] Create `packages/schema/src/defaults.ts` exporting `DEFAULTS`, keyed by record kind, verbatim from data-model §7:
   - entity registry: `area_id: null`, `categories: {}`, `config_subentry_id: null`, `disabled_by: null`, `entity_category: null`, `has_entity_name: true`, `hidden_by: null`, `icon: null`, `labels: []`, `name: null`, `options: {}`, `original_name: null`, `translation_key: null`
   - device: `area_id: null`, `configuration_url: null`, `config_entry_id: null`, `config_subentry_id: null`, `disabled_by: null`, `entry_type: null`, `hw_version: null`, `labels: []`, `manufacturer: null`, `model: null`, `model_id: null`, `name_by_user: null`, `parent_device_id: null`, `serial_number: null`, `sw_version: null`, `via_device_id: null`
   - device, derived (exported as functions): `primary_config_entry` equals the only entry when `config_entries` has exactly one element; `config_entries_subentries` equals `{ <entry>: [null] }` for each entry
@@ -73,26 +73,26 @@ every story depends on
 
   Default comparison is deep equality.
 
-- [ ] T010 [P] Create `packages/schema/src/redaction.ts` exporting `REDACTION_MARKER = "[redacted]"`.
-- [ ] T011 Replace `packages/schema/src/index.ts`: remove the camelCase placeholder `HaSnapshot` (`schemaVersion`, `compressionRatio`) and re-export everything from `format.ts`, `omitted.ts`, `defaults.ts`, and `redaction.ts`. Update the header comment to reference `docs/SEED.md` and constitution §5, not `01-SEED.md` (depends on T007 to T010).
+- [X] T010 [P] Create `packages/schema/src/redaction.ts` exporting `REDACTION_MARKER = "[redacted]"`.
+- [X] T011 Replace `packages/schema/src/index.ts`: remove the camelCase placeholder `HaSnapshot` (`schemaVersion`, `compressionRatio`) and re-export everything from `format.ts`, `omitted.ts`, `defaults.ts`, and `redaction.ts`. Update the header comment to reference `docs/SEED.md` and constitution §5, not `01-SEED.md` (depends on T007 to T010).
 
 ### Home Assistant client (`@domusops/mcp`, `src/ha/` is the only code that talks to Home Assistant)
 
-- [ ] T012 [P] Create `packages/mcp/src/errors.ts`:
+- [X] T012 [P] Create `packages/mcp/src/errors.ts`:
   - `SnapshotError extends Error`, with a `kind` field.
   - `ErrorKind` is exactly: `config_missing`, `config_invalid`, `unreachable`, `timeout`, `version_unsupported`, `auth_invalid`, `not_admin`, `retrieval_failed`, `protocol_error` (data-model §9).
   - The constructor takes a cause and a next step, and must never receive the token.
-- [ ] T013 [P] Create `packages/mcp/src/ha/config.ts` with `readConfig(env)`, called on every invocation, never at startup:
+- [X] T013 [P] Create `packages/mcp/src/ha/config.ts` with `readConfig(env)`, called on every invocation, never at startup:
   - Read `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`.
   - The URL must be `http://host[:port]` or `https://host[:port]`, with an optional trailing slash.
   - Map `http` to `ws://<host>[:port]/api/websocket` and `https` to `wss://…/api/websocket`.
   - Throw `config_missing` naming the missing variable, and `config_invalid` stating the expected URL form.
   - Return `{ baseUrl, wsUrl, token }`.
-- [ ] T014 [P] Create `packages/mcp/src/ha/version.ts`:
+- [X] T014 [P] Create `packages/mcp/src/ha/version.ts`:
   - `MIN_VERSION = "2025.1.0"`.
   - Parse versions as `YEAR.MONTH.PATCH`. Beta builds (`2026.10.0b3`) and dev builds (`2026.10.0.dev20260915`) compare by their base version.
   - `isSupported(version)`. An unparseable version is a `protocol_error`.
-- [ ] T015 Create `packages/mcp/src/ha/client.ts` using Node 22's global `WebSocket`, with no WebSocket package at runtime (depends on T012, T014). Behaviour:
+- [X] T015 Create `packages/mcp/src/ha/client.ts` using Node 22's global `WebSocket`, with no WebSocket package at runtime (depends on T012, T014). Behaviour:
   - Wait for `auth_required`, read its `ha_version`, and throw `version_unsupported` **before** sending the token when it is below `MIN_VERSION`.
   - Send `{ "type": "auth", "access_token": <token> }`. Continue on `auth_ok`; throw `auth_invalid` on `auth_invalid`.
   - Send commands with unique, incrementing integer IDs and resolve each on its `result`. `success: false` throws `retrieval_failed` with the command, `error.code`, and `error.message`.
@@ -100,17 +100,17 @@ every story depends on
   - Timeouts: 10 s to connect and authenticate, 10 s per command, and 30 s overall; exceeding any of them throws `timeout` naming the phase. The timeouts are injectable for tests.
   - A connection error or drop throws `unreachable` before auth and `retrieval_failed` after auth.
   - Always close the socket. Never log or embed the token.
-- [ ] T016 Create `packages/mcp/src/ha/retrieve.ts` with `retrieve(client)` (depends on T015):
+- [X] T016 Create `packages/mcp/src/ha/retrieve.ts` with `retrieve(client)` (depends on T015):
   - Call `auth/current_user` and throw `not_admin` when `is_admin` is not `true`.
   - Then send the six data commands concurrently (pipelined) and await them all. The result is all-or-nothing: any failure throws `retrieval_failed` naming which retrieval failed.
   - Return `{ haVersion, config, states, entityRegistry, deviceRegistry, areaRegistry, configEntries }`.
-- [ ] T017 [P] Create `packages/mcp/src/snapshot/ratio.ts`:
+- [X] T017 [P] Create `packages/mcp/src/snapshot/ratio.ts`:
   - `measureRawBytes(retrieved)` is the sum of the UTF-8 byte lengths of `JSON.stringify(result)` for the six data retrievals, measured **before redaction**. The serialisation is discarded, never returned.
   - `finalize(doc)` serialises `doc` minified with `compression_ratio: 0`, computes `raw / emitted` rounded to two decimals, and returns the final minified text with the real ratio (research R7).
 
 ### Test infrastructure
 
-- [ ] T018 [P] Create `packages/mcp/test/fixtures/generate.ts`: a deterministic generator built on a seeded PRNG (for example mulberry32), `generate(entityCount, seed)`.
+- [X] T018 [P] Create `packages/mcp/test/fixtures/generate.ts`: a deterministic generator built on a seeded PRNG (for example mulberry32), `generate(entityCount, seed)`.
   - Output: raw payloads shaped exactly like data-model §1: `get_config`, `get_states`, the entity, device, and area registries, `config_entries/get`, and `auth/current_user` with `is_admin: true`.
   - Mix modelled on typical installations (research R9): sensors dominant, then binary sensors, lights, switches, automations, updates, and a few cameras, media players, climate devices, people, and zones.
   - Also include:
@@ -125,7 +125,7 @@ every story depends on
     - non-ASCII names in areas, devices, and `friendly_name` (for example `Küche`, `客厅`, emoji).
   - Calibration, fixed before encoder work (changing it requires a comment in `generate.ts` explaining why): raw fields carry realistic high-entropy values, namely a 32-hex registry `id`, a `unique_id` of 12 to 40 characters, float `created_at`/`modified_at`, ISO `last_changed`/`last_updated`/`last_reported` with microseconds, a 26-character `context.id`, and MAC `connections`. Every `friendly_name` is distinct, and numeric attribute values vary per entity.
   - Export `REFERENCE_500 = generate(500, 500)`, `PERF_1000 = generate(1000, 1000)`, and `EMPTY = generate(0, 0)` (core config only; no entities, devices, or areas).
-- [ ] T019 [P] Create `packages/mcp/test/support/fake-ha.ts`, a `ws`-based fake instance on an ephemeral port.
+- [X] T019 [P] Create `packages/mcp/test/support/fake-ha.ts`, a `ws`-based fake instance on an ephemeral port.
   - It sends `auth_required` with a configurable `ha_version`, validates the token, and replies `auth_ok`, or `auth_invalid` followed by close.
   - It serves the fixture payloads as `result` messages.
   - It records every received command type.

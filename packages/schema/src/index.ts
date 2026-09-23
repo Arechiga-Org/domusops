@@ -1,19 +1,13 @@
 /**
  * @domusops/schema — public, stable contract.
  *
- * Paid packages depend on this package; it never depends on them.
- * See constitution §5.
+ * Defines the `domusops.snapshot/0.1` format and a reference decoder for it. Paid packages depend
+ * on this package; it never depends on them (constitution §5). See `docs/SEED.md`.
  */
 
-export type DetailLevel = "summary" | "standard" | "full";
-
-/**
- * Placeholder for the ha_snapshot output contract.
- * Fill in during /speckit.plan for the ha-snapshot feature (see 01-SEED.md §5).
- */
-export interface HaSnapshot {
-  readonly schemaVersion: "0.0.0";
-  readonly detail: DetailLevel;
-  readonly compressionRatio: number;
-  // entities, devices, integrations, areas, haVersion — TODO in first feature
-}
+export * from "./format.js";
+export * from "./omitted.js";
+export * from "./defaults.js";
+export * from "./redaction.js";
+export * from "./keyspace.js";
+export * from "./util.js";
