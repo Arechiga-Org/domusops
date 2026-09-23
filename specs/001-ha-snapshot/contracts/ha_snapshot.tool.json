@@ -1,0 +1,23 @@
+{
+  "name": "ha_snapshot",
+  "title": "Inventory snapshot for Home Assistant",
+  "description": "Read-only inventory of the connected Home Assistant instance: every entity (with current state and attributes), device, area, integration and config entry, plus the core version. Returned as compact JSON in the domusops.snapshot/0.1 format. detail=summary gives counts and topology only; standard (default) is grouped, templated and at least 10x smaller than the raw registries on a 500-entity reference instance (asserted in CI); full keeps every field, including those standard omits, in the same lossless encoding. Secrets and coordinates are always redacted. Every response reports its compression_ratio. Requires DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN (administrator user).",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "detail": {
+        "type": "string",
+        "enum": ["summary", "standard", "full"],
+        "default": "standard",
+        "description": "summary: counts and topology only. standard: compressed full inventory. full: every field, including those standard omits (escape hatch; larger)."
+      }
+    },
+    "additionalProperties": false
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true
+  }
+}
