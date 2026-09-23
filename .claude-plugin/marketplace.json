@@ -1,0 +1,12 @@
+{
+  "name": "domusops",
+  "owner": "Arechiga-Org",
+  "description": "Free GitOps skills for Home Assistant",
+  "plugins": [
+    {
+      "name": "ha-bootstrap",
+      "source": "./skills/ha-bootstrap",
+      "description": "Scaffold an opinionated GitOps repository layout for an existing or new Home Assistant instance."
+    }
+  ]
+}

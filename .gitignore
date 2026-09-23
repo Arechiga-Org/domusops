@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo/
+
+# Claude Code
+.claude/settings.local.json
+.claude/scratch/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+
+# Env
+.env
+.env.local

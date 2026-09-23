@@ -1,0 +1,25 @@
+{
+  "name": "@domusops/mcp",
+  "version": "0.0.0",
+  "description": "MCP server exposing GitOps-oriented tools for Home Assistant",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "domusops-mcp": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@domusops/schema": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  # Constitution §8: the supported-version matrix is proven here, not
+  # hand-written in the README. Activated once @domusops/sandbox exists
+  # (backlog item 3 in 01-SEED.md §6) — currently a no-op placeholder.
+  sandbox-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ha-version: [stable, stable-1, beta]
+    steps:
+      - uses: actions/checkout@v4
+      - name: sandbox not implemented yet
+        run: echo "TODO: ./packages/sandbox/ci/run.sh --ha ${{ matrix.ha-version }}"
