@@ -3,6 +3,7 @@ import { readConfig } from "../ha/config.js";
 import { retrieve } from "../ha/retrieve.js";
 import { encodeStandard } from "../snapshot/encode-standard.js";
 import { project } from "../snapshot/project.js";
+import { redact } from "../snapshot/redact.js";
 import { finalize, measureRawBytes } from "../snapshot/ratio.js";
 
 export interface RunOptions {
@@ -25,8 +26,10 @@ export async function runSnapshot(
   });
   try {
     const retrieved = await retrieve(client);
+    // The raw size is measured on the data as returned; everything after this point is redacted.
     const rawBytes = measureRawBytes(retrieved.records);
-    const projected = project(retrieved.records, { omit: true });
+    const redacted = redact(retrieved.records, config.token);
+    const projected = project(redacted, { omit: true });
     const document = encodeStandard(projected, retrieved.haVersion);
     return finalize(document, rawBytes);
   } finally {

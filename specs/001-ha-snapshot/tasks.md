@@ -212,7 +212,7 @@ planted secret or coordinate appears in the `standard` output.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T031 [P] [US2] Create `packages/mcp/test/fixtures/redaction.json`, a small raw payload set with distinct high-entropy planted secrets (at least 24 characters each) in:
+- [X] T031 [P] [US2] Create `packages/mcp/test/fixtures/redaction.json`, a small raw payload set with distinct high-entropy planted secrets (at least 24 characters each) in:
   - an entity attribute named `access_token`;
   - a nested registry `options` key `api_key`;
   - an `entity_picture` URL query `?token=…`;
@@ -227,16 +227,16 @@ planted secret or coordinate appears in the `standard` output.
 
   Also list the planted values in an `expected_absent` array, and include an entity ID that looks like a secret, to prove identifiers are never redacted.
 
-- [ ] T032 [P] [US2] Create `packages/mcp/test/redact.test.ts` with one unit test per rule (K1, V1 to V6, C1; data-model §8). Assert that:
+- [X] T032 [P] [US2] Create `packages/mcp/test/redact.test.ts` with one unit test per rule (K1, V1 to V6, C1; data-model §8). Assert that:
   - the field stays present with `REDACTION_MARKER`;
   - inside a URL, only the secret substring is replaced and the path survives;
   - values of every key on the closed exemption list of data-model §8 are untouched, even when they look like a secret;
   - `token_expiry`-style false positives are accepted, meaning they are redacted.
-- [ ] T033 [P] [US2] Create `packages/mcp/test/redaction-oracle.test.ts`: run `runSnapshot` against `fake-ha` serving `redaction.json`, and assert that for every `expected_absent` value, no contiguous substring of six or more characters appears in the output text (spec Assumptions, data-model §8 oracle). Parametrise it over detail levels, so that US4 can add `summary` and `full`.
+- [X] T033 [P] [US2] Create `packages/mcp/test/redaction-oracle.test.ts`: run `runSnapshot` against `fake-ha` serving `redaction.json`, and assert that for every `expected_absent` value, no contiguous substring of six or more characters appears in the output text (spec Assumptions, data-model §8 oracle). Parametrise it over detail levels, so that US4 can add `summary` and `full`.
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Create `packages/mcp/src/snapshot/redact.ts` with `redact(retrieved, configuredToken)`. It returns a deep copy with the rules applied verbatim from data-model §8:
+- [X] T034 [US2] Create `packages/mcp/src/snapshot/redact.ts` with `redact(retrieved, configuredToken)`. It returns a deep copy with the rules applied verbatim from data-model §8:
   - **K1**: keys normalised to lowercase tokens (split on `_`, `-`, `.`, and camelCase) containing `token`, `password`, `passwd`, `secret`, `apikey`, `credential(s)`, `authorization`, `bearer`, or `webhook`, or the pairs `api key`, `private key`, `secret key`, `access key`, `auth key`, or `encryption key`. The whole value is replaced.
   - **V1**: URL query parameters named as in K1, plus `key`, `sig`, `signature`, and `auth`. The parameter value is replaced.
   - **V2**: the password in `scheme://user:password@host`.
@@ -248,7 +248,7 @@ planted secret or coordinate appears in the `standard` output.
 
   V1 to V6 apply to every string, at any depth. Values of the keys on the closed exemption list of data-model §8 are never redacted. Replacement uses `REDACTION_MARKER` from `@domusops/schema`.
 
-- [ ] T035 [US2] Wire redaction into `packages/mcp/src/tools/ha-snapshot.ts`. `measureRawBytes` runs on the unredacted data, then `redact(retrieved, config.token)` runs **before** `project`/`encodeStandard` and before any serialisation for output (FR-015). No code path passes unredacted records to an encoder.
+- [X] T035 [US2] Wire redaction into `packages/mcp/src/tools/ha-snapshot.ts`. `measureRawBytes` runs on the unredacted data, then `redact(retrieved, config.token)` runs **before** `project`/`encodeStandard` and before any serialisation for output (FR-015). No code path passes unredacted records to an encoder.
 
 **Checkpoint**: US1 and US2 pass together. This is the MVP, and the first point at which the
 branch may be merged.

@@ -1,0 +1,299 @@
+{
+  "haVersion": "2026.9.1",
+  "user": {
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "name": "Owner",
+    "is_owner": true,
+    "is_admin": true
+  },
+  "records": {
+    "config": {
+      "latitude": 41.385064,
+      "longitude": 2.173404,
+      "elevation": 731.25,
+      "radius": 100,
+      "location_name": "Home",
+      "time_zone": "Europe/Madrid",
+      "version": "2026.9.1",
+      "internal_url": "http://192.168.1.10:8123",
+      "external_url": null,
+      "components": ["light", "sensor"],
+      "config_dir": "/config"
+    },
+    "states": [
+      {
+        "entity_id": "camera.porch",
+        "state": "idle",
+        "attributes": {
+          "access_token": "Kq3vZ8xN2mP7wR4tY9bL6cD1fG5hJ0sA",
+          "entity_picture": "/api/camera_proxy/camera.porch?token=7f3a9c2e51b8d4066e1a8b3c5d7f9e2a",
+          "friendly_name": "Porch camera"
+        },
+        "last_changed": "2026-09-21T10:00:00.000001+00:00",
+        "last_updated": "2026-09-21T10:00:00.000002+00:00",
+        "last_reported": "2026-09-21T10:00:00.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A1",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "person.jane",
+        "state": "home",
+        "attributes": {
+          "latitude": 40.416775,
+          "longitude": -3.70379,
+          "gps_accuracy": 12,
+          "friendly_name": "Jane",
+          "source": "device_tracker.jane_phone"
+        },
+        "last_changed": "2026-09-21T10:00:01.000001+00:00",
+        "last_updated": "2026-09-21T10:00:01.000002+00:00",
+        "last_reported": "2026-09-21T10:00:01.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A2",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "device_tracker.jane_phone",
+        "state": "home",
+        "attributes": {
+          "gps": [35.689487, 139.691711],
+          "location": "35.689487,139.691711",
+          "friendly_name": "Jane phone"
+        },
+        "last_changed": "2026-09-21T10:00:02.000001+00:00",
+        "last_updated": "2026-09-21T10:00:02.000002+00:00",
+        "last_reported": "2026-09-21T10:00:02.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A3",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "zone.work",
+        "state": "0",
+        "attributes": {
+          "latitude": 48.856613,
+          "longitude": 2.352222,
+          "radius": 100,
+          "friendly_name": "Work"
+        },
+        "last_changed": "2026-09-21T10:00:03.000001+00:00",
+        "last_updated": "2026-09-21T10:00:03.000002+00:00",
+        "last_reported": "2026-09-21T10:00:03.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A4",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "sensor.notes_jwt",
+        "state": "ok",
+        "attributes": {
+          "note": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItMTIzNDU2Nzg5MCIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+          "friendly_name": "JWT note"
+        },
+        "last_changed": "2026-09-21T10:00:04.000001+00:00",
+        "last_updated": "2026-09-21T10:00:04.000002+00:00",
+        "last_reported": "2026-09-21T10:00:04.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A5",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "sensor.notes_bearer",
+        "state": "ok",
+        "attributes": {
+          "header": "Sent with Bearer 3nPq8Vt2Lx7Ck1Wd9Hy4Rb6Mz0Fg5JaS earlier",
+          "friendly_name": "Bearer note"
+        },
+        "last_changed": "2026-09-21T10:00:05.000001+00:00",
+        "last_updated": "2026-09-21T10:00:05.000002+00:00",
+        "last_reported": "2026-09-21T10:00:05.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A6",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "sensor.configured_token_echo",
+        "state": "ok",
+        "attributes": {
+          "note": "fake-test-token-0123456789",
+          "friendly_name": "Token echo"
+        },
+        "last_changed": "2026-09-21T10:00:06.000001+00:00",
+        "last_updated": "2026-09-21T10:00:06.000002+00:00",
+        "last_reported": "2026-09-21T10:00:06.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A7",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "sensor.email_note",
+        "state": "ok",
+        "attributes": {
+          "note2": "reach me at zq7xk2mv9lp4wt@vh8rn5xy.org today",
+          "friendly_name": "Email note"
+        },
+        "last_changed": "2026-09-21T10:00:07.000001+00:00",
+        "last_updated": "2026-09-21T10:00:07.000002+00:00",
+        "last_reported": "2026-09-21T10:00:07.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A8",
+          "parent_id": null,
+          "user_id": null
+        }
+      },
+      {
+        "entity_id": "sensor.secret_password_token",
+        "state": "ok",
+        "attributes": { "friendly_name": "Secret password token status" },
+        "last_changed": "2026-09-21T10:00:08.000001+00:00",
+        "last_updated": "2026-09-21T10:00:08.000002+00:00",
+        "last_reported": "2026-09-21T10:00:08.000003+00:00",
+        "context": {
+          "id": "01J8Z0000000000000000000A9",
+          "parent_id": null,
+          "user_id": null
+        }
+      }
+    ],
+    "entity_registry": [
+      {
+        "area_id": null,
+        "categories": {},
+        "config_entry_id": "01J8ZSECRETENTRY000000001",
+        "config_subentry_id": null,
+        "created_at": 1726000000.5,
+        "device_id": "9f8e7d6c5b4a39281706f5e4d3c2b1a0",
+        "disabled_by": null,
+        "entity_category": null,
+        "entity_id": "camera.porch",
+        "has_entity_name": true,
+        "hidden_by": null,
+        "icon": null,
+        "id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "labels": [],
+        "modified_at": 1726000001.5,
+        "name": null,
+        "options": {
+          "api_key": "apik_9Xc2VbN7mQ4wE8rT1yU6iO3pA5sD",
+          "webhook_id": "b7c9d1e3f5a7b9c1d3e5f7a9b1c3d5e7",
+          "conversation": { "should_expose": false }
+        },
+        "original_name": "Camera",
+        "platform": "nest",
+        "translation_key": null,
+        "unique_id": "cam-porch-0001"
+      },
+      {
+        "area_id": null,
+        "categories": {},
+        "config_entry_id": null,
+        "config_subentry_id": null,
+        "created_at": 1726000002.5,
+        "device_id": null,
+        "disabled_by": null,
+        "entity_category": null,
+        "entity_id": "sensor.secret_password_token",
+        "has_entity_name": true,
+        "hidden_by": null,
+        "icon": null,
+        "id": "cccccccccccccccccccccccccccccccc",
+        "labels": [],
+        "modified_at": 1726000003.5,
+        "name": null,
+        "options": {},
+        "original_name": "Status",
+        "platform": "template",
+        "translation_key": null,
+        "unique_id": "status-1"
+      }
+    ],
+    "device_registry": [
+      {
+        "area_id": null,
+        "config_entries": ["01J8ZSECRETENTRY000000001"],
+        "config_entries_subentries": { "01J8ZSECRETENTRY000000001": [null] },
+        "configuration_url": "https://admin:Zx9Qw3Er7Ty1Ui5Op8As2Df6Gh@192.168.1.50:8080/",
+        "connections": [],
+        "created_at": 1726000004.5,
+        "disabled_by": null,
+        "entry_type": null,
+        "hw_version": null,
+        "id": "9f8e7d6c5b4a39281706f5e4d3c2b1a0",
+        "identifiers": [["nest", "porch-cam"]],
+        "labels": [],
+        "manufacturer": "Google Inc.",
+        "model": "Nest Cam",
+        "model_id": null,
+        "modified_at": 1726000005.5,
+        "name_by_user": null,
+        "name": "Porch",
+        "primary_config_entry": "01J8ZSECRETENTRY000000001",
+        "serial_number": null,
+        "sw_version": "1.0.0",
+        "via_device_id": null,
+        "config_entry_id": null,
+        "config_subentry_id": null
+      }
+    ],
+    "area_registry": [],
+    "config_entries": [
+      {
+        "created_at": 1726000006.5,
+        "entry_id": "01J8ZSECRETENTRY000000001",
+        "domain": "nest",
+        "modified_at": 1726000007.5,
+        "title": "Nest (hv3kq9zx7m2p@t8w5rn4b.net)",
+        "source": "user",
+        "state": "loaded"
+      }
+    ]
+  },
+  "token": "fake-test-token-0123456789",
+  "expected_absent": [
+    "Kq3vZ8xN2mP7wR4tY9bL6cD1fG5hJ0sA",
+    "7f3a9c2e51b8d4066e1a8b3c5d7f9e2a",
+    "apik_9Xc2VbN7mQ4wE8rT1yU6iO3pA5sD",
+    "b7c9d1e3f5a7b9c1d3e5f7a9b1c3d5e7",
+    "Zx9Qw3Er7Ty1Ui5Op8As2Df6Gh",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItMTIzNDU2Nzg5MCIsImlhdCI6MTUxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+    "3nPq8Vt2Lx7Ck1Wd9Hy4Rb6Mz0Fg5JaS",
+    "fake-test-token-0123456789",
+    "hv3kq9zx7m2p@t8w5rn4b.net",
+    "zq7xk2mv9lp4wt@vh8rn5xy.org",
+    "41.385064",
+    "2.173404",
+    "731.25",
+    "40.416775",
+    "3.70379",
+    "48.856613",
+    "2.352222",
+    "35.689487",
+    "139.691711"
+  ],
+  "expected_present": [
+    "camera.porch",
+    "person.jane",
+    "device_tracker.jane_phone",
+    "zone.work",
+    "sensor.notes_jwt",
+    "sensor.notes_bearer",
+    "sensor.configured_token_echo",
+    "sensor.email_note",
+    "sensor.secret_password_token"
+  ]
+}
