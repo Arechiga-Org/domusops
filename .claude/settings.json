@@ -3,14 +3,20 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/session-start.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-start.sh"
+          }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/inject-spec-path.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/inject-spec-path.sh"
+          }
         ]
       }
     ],
@@ -18,9 +24,18 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/guard-language.sh" },
-          { "type": "command", "command": "bash .claude/hooks/guard-scope.sh" },
-          { "type": "command", "command": "bash .claude/hooks/guard-secrets.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/guard-language.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/guard-scope.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/guard-secrets.sh"
+          }
         ]
       }
     ],
@@ -28,28 +43,40 @@
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/post-write-format.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-write-format.sh"
+          }
         ]
       }
     ],
     "PreCompact": [
       {
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/precompact-dump.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/precompact-dump.sh"
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/stop-gate.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/stop-gate.sh"
+          }
         ]
       }
     ],
     "SessionEnd": [
       {
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/session-end.sh" }
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-end.sh"
+          }
         ]
       }
     ]
