@@ -146,10 +146,22 @@ later.
 
 **Rationale and budget**: the estimates below come from the verified serializer field lists.
 Raw data per entity is about 1.1–1.3 KB (state ~600 B, registry entry ~450 B, amortised device
-~200 B). The 10× floor therefore allows about 110–130 B per entity in `standard`. An entity ID
+~200 B). A 10× ratio would allow about 110–130 B per entity in `standard`; the estimate below turned out
+optimistic (see the measured result after this section). An entity ID
 (~30 B), a state value, a device alias, and a few variable attribute values fit. Per-entity key
 names (the dominant cost in raw JSON), per-entity 32-character device IDs, and 26-character config
 entry IDs would not. That is why columns, aliases, and grouping are all needed together.
+
+**Measured result** (calibrated 500-entity fixture, raw about 1.25 KB per entity): the plain
+grouping and template scheme gave 4.67x. Two further lossless mechanisms brought it to 5.65x:
+extras objects (records with optional keys join a template instead of falling back to inline
+objects, which were 47 KB of a 136 KB output) and shape by keys without defaults (default elision
+was fragmenting shapes). Splitting templates by column value adds about 12%. Further gains are
+bounded: deriving `friendly_name` would give 6.6x, and additionally omitting `original_name`,
+`translation_key`, `options`, and the device version, serial, and URL fields would give 9.4x. The
+raw floor of entity IDs, states, and device IDs and names alone is about 32 KB. The maintainer chose
+a CI floor of 5x with the design unchanged (spec Clarifications), keeping 10x as a goal for the live
+instance (SC-008).
 
 **Alternatives considered**:
 
@@ -222,11 +234,11 @@ omission list of `standard`, so they only appear in `full`.
 - **Round trip**: `expand(standard) == project(full)`, using the reference decoder published in
   `@domusops/schema`. This proves both FR-008 (every entity ID) and FR-009 (lossless modulo the
   omission list).
-- **CI floor**: a test asserts `compression_ratio >= 10` on the 500-entity fixture. It runs in the
+- **CI floor**: a test asserts `compression_ratio >= 5` on the 500-entity fixture. It runs in the
   existing `verify` job.
 
 **Risk**: a synthetic fixture is more regular than a real installation, so it may overstate the
-ratio. The live check (SC-008) is the counterweight. If the live ratio falls below 10, that blocks
+ratio. The live check (SC-008) is the counterweight. If the live ratio falls below 5, that blocks
 release and the fixture is recalibrated. Committing a capture of a real instance was rejected: it
 would put personal data into a public repository.
 

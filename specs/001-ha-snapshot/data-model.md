@@ -129,10 +129,17 @@ Templates and inline records use one flat key space per entity:
 
 - attribute keys, unprefixed (`friendly_name`, `brightness`);
 - registry fields, prefixed with `reg.` (`reg.name`, `reg.area_id`, `reg.entity_category`,
-  `reg.options`). The prefix avoids collisions: both attributes and the registry have an `icon`.
+  `reg.options`). The prefix avoids collisions: both attributes and the registry have an `icon`;
+- state-object fields other than `state` and `attributes` (`last_changed`, `context`, ...),
+  prefixed with `st.`. They only exist in `full`, because `standard` omits them (§6).
+
+A key that could collide with a prefix or with a reserved key (`entity_id`, `state`, `device`,
+`alias`, `id`) is escaped with a leading `~`; decoding strips one `~`. So an attribute named
+`state` is the key `~state`.
 
 `platform`, `config_entry_id`, and `device_id` are not keys; they are implied by the tree position
-and the `device` column.
+and the `device` column. Decoding always restores them on an entity registry entry, as `null`
+when the entity has no config entry or no device.
 
 An entity's own area (`reg.area_id`) appears only when it is set. Its effective area is its own
 area if set, otherwise its device's area.
@@ -145,7 +152,22 @@ Given identical input, the output is byte-identical:
 - templates are numbered in order of first use, in a traversal sorted by integration, entry
   alias, domain, and entity ID;
 - object keys are emitted in sorted order, and `cols` in sorted key order;
-- a template is created for a shape shared by two or more records; single records are inline.
+- a template is created for a shape shared by three or more records. Records with fewer shapes
+  join a template whose keys they all contain, and carry their remaining keys in an extras object;
+  a shape shared by two records with no such template gets its own; anything else is inline.
+
+Templates are built as follows, and all of it is lossless:
+
+- **Shape**: the keys of a record that have no default (§7). Keys that do have a default do not
+  fragment shapes.
+- **Columns**: a key with a default becomes a column when any record of the template holds a
+  non-default value; records that omit it carry the default in that column. When every record holds
+  its default the key is left out of the template, because absence means the default.
+- **Extras**: a row may end with one more element, an object holding keys that are not part of the
+  template (present for that record only). A row shorter by that element has no extras.
+- **Value split**: a partition is split by the value of one column, giving each part its own
+  template, when that shrinks the output (correlated columns become constants).
+- Identical templates are shared, so a template key may be used in several groups.
 
 ### 3.4 References and orphans
 
@@ -204,7 +226,9 @@ config entry IDs), which is the set FR-017 enumerates. `unique_id`, `connections
 
 ## 7. Default values (elided in `standard` and `summary`)
 
-A field equal to its default is omitted. Decoding restores the default.
+A field equal to its default is omitted. Decoding restores the default. Within a template, a
+column may still hold an explicit default for records that omit the field (§3.3); a constant or an
+inline field never does.
 
 | Record          | Field defaults                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

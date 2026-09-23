@@ -139,14 +139,14 @@ story work can begin.
 ## Phase 3: User Story 1 - Full inventory within the context budget (Priority: P1) 🎯 MVP
 
 **Goal**: `ha_snapshot` with no parameters returns a complete `standard` snapshot, grouped,
-templated, and at least 10× smaller than the raw data.
+templated, and at least 5× smaller than the raw data.
 
 **Independent Test**: Against `REFERENCE_500`, every entity ID in the raw data (registries and
-states) appears in the output, and `compression_ratio >= 10`.
+states) appears in the output, and `compression_ratio >= 5`.
 
 ### Tests for User Story 1 ⚠️ (write first; confirm they fail)
 
-- [ ] T020 [P] [US1] Create `packages/schema/test/expand.test.ts`. On small hand-built `standard` documents, assert that `expand()` restores:
+- [X] T020 [P] [US1] Create `packages/schema/test/expand.test.ts`. On small hand-built `standard` documents, assert that `expand()` restores:
   - defaults (T009), including the derived device defaults;
   - template `const` and positional `cols`;
   - device aliases (`d<n>`), entry aliases (`e<n>`), and template aliases (`t<n>`);
@@ -154,7 +154,7 @@ states) appears in the output, and `compression_ratio >= 10`.
   - `"!"`-prefixed orphan references in every reference field of data-model §3.4;
   - a `null` state column restores no state record;
   - `reg.`-prefixed registry fields, kept separate from same-named attributes (for example `icon`).
-- [ ] T021 [P] [US1] Create `packages/mcp/test/encode.test.ts` over `REFERENCE_500`. Assert:
+- [X] T021 [P] [US1] Create `packages/mcp/test/encode.test.ts` over `REFERENCE_500`. Assert:
   - the fixture's raw size is between 900 and 1,600 bytes per entity (research R6 estimate), so the floor cannot be met by shrinking the raw side;
   - non-ASCII names are byte-identical to the input;
   - every entity ID in `states` ∪ `entity_registry` appears exactly once, as a row or an inline record (data-model §10.1);
@@ -163,22 +163,22 @@ states) appears in the output, and `compression_ratio >= 10`.
   - entity IDs are emitted in full;
   - grouping is `integration → entry group → domain → template key`;
   - no omitted field (T008) and no default-valued field (T009) appears.
-- [ ] T022 [P] [US1] Create `packages/mcp/test/roundtrip.test.ts`: for `REFERENCE_500`, assert that `expand(encodeStandard(retrieved))` deep-equals `project(retrieved)` (data-model §10.3, FR-008, FR-009).
-- [ ] T023 [P] [US1] Create `packages/mcp/test/tool.test.ts` (happy path). Start the MCP server in-process against `fake-ha` serving `REFERENCE_500` and call `ha_snapshot` with no arguments. Assert:
+- [X] T022 [P] [US1] Create `packages/mcp/test/roundtrip.test.ts`: for `REFERENCE_500`, assert that `expand(encodeStandard(retrieved))` deep-equals `project(retrieved)` (data-model §10.3, FR-008, FR-009).
+- [X] T023 [P] [US1] Create `packages/mcp/test/tool.test.ts` (happy path). Start the MCP server in-process against `fake-ha` serving `REFERENCE_500` and call `ha_snapshot` with no arguments. Assert:
   - exactly one `text` content block and no `structuredContent`;
   - the text parses to a document with `format: "domusops.snapshot/0.1"` and `detail: "standard"`.
 
-  Against `REFERENCE_500`, assert that the parsed `compression_ratio >= 10`. This is the CI floor (FR-023), asserted on the pipeline that ships (`runSnapshot`: redact → project → encode → finalize), not on the encoder alone. Against `PERF_1000`, assert the call completes in under 5,000 ms (SC-004). Against `EMPTY`, assert a valid snapshot with zero entities and a finite `compression_ratio`.
+  Against `REFERENCE_500`, assert that the parsed `compression_ratio >= 5`. This is the CI floor (FR-023), asserted on the pipeline that ships (`runSnapshot`: redact → project → encode → finalize), not on the encoder alone. Against `PERF_1000`, assert the call completes in under 5,000 ms (SC-004). Against `EMPTY`, assert a valid snapshot with zero entities and a finite `compression_ratio`.
 
 ### Implementation for User Story 1
 
-- [ ] T024 [P] [US1] Create `packages/schema/src/expand.ts`, the reference decoder `expand(standard)`. It rebuilds the projected records (entity registry entries, states, devices, areas, config entries, config) by restoring defaults, template constants, columns, aliases, and tree positions (data-model §3). Export it from `packages/schema/src/index.ts`.
-- [ ] T025 [P] [US1] Create `packages/mcp/src/snapshot/project.ts` with `project(retrieved, { omit })`. With `omit: true` it removes `OMITTED_FIELDS`; in both cases it elides values deep-equal to `DEFAULTS` (both from `@domusops/schema`), including the derived device defaults. `omit: false` is used by `full` (data-model §5). It returns the projected records used by the encoders and by the round-trip test.
-- [ ] T026 [P] [US1] Create `packages/mcp/src/snapshot/templates.ts`, the shape partitioning and template builder.
+- [X] T024 [P] [US1] Create `packages/schema/src/expand.ts`, the reference decoder `expand(standard)`. It rebuilds the projected records (entity registry entries, states, devices, areas, config entries, config) by restoring defaults, template constants, columns, aliases, and tree positions (data-model §3). Export it from `packages/schema/src/index.ts`.
+- [X] T025 [P] [US1] Create `packages/mcp/src/snapshot/project.ts` with `project(retrieved, { omit })`. With `omit: true` it removes `OMITTED_FIELDS`; in both cases it elides values deep-equal to `DEFAULTS` (both from `@domusops/schema`), including the derived device defaults. `omit: false` is used by `full` (data-model §5). It returns the projected records used by the encoders and by the round-trip test.
+- [X] T026 [P] [US1] Create `packages/mcp/src/snapshot/templates.ts`, the shape partitioning and template builder.
   - Partition records by the set of their non-default keys. Keys constant across a partition go to `const`; the rest are `cols`, in sorted key order.
   - A template is created only for partitions of two or more records; singletons are returned for inline emission.
   - Templates are numbered `t1…` in order of first use, in the deterministic traversal of data-model §3.3.
-- [ ] T027 [US1] Create `packages/mcp/src/snapshot/encode-standard.ts` with `encodeStandard(projected, haVersion)`, following data-model §3 (depends on T025, T026):
+- [X] T027 [US1] Create `packages/mcp/src/snapshot/encode-standard.ts` with `encodeStandard(projected, haVersion)`, following data-model §3 (depends on T025, T026):
   - Device aliases `d<n>` and entry aliases `e<n>` are assigned in ascending order of full ID, and each full ID is emitted once in its alias definition.
   - `devices` rows are `[alias, id, ...cols]`, with inline records under `"_"`.
   - `integrations` is keyed by registry `platform` → entry alias, `"_yaml"`, or `"!<entry_id>"` → domain → template key.
@@ -186,17 +186,17 @@ states) appears in the output, and `compression_ratio >= 10`.
   - State-only entities go under `"_unregistered"` → `"_none"`.
   - Attribute keys are unprefixed and registry fields use the `reg.` prefix. `reg.area_id` appears only when set.
   - Object keys are emitted in sorted order.
-- [ ] T028 [US1] Create `packages/mcp/src/tools/ha-snapshot.ts` with `runSnapshot(env)`: `readConfig` → client → `retrieve` → `measureRawBytes` → `project` → `encodeStandard` → `finalize` (depends on T013, T016, T017, T027). Return the minified text.
-- [ ] T029 [US1] Create `packages/mcp/src/server.ts` (depends on T028). It creates an `McpServer` from `@modelcontextprotocol/sdk` and registers `ha_snapshot` with:
+- [X] T028 [US1] Create `packages/mcp/src/tools/ha-snapshot.ts` with `runSnapshot(env)`: `readConfig` → client → `retrieve` → `measureRawBytes` → `project` → `encodeStandard` → `finalize` (depends on T013, T016, T017, T027). Return the minified text.
+- [X] T029 [US1] Create `packages/mcp/src/server.ts` (depends on T028). It creates an `McpServer` from `@modelcontextprotocol/sdk` and registers `ha_snapshot` with:
   - `title` and `description` copied verbatim from `specs/001-ha-snapshot/contracts/ha_snapshot.tool.json`;
   - annotations `readOnlyHint: true`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: true`;
   - no input parameters yet (`detail` arrives in US4).
 
   The handler returns `{ content: [{ type: "text", text }] }` and no `structuredContent` (research R5).
 
-- [ ] T030 [US1] Replace the stub `packages/mcp/src/cli.ts`. Keep the `#!/usr/bin/env node` shebang and start `server.ts` over the SDK's stdio transport. Stdout carries protocol traffic only; diagnostics go to stderr, prefixed `[domusops-mcp]`, and never include the token. Remove the stale comments that point to `01-SEED.md` and `specs/ha-snapshot/`.
+- [X] T030 [US1] Replace the stub `packages/mcp/src/cli.ts`. Keep the `#!/usr/bin/env node` shebang and start `server.ts` over the SDK's stdio transport. Stdout carries protocol traffic only; diagnostics go to stderr, prefixed `[domusops-mcp]`, and never include the token. Remove the stale comments that point to `01-SEED.md` and `specs/ha-snapshot/`.
 
-**Checkpoint**: US1 tests pass: `standard` works end to end with a ratio of at least 10. **Do not
+**Checkpoint**: US1 tests pass: `standard` works end to end with a ratio of at least 5. **Do not
 merge to `main` yet**. Without US2, the output can contain secrets, and `main` must stay
 releasable (§9).
 
@@ -374,7 +374,7 @@ returns only `ha_snapshot`.
 - [ ] T052 [P] Create `packages/mcp/README.md` covering:
   - what the tool does, "for Home Assistant" (nominative use only, §6);
   - the `DOMUSOPS_HA_URL`/`DOMUSOPS_HA_TOKEN` setup, including the administrator requirement and why;
-  - the three detail levels and the "at least 10x" compression claim with its fixture basis (§4);
+  - the three detail levels and the "at least 5x" compression claim (10x is a goal, not a claim) with its fixture basis (§4);
   - a link to the format in `specs/001-ha-snapshot/data-model.md`;
   - HTTPS with a self-signed certificate: set `NODE_EXTRA_CA_CERTS` to the CA file;
   - versions: only the refusal threshold (2025.1.0, stated as not a support claim) and a note that the supported-version matrix will be generated by the sandbox CI (constitution §8). No hand-written list of verified or supported versions.
@@ -387,7 +387,7 @@ returns only `ha_snapshot`.
   - `@domusops/schema` minor: "Add the `domusops.snapshot/0.1` format: types, omission list, defaults, redaction marker, JSON Schema, and reference decoder. Replaces the placeholder `HaSnapshot` type (breaking in 0.x)."
   - `@domusops/mcp` minor: "Add the `ha_snapshot` tool."
 - [ ] T056 Run `pnpm lint && pnpm typecheck && pnpm test` from the repository root and fix any failure. The `verify` CI job runs the same steps (quickstart.md scenario 1).
-- [ ] T057 Run quickstart.md scenario 3 against the maintainer's live instance with `detail=summary`, `standard`, and `full`, and scenario 4 (failure smoke test). Record only `ha_version`, the entity count, the `standard` compression ratio, and the wall-clock time in the pull request description, never snapshot content (SC-008). A ratio below 10 blocks release: recalibrate the fixture (T018) and revisit research R6.
+- [ ] T057 Run quickstart.md scenario 3 against the maintainer's live instance with `detail=summary`, `standard`, and `full`, and scenario 4 (failure smoke test). Record only `ha_version`, the entity count, the `standard` compression ratio, and the wall-clock time in the pull request description, never snapshot content (SC-008). A ratio below 5 blocks release: recalibrate the fixture (T018) and revisit research R6.
 
 ---
 
@@ -467,7 +467,7 @@ Task: "fake instance in packages/mcp/test/support/fake-ha.ts"
 
 1. Phase 1: Setup (branch, dependencies, test tooling).
 2. Phase 2: Foundational (format contract, client, fixtures, fake instance).
-3. Phase 3: US1. `standard` works and meets the 10× floor.
+3. Phase 3: US1. `standard` works and meets the 5× floor.
 4. Phase 4: US2. Redaction is in place. **Only now** is the branch releasable.
 5. **Stop and validate**: `pnpm lint && pnpm typecheck && pnpm test`, then open the pull request.
 

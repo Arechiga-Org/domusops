@@ -22,7 +22,7 @@ Expected: all green. The suite covers, against fixtures and a fake instance:
 
 | Check                                                                                                                                                       | Proves                 |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `standard` ratio ≥ 10 on the 500-entity reference fixture                                                                                                   | SC-001, FR-023         |
+| `standard` ratio ≥ 5 on the 500-entity reference fixture                                                                                                   | SC-001, FR-023         |
 | `expand(standard) == project(full)`; every entity ID present                                                                                                | SC-002, FR-008, FR-009 |
 | No six-character fragment of any planted secret, at every detail level                                                                                      | SC-003                 |
 | 1,000-entity fixture served by the fake instance completes in under 5 s                                                                                     | SC-004                 |
@@ -76,7 +76,7 @@ Expected: a single text block holding a `domusops.snapshot/0.1` document with
 
 Record, in the pull request description only: the instance's `ha_version`, its entity count (from
 `summary`), the `standard` compression ratio, and the wall-clock time. Never paste snapshot
-content: even redacted, it describes a private home. A ratio below 10 blocks release (see
+content: even redacted, it describes a private home. A ratio below 5 blocks release (see
 [research R9](./research.md#r9-test-strategy-and-fixtures)).
 
 ## 4. Failure smoke test

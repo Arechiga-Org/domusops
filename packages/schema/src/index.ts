@@ -11,3 +11,4 @@ export * from "./defaults.js";
 export * from "./redaction.js";
 export * from "./keyspace.js";
 export * from "./util.js";
+export * from "./expand.js";

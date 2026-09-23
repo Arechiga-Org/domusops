@@ -69,7 +69,7 @@ properties are rejected or ignored, as the MCP SDK does; a test (T043) pins whic
 | Every entity ID present in `standard` and `full` | FR-008                                             |
 | Redaction at every detail level                  | FR-013 to FR-017                                   |
 | `compression_ratio` in every successful result   | FR-012                                             |
-| `standard` ratio ≥ 10 on the reference fixture   | FR-023. Asserted in CI                             |
+| `standard` ratio ≥ 5 on the reference fixture   | FR-023. Asserted in CI                             |
 | Deterministic output for identical input         | data-model §3.3                                    |
 
 ## Versioning
