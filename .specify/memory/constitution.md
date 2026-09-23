@@ -1,7 +1,7 @@
 # DomusOps Constitution
 
 Non-negotiable. An agent may not waive, reinterpret, or scope-limit any
-article below. Source of truth: `01-SEED.md` §3 in the bootstrap package.
+article below. Source of truth: `docs/SEED.md` §3.
 
 ## §1 — English-only artifacts
 
@@ -66,3 +66,17 @@ user-visible change carries a changeset. Packages version independently.
 Paid distribution is access and continuous updates, not obfuscation. If a
 feature's value depends on the source never leaking, it is the wrong
 feature.
+
+## Governance
+
+Amendments require updating this file and recording the change in the
+commit message; no other approval process exists at this stage (single
+maintainer).
+
+Any PR or commit touching `.specify/memory/constitution.md` must explain
+which article changed and why.
+
+Compliance is enforced primarily through the hooks in `.claude/hooks/` and
+CI, not through manual review.
+
+**Version**: 1.0.0 | **Ratified**: 2026-09-23 | **Last Amended**: 2026-09-23
