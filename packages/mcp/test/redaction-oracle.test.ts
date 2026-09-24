@@ -15,13 +15,15 @@ afterEach(async () => {
   while (running.length > 0) await running.pop()?.close();
 });
 
-async function snapshot(): Promise<string> {
+async function snapshot(
+  detail?: "summary" | "standard" | "full",
+): Promise<string> {
   const ha = await startFakeHa({ fixture, token: fixture.token });
   running.push(ha);
-  return runSnapshot({
-    DOMUSOPS_HA_URL: ha.url,
-    DOMUSOPS_HA_TOKEN: fixture.token,
-  });
+  return runSnapshot(
+    { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: fixture.token },
+    detail === undefined ? {} : { detail },
+  );
 }
 
 /** True when any run of `length` characters of `secret` occurs in `text`. */
@@ -38,15 +40,18 @@ function leaksFragment(
 }
 
 describe("redaction oracle: no fragment of six or more characters of a planted secret", () => {
-  it("holds at detail=standard", async () => {
-    const text = await snapshot();
-    for (const secret of fixture.expected_absent) {
-      expect(
-        leaksFragment(text, secret),
-        `a fragment of ${secret.slice(0, 12)}… leaked`,
-      ).toBeNull();
-    }
-  });
+  it.each(["summary", "standard", "full"] as const)(
+    "holds at detail=%s",
+    async (detail) => {
+      const text = await snapshot(detail);
+      for (const secret of fixture.expected_absent) {
+        expect(
+          leaksFragment(text, secret),
+          `a fragment of ${secret.slice(0, 12)}… leaked`,
+        ).toBeNull();
+      }
+    },
+  );
 
   it("keeps identifiers, including secret-shaped ones, and marks redacted values", async () => {
     const text = await snapshot();

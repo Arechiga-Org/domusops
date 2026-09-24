@@ -309,7 +309,7 @@ an invalid value is rejected with the accepted values listed.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T041 [P] [US4] Create `packages/mcp/test/encode-summary.test.ts` over `REFERENCE_500`. Assert the `summary` fields from data-model §4:
+- [X] T041 [P] [US4] Create `packages/mcp/test/encode-summary.test.ts` over `REFERENCE_500`. Assert the `summary` fields from data-model §4:
   - `counts: { entities, devices, areas, integrations, entries, unregistered_entities, disabled_entities }`;
   - `by_domain`;
   - `by_integration: { entities, devices, entries, domains }`;
@@ -318,20 +318,20 @@ an invalid value is rejected with the accepted values listed.
 
   Also assert that no entity ID appears anywhere in the output (FR-010), and that the counts agree with the generator's totals. On `EMPTY`, every count is 0.
 
-- [ ] T042 [P] [US4] Create `packages/mcp/test/encode-full.test.ts` over `REFERENCE_500`: `full` uses the `standard` structure (data-model §3); every omitted field (T008) is present; `expand(full)` deep-equals the redacted retrieved data (data-model §10.3); and `compression_ratio > 1`, so it is never a raw passthrough (FR-011, constitution §4).
-- [ ] T043 [P] [US4] Extend `packages/mcp/test/tool.test.ts`:
+- [X] T042 [P] [US4] Create `packages/mcp/test/encode-full.test.ts` over `REFERENCE_500`: `full` uses the `standard` structure (data-model §3); every omitted field (T008) is present; `expand(full)` deep-equals the redacted retrieved data (data-model §10.3); and `compression_ratio > 1`, so it is never a raw passthrough (FR-011, constitution §4).
+- [X] T043 [P] [US4] Extend `packages/mcp/test/tool.test.ts`:
   - `detail` omitted gives `standard`;
   - `summary` and `full` give their shapes, and every successful response has a `compression_ratio`;
   - `detail: "verbose"` is rejected with a message listing `summary`, `standard`, and `full`, and no snapshot (pin whichever shape SDK 1.30.1 produces, an `isError` result or `InvalidParams`, per research R5);
   - an unknown extra property is either rejected or ignored; pin which (contracts/ha_snapshot.md);
   - for every detail value, `fake-ha` recorded only allowlisted read commands (SC-006, FR-018).
-- [ ] T044 [P] [US4] Extend `packages/mcp/test/redaction-oracle.test.ts` to run the oracle at `summary` and `full` as well (US2 scenario 4: `full` never disables redaction).
+- [X] T044 [P] [US4] Extend `packages/mcp/test/redaction-oracle.test.ts` to run the oracle at `summary` and `full` as well (US2 scenario 4: `full` never disables redaction).
 
 ### Implementation for User Story 4
 
-- [ ] T045 [P] [US4] Create `packages/mcp/src/snapshot/encode-summary.ts` with `encodeSummary(redacted, haVersion)`, producing exactly the data-model §4 fields listed in T041. `config` is the same as in `standard`, and no entity IDs are emitted.
-- [ ] T046 [P] [US4] Create `packages/mcp/src/snapshot/encode-full.ts` with `encodeFull(redacted, haVersion)`: `project(redacted, { omit: false })`, then the same grouping, templates, and aliases as `encodeStandard`, with `detail: "full"` (data-model §5).
-- [ ] T047 [US4] Add the `detail` input to the `ha_snapshot` registration in `packages/mcp/src/server.ts` (depends on T045, T046). Use a zod enum of `"summary" | "standard" | "full"`, default `"standard"`, strict (no extra properties), with the field description verbatim from `contracts/ha_snapshot.tool.json`. Then dispatch in `packages/mcp/src/tools/ha-snapshot.ts`: redact first, then choose `encodeSummary`, `encodeStandard` (via `project`), or `encodeFull`, then `finalize`.
+- [X] T045 [P] [US4] Create `packages/mcp/src/snapshot/encode-summary.ts` with `encodeSummary(redacted, haVersion)`, producing exactly the data-model §4 fields listed in T041. `config` is the same as in `standard`, and no entity IDs are emitted.
+- [X] T046 [P] [US4] Create `packages/mcp/src/snapshot/encode-full.ts` with `encodeFull(redacted, haVersion)`: `project(redacted, { omit: false })`, then the same grouping, templates, and aliases as `encodeStandard`, with `detail: "full"` (data-model §5).
+- [X] T047 [US4] Add the `detail` input to the `ha_snapshot` registration in `packages/mcp/src/server.ts` (depends on T045, T046). Use a zod enum of `"summary" | "standard" | "full"`, default `"standard"`, strict (no extra properties), with the field description verbatim from `contracts/ha_snapshot.tool.json`. Then dispatch in `packages/mcp/src/tools/ha-snapshot.ts`: redact first, then choose `encodeSummary`, `encodeStandard` (via `project`), or `encodeFull`, then `finalize`.
 
 **Checkpoint**: US1 to US4 pass. The tool matches `contracts/ha_snapshot.tool.json` exactly.
 

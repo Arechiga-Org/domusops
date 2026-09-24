@@ -170,3 +170,64 @@ describe("ha_snapshot: failures", () => {
     expectFailure(result, "retrieval_failed");
   });
 });
+
+const ALLOWED = new Set([
+  "auth/current_user",
+  "get_config",
+  "get_states",
+  "config/entity_registry/list",
+  "config/device_registry/list",
+  "config/area_registry/list",
+  "config_entries/get",
+]);
+
+describe("ha_snapshot: detail levels", () => {
+  it("defaults to standard when detail is omitted", async () => {
+    const { result } = await callTool(REFERENCE_500);
+    expect(parse(result).detail).toBe("standard");
+  });
+
+  it.each(["summary", "standard", "full"] as const)(
+    "returns the %s shape with a compression_ratio, using only allowlisted reads",
+    async (detail) => {
+      const { result, ha } = await callTool(REFERENCE_500, { detail });
+      expect(result.isError).toBeFalsy();
+      const doc = JSON.parse(result.content[0]?.text ?? "") as Record<string, unknown>;
+      expect(doc["detail"]).toBe(detail);
+      expect(typeof doc["compression_ratio"]).toBe("number");
+      expect(doc["compression_ratio"] as number).toBeGreaterThan(1);
+      if (detail === "summary") expect(doc).toHaveProperty("counts");
+      else expect(doc).toHaveProperty("integrations");
+      for (const command of ha.received) expect(ALLOWED.has(command)).toBe(true);
+    },
+  );
+
+  it("summary is far smaller than standard, and full is larger", async () => {
+    const sizes: Record<string, number> = {};
+    for (const detail of ["summary", "standard", "full"] as const) {
+      const { result } = await callTool(REFERENCE_500, { detail });
+      sizes[detail] = (result.content[0]?.text ?? "").length;
+    }
+    expect(sizes["summary"]).toBeLessThan((sizes["standard"] as number) / 10);
+    expect(sizes["full"]).toBeGreaterThan(sizes["standard"] as number);
+  });
+
+  it("rejects an unrecognised detail value, listing the accepted ones, with no snapshot", async () => {
+    const outcome = await callTool(REFERENCE_500, { detail: "verbose" }).then(
+      ({ result }) => ({ text: result.content[0]?.text ?? "", isError: result.isError === true }),
+      (error: unknown) => ({ text: String(error), isError: true }),
+    );
+    expect(outcome.isError).toBe(true);
+    for (const level of ["summary", "standard", "full"]) expect(outcome.text).toContain(level);
+    expect(outcome.text).not.toContain('"format"');
+  });
+
+  it("ignores an unknown extra property", async () => {
+    const outcome = await callTool(REFERENCE_500, { detail: "summary", surprise: true }).then(
+      ({ result }) => ({ ok: !result.isError, detail: result.isError ? "" : parse(result).detail }),
+      () => ({ ok: false, detail: "" }),
+    );
+    // The SDK's schema strips unknown keys, so the call succeeds (pinned by this test).
+    expect(outcome).toEqual({ ok: true, detail: "summary" });
+  });
+});
