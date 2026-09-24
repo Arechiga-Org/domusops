@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { errors, SnapshotError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 
@@ -29,12 +30,19 @@ export function createServer(options: ServerOptions = {}): McpServer {
       },
     },
     async () => {
-      const text = await runSnapshot(options.env ?? process.env, {
-        ...(options.timeouts === undefined
-          ? {}
-          : { timeouts: options.timeouts }),
-      });
-      return { content: [{ type: "text" as const, text }] };
+      try {
+        const text = await runSnapshot(options.env ?? process.env, {
+          ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
+        });
+        return { content: [{ type: "text" as const, text }] };
+      } catch (error) {
+        // Domain failures are tool results, so the agent always sees the remediation text.
+        const failure =
+          error instanceof SnapshotError
+            ? error
+            : errors.protocolError(error instanceof Error ? error.message : "unknown error");
+        return { isError: true, content: [{ type: "text" as const, text: failure.toToolText() }] };
+      }
     },
   );
 

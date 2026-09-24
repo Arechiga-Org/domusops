@@ -265,8 +265,8 @@ snapshot.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T036 [P] [US3] Create `packages/mcp/test/version.test.ts`: `2025.1.0` is supported; `2024.12.4` is not; `2026.10.0b3` and `2026.10.0.dev20260915` compare by their base version; an unparseable string is a `protocol_error`.
-- [ ] T037 [P] [US3] Create `packages/mcp/test/client.test.ts` against `fake-ha`, using short injected timeouts. Assert one error kind per condition:
+- [X] T036 [P] [US3] Create `packages/mcp/test/version.test.ts`: `2025.1.0` is supported; `2024.12.4` is not; `2026.10.0b3` and `2026.10.0.dev20260915` compare by their base version; an unparseable string is a `protocol_error`.
+- [X] T037 [P] [US3] Create `packages/mcp/test/client.test.ts` against `fake-ha`, using short injected timeouts. Assert one error kind per condition:
   - `config_missing` for each missing variable, with the message naming it;
   - `config_invalid` for `ftp://x` and for a URL without a host;
   - `unreachable` for a closed port;
@@ -276,14 +276,14 @@ snapshot.
   - `not_admin`;
   - `retrieval_failed` for `failCommand: "config/device_registry/list"` and for `dropAfter: "get_states"`, with the message naming the retrieval;
   - `protocol_error` for `malformed: "get_config"`.
-- [ ] T038 [P] [US3] Extend `packages/mcp/test/tool.test.ts` with failure cases through the MCP server:
+- [X] T038 [P] [US3] Extend `packages/mcp/test/tool.test.ts` with failure cases through the MCP server:
   - each error kind returns `isError: true` with exactly one text block matching `ha_snapshot failed [<kind>]: <cause>. <next step>.` (contracts/ha_snapshot.md);
   - the text never contains `DOMUSOPS_HA_TOKEN` or any snapshot data;
   - a failure after some retrievals succeeded still returns no partial data (FR-020).
 
 ### Implementation for User Story 3
 
-- [ ] T039 [US3] Complete the message builders in `packages/mcp/src/errors.ts`, with the next step for each kind verbatim from data-model §9:
+- [X] T039 [US3] Complete the message builders in `packages/mcp/src/errors.ts`, with the next step for each kind verbatim from data-model §9:
   - `config_missing`: which variable to set, and how to create a long-lived access token;
   - `config_invalid`: the expected URL form;
   - `unreachable`: the address tried, and to check host, port, and network;
@@ -293,7 +293,7 @@ snapshot.
   - `not_admin`: use a token of an administrator user, and why;
   - `retrieval_failed`: which retrieval failed, and the instance's error code and message;
   - `protocol_error`: report it as a bug, including `ha_version`.
-- [ ] T040 [US3] In `packages/mcp/src/server.ts`, catch `SnapshotError` in the `ha_snapshot` handler and return `{ isError: true, content: [{ type: "text", text: "ha_snapshot failed [<kind>]: <cause>. <next step>." }] }`. Any unexpected exception maps to `protocol_error`. Protocol-level errors are never used for domain failures (research R5).
+- [X] T040 [US3] In `packages/mcp/src/server.ts`, catch `SnapshotError` in the `ha_snapshot` handler and return `{ isError: true, content: [{ type: "text", text: "ha_snapshot failed [<kind>]: <cause>. <next step>." }] }`. Any unexpected exception maps to `protocol_error`. Protocol-level errors are never used for domain failures (research R5).
 
 **Checkpoint**: US1 to US3 pass independently.
 
