@@ -347,11 +347,11 @@ returns only `ha_snapshot`.
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T048 [P] [US5] Create `packages/mcp/test/cli.test.ts`. Spawn `node packages/mcp/dist/cli.js` (built by `pnpm typecheck` → `tsc -b`), send `initialize`, `notifications/initialized`, and `tools/list` over stdio, and assert that exactly one tool, `ha_snapshot`, is listed. Also assert that stdout carries only JSON-RPC lines. If `dist/` is missing, fail with the message "run `pnpm typecheck` first".
+- [X] T048 [P] [US5] Create `packages/mcp/test/cli.test.ts`. Spawn `node packages/mcp/dist/cli.js` (built by `pnpm typecheck` → `tsc -b`), send `initialize`, `notifications/initialized`, and `tools/list` over stdio, and assert that exactly one tool, `ha_snapshot`, is listed. Also assert that stdout carries only JSON-RPC lines. If `dist/` is missing, fail with the message "run `pnpm typecheck` first".
 
 ### Implementation for User Story 5
 
-- [ ] T049 [US5] Verify the packaging of `packages/mcp/package.json` and `packages/schema/package.json`:
+- [X] T049 [US5] Verify the packaging of `packages/mcp/package.json` and `packages/schema/package.json`:
   - `"files": ["dist"]`;
   - the `bin` target keeps its shebang after `tsc`;
   - runtime `dependencies` are only `@domusops/schema`, `@modelcontextprotocol/sdk`, and `zod`;
