@@ -12,3 +12,4 @@ export * from "./redaction.js";
 export * from "./keyspace.js";
 export * from "./util.js";
 export * from "./expand.js";
+export * from "./json-schema.js";
