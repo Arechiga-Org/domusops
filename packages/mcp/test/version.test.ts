@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SnapshotError } from "../src/errors.js";
+import { ToolError } from "../src/errors.js";
 import { MIN_VERSION, isSupported, parseVersion } from "../src/ha/version.js";
 
 describe("version floor", () => {
@@ -29,11 +29,11 @@ describe("version floor", () => {
 
   it("treats an unparseable version as a protocol error", () => {
     for (const version of ["banana", "", "2025.1", "v2025.1.0"]) {
-      expect(() => isSupported(version)).toThrow(SnapshotError);
+      expect(() => isSupported(version)).toThrow(ToolError);
       try {
         isSupported(version);
       } catch (error) {
-        expect((error as SnapshotError).kind).toBe("protocol_error");
+        expect((error as ToolError).kind).toBe("protocol_error");
       }
     }
   });

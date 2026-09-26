@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { SnapshotError, type ErrorKind } from "../src/errors.js";
+import { ToolError, type ErrorKind } from "../src/errors.js";
 import { HaClient, type Timeouts } from "../src/ha/client.js";
 import { readConfig } from "../src/ha/config.js";
 import { retrieve } from "../src/ha/retrieve.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
+import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
 import {
   FAKE_TOKEN,
   startFakeHa,
@@ -42,18 +43,18 @@ async function connect(ha: FakeHa, token = FAKE_TOKEN): Promise<HaClient> {
   return client;
 }
 
-/** Runs `action` and returns the SnapshotError it rejects with. */
-async function failure(action: () => Promise<unknown>): Promise<SnapshotError> {
+/** Runs `action` and returns the ToolError it rejects with. */
+async function failure(action: () => Promise<unknown>): Promise<ToolError> {
   try {
     await action();
   } catch (error) {
-    expect(error).toBeInstanceOf(SnapshotError);
-    return error as SnapshotError;
+    expect(error).toBeInstanceOf(ToolError);
+    return error as ToolError;
   }
   throw new Error("expected the action to fail");
 }
 
-const kindOf = (error: SnapshotError): ErrorKind => error.kind;
+const kindOf = (error: ToolError): ErrorKind => error.kind;
 
 describe("config", () => {
   const ok = {
@@ -80,8 +81,8 @@ describe("config", () => {
         readConfig(env);
         expect.unreachable();
       } catch (error) {
-        expect(kindOf(error as SnapshotError)).toBe("config_missing");
-        expect((error as SnapshotError).message).toContain(variable);
+        expect(kindOf(error as ToolError)).toBe("config_missing");
+        expect((error as ToolError).message).toContain(variable);
       }
     }
   });
@@ -98,10 +99,8 @@ describe("config", () => {
         readConfig({ ...ok, DOMUSOPS_HA_URL: url });
         expect.unreachable();
       } catch (error) {
-        expect(kindOf(error as SnapshotError)).toBe("config_invalid");
-        expect((error as SnapshotError).message).toContain(
-          "http://host[:port]",
-        );
+        expect(kindOf(error as ToolError)).toBe("config_invalid");
+        expect((error as ToolError).message).toContain("http://host[:port]");
       }
     }
   });
@@ -240,5 +239,99 @@ describe("HaClient allowlist (FR-018)", () => {
         "config_entries/get",
       ]),
     );
+  });
+});
+
+describe("logbook command (feature 002)", () => {
+  it("allows logbook/get_events with only its three parameters", async () => {
+    const ha = await fake({ fixture: REFERENCE_LOGBOOK_24H });
+    const client = await connect(ha);
+    const { start, end } = REFERENCE_LOGBOOK_24H.window;
+    const rows = await client.command("logbook/get_events", {
+      start_time: new Date(start * 1000).toISOString(),
+      end_time: new Date(end * 1000).toISOString(),
+    });
+    expect(Array.isArray(rows)).toBe(true);
+    expect(Object.keys(ha.receivedParams[0] ?? {}).sort()).toEqual([
+      "end_time",
+      "start_time",
+    ]);
+  });
+
+  it("rejects parameters on any other command, before the socket", async () => {
+    const ha = await fake();
+    const client = await connect(ha);
+    const error = await failure(() =>
+      client.command("get_states", {
+        start_time: "x",
+        end_time: "y",
+      }),
+    );
+    expect(error.kind).toBe("protocol_error");
+    expect(ha.received).not.toContain("get_states");
+  });
+
+  it("rejects an unknown parameter key on the logbook command", async () => {
+    const ha = await fake({ fixture: REFERENCE_LOGBOOK_24H });
+    const client = await connect(ha);
+    const error = await failure(() =>
+      client.command("logbook/get_events", {
+        start_time: "a",
+        end_time: "b",
+        context_id: "c",
+      } as never),
+    );
+    expect(error.kind).toBe("protocol_error");
+    expect(ha.received).not.toContain("logbook/get_events");
+  });
+
+  it("lets the logbook command outlast the per-command limit", async () => {
+    const ha = await fake({
+      fixture: REFERENCE_LOGBOOK_24H,
+      logbookDelayMs: 350,
+    });
+    const client = await HaClient.connect({
+      wsUrl: wsUrl(ha),
+      token: FAKE_TOKEN,
+      timeouts: { connectMs: 300, commandMs: 100, totalMs: 3000 },
+    });
+    clients.push(client);
+    const rows = await client.command("logbook/get_events", {
+      start_time: "2026-09-25T10:00:00Z",
+      end_time: "2026-09-26T10:00:00Z",
+    });
+    expect(Array.isArray(rows)).toBe(true);
+    // Any other command still stops at the per-command limit.
+    const slow = await fake({ stall: "get_states" });
+    const slowClient = await HaClient.connect({
+      wsUrl: wsUrl(slow),
+      token: FAKE_TOKEN,
+      timeouts: { connectMs: 300, commandMs: 100, totalMs: 3000 },
+    });
+    clients.push(slowClient);
+    expect((await failure(() => slowClient.command("get_states"))).kind).toBe(
+      "timeout",
+    );
+  });
+
+  it("times out at the overall limit with a shorter-window next step", async () => {
+    const ha = await fake({
+      fixture: REFERENCE_LOGBOOK_24H,
+      logbookDelayMs: 1500,
+    });
+    const client = await HaClient.connect({
+      wsUrl: wsUrl(ha),
+      token: FAKE_TOKEN,
+      timeouts: { connectMs: 300, commandMs: 100, totalMs: 500 },
+    });
+    clients.push(client);
+    const error = await failure(() =>
+      client.command("logbook/get_events", {
+        start_time: "2026-09-25T10:00:00Z",
+        end_time: "2026-09-26T10:00:00Z",
+      }),
+    );
+    expect(error.kind).toBe("timeout");
+    expect(error.nextStep).toContain("shorter window");
   });
 });

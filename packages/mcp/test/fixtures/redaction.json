@@ -27,7 +27,8 @@
         "attributes": {
           "access_token": "Kq3vZ8xN2mP7wR4tY9bL6cD1fG5hJ0sA",
           "entity_picture": "/api/camera_proxy/camera.porch?token=7f3a9c2e51b8d4066e1a8b3c5d7f9e2a",
-          "friendly_name": "Porch camera"
+          "friendly_name": "Porch camera",
+          "last_seen_note": "camera moved to 41.385064 by 2.173404 (feature 002, rule C3)"
         },
         "last_changed": "2026-09-21T10:00:00.000001+00:00",
         "last_updated": "2026-09-21T10:00:00.000002+00:00",

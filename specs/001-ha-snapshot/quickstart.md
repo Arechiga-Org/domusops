@@ -53,9 +53,9 @@ printf '%s\n' \
    npx --yes --package="$1" --package="$2" domusops-mcp'
 ```
 
-Expected: the response to `id: 2` lists exactly one tool, `ha_snapshot`, with the input schema and
-annotations from [ha_snapshot.tool.json](./contracts/ha_snapshot.tool.json). Nothing besides Node
-is installed in the image.
+Expected: the response to `id: 2` lists `ha_snapshot`, with the input schema and annotations from
+[ha_snapshot.tool.json](./contracts/ha_snapshot.tool.json), and, since feature 002,
+`ha_logbook_query` as the second and last tool. Nothing besides Node is installed in the image.
 
 The literal `npx @domusops/mcp` form additionally requires the packages to be published to npm.
 That is a release step outside this feature ([research R10](./research.md#r10-distribution-npx-domusopsmcp)).

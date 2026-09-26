@@ -8,7 +8,9 @@ import { encodeSummary } from "../src/snapshot/encode-summary.js";
 import { project } from "../src/snapshot/project.js";
 import { EMPTY, REFERENCE_500 } from "./fixtures/generate.js";
 
-const validate = new Ajv({ allErrors: true, strict: false }).compile(snapshotJsonSchema);
+const validate = new Ajv({ allErrors: true, strict: false }).compile(
+  snapshotJsonSchema,
+);
 
 function documents(fixture: typeof REFERENCE_500): Record<string, unknown> {
   const redacted = redact(fixture.records, "t");
@@ -21,18 +23,28 @@ function documents(fixture: typeof REFERENCE_500): Record<string, unknown> {
 }
 
 describe("snapshotJsonSchema", () => {
-  for (const [name, fixture] of [["reference", REFERENCE_500], ["empty", EMPTY]] as const) {
+  for (const [name, fixture] of [
+    ["reference", REFERENCE_500],
+    ["empty", EMPTY],
+  ] as const) {
     for (const [detail, doc] of Object.entries(documents(fixture))) {
       it(`accepts the ${detail} document of the ${name} fixture`, () => {
         const parsed = JSON.parse(JSON.stringify(doc));
-        expect(validate(parsed), JSON.stringify(validate.errors?.slice(0, 2))).toBe(true);
+        expect(
+          validate(parsed),
+          JSON.stringify(validate.errors?.slice(0, 2)),
+        ).toBe(true);
       });
     }
   }
 
   it("rejects a document with another format, a bad detail, or missing sections", () => {
-    const standard = JSON.parse(JSON.stringify(documents(REFERENCE_500)["standard"]));
-    expect(validate({ ...standard, format: "domusops.snapshot/9.9" })).toBe(false);
+    const standard = JSON.parse(
+      JSON.stringify(documents(REFERENCE_500)["standard"]),
+    );
+    expect(validate({ ...standard, format: "domusops.snapshot/9.9" })).toBe(
+      false,
+    );
     expect(validate({ ...standard, detail: "verbose" })).toBe(false);
     const withoutTemplates = { ...standard };
     delete withoutTemplates.templates;
