@@ -1,12 +1,14 @@
 {
   "name": "@domusops/sandbox",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Ephemeral Home Assistant test harness with virtual devices and scenario assertions",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run"

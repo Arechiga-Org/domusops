@@ -1,6 +1,6 @@
 {
   "name": "@domusops/schema",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Snapshot and assertion contract shared across DomusOps packages",
   "license": "Apache-2.0",
   "type": "module",

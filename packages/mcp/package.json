@@ -1,6 +1,6 @@
 {
   "name": "@domusops/mcp",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "MCP server exposing GitOps-oriented tools for Home Assistant",
   "license": "Apache-2.0",
   "type": "module",
