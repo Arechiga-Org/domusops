@@ -21,8 +21,8 @@ export interface LogbookFixture extends Fixture {
 }
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-/** 2026-09-26T10:00:00Z, so a 24-hour window in Europe/Madrid (UTC+2) has no DST change. */
-const WINDOW_END = 1_790_330_400;
+/** 2026-03-14T10:00:00Z: a fixed past instant, so no test depends on the clock, and no DST change falls in the 24 hours before it in Europe/Madrid (UTC+1). */
+const WINDOW_END = 1_773_482_400;
 
 function ulidAt(rng: Rng, ms: number): string {
   let stamp = "";
@@ -40,10 +40,12 @@ const WORDS = [
   "hallway", "kitchen", "garage", "porch", "bedroom", "office", "garden", "attic", "basement",
   "studio", "terrace", "laundry", "nursery", "lounge", "pantry", "cellar", "balcony", "entry",
 ];
+const AREAS = ["upstairs", "downstairs", "north", "south", "east", "west", "main", "guest"];
 const THINGS = [
   "motion", "door", "window", "lamp", "fan", "speaker", "vacuum", "heater", "blind", "camera",
   "sensor", "plug", "strip", "lock", "scene", "timer",
 ];
+const KINDS = ["occupancy", "status", "presence", "activity", "mode", "state", "schedule", "alert"];
 const IDLE = ["idle", "playing", "paused", "off", "standby", "unavailable"];
 
 interface Entity {
@@ -76,7 +78,7 @@ function buildEntities(rng: Rng, count: number): Entity[] {
     for (let i = 0; i < n; i++) {
       let object: string;
       do {
-        object = `${rng.pick(WORDS)}_${rng.pick(THINGS)}${rng.chance(0.4) ? `_${rng.int(1, 9)}` : ""}`;
+        object = `${rng.pick(AREAS)}_${rng.pick(WORDS)}_${rng.pick(THINGS)}_${rng.pick(KINDS)}${rng.chance(0.4) ? `_${rng.int(1, 9)}` : ""}`;
       } while (used.has(`${domain}.${object}`));
       used.add(`${domain}.${object}`);
       // Zipf-like: a few entities dominate, as on a real instance.
@@ -113,7 +115,7 @@ function buildCauses(rng: Rng, entities: Entity[], count: number): Cause[] {
           context_domain: "automation",
           context_name: a.name,
           context_message: "triggered",
-          context_source: `state of ${rng.pick(WORDS)} ${rng.pick(THINGS)}`,
+          context_source: `state of ${rng.pick(AREAS)} ${rng.pick(WORDS)} ${rng.pick(THINGS)} ${rng.pick(KINDS)}`,
           context_entity_id: a.id,
         },
       });
@@ -221,7 +223,7 @@ export function generateLogbook(
       if (e.domain === "automation" || e.domain === "script") {
         let sources = autoSources.get(e.id);
         if (sources === undefined) {
-          sources = Array.from({ length: rng.int(1, 3) }, () => `state of ${rng.pick(WORDS)} ${rng.pick(THINGS)}`);
+          sources = Array.from({ length: rng.int(1, 3) }, () => `state of ${rng.pick(AREAS)} ${rng.pick(WORDS)} ${rng.pick(THINGS)} ${rng.pick(KINDS)}`);
           autoSources.set(e.id, sources);
         }
         const source = rng.pick(sources);

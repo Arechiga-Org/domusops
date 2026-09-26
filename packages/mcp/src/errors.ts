@@ -146,10 +146,10 @@ export const errors = {
     );
   },
 
-  selectorInvalid(selector: string): ToolError {
+  selectorInvalid(selector: string, reason?: string): ToolError {
     return new ToolError(
       "selector_invalid",
-      `The entity selector "${selector}" is not valid`,
+      reason ?? `The entity selector "${selector}" is not valid`,
       "Use an entity ID or a pattern made of lowercase letters, digits, underscores, dots, and * (for example light.hallway, light.*, or *_motion)",
     );
   },

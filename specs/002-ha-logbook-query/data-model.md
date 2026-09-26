@@ -29,18 +29,18 @@ new keys stay lossless. Older instances that lack a key are accepted.
 
 ## 2. Envelope (both detail levels)
 
-| Field               | Type                        | Meaning                                                                                              |
-| ------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `format`            | string                      | Always `"domusops.logbook/0.1"`                                                                      |
-| `detail`            | `"summary"` \| `"standard"` | The detail level produced                                                                            |
-| `ha_version`        | string                      | Core version reported by the instance                                                                |
-| `compression_ratio` | number                      | `raw_bytes / emitted_bytes`, two decimals (§6)                                                       |
-| `time_zone`         | string                      | The instance's IANA time zone                                                                        |
-| `utc_offset`        | string                      | `±HH:MM`, the offset at the window start; the default for every local time in the document           |
-| `window`            | `{ start, end }`            | The resolved window, local ISO 8601 with offset, to the second (`2026-09-26T03:00:00-06:00`)         |
-| `first`, `last`     | string \| null              | Local time of the earliest and latest event in the response (`2026-09-26T03:12:45`), null when empty |
-| `selectors`         | string[]                    | The selectors as requested, deduplicated, in request order. Absent when none were given              |
-| `no_events`         | string[]                    | The selectors that matched no event, in request order. Absent when every selector matched            |
+| Field               | Type                        | Meaning                                                                                                                                                          |
+| ------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`            | string                      | Always `"domusops.logbook/0.1"`                                                                                                                                  |
+| `detail`            | `"summary"` \| `"standard"` | The detail level produced                                                                                                                                        |
+| `ha_version`        | string                      | Core version reported by the instance                                                                                                                            |
+| `compression_ratio` | number                      | `raw_bytes / emitted_bytes`, two decimals (§6)                                                                                                                   |
+| `time_zone`         | string                      | The instance's IANA time zone                                                                                                                                    |
+| `utc_offset`        | string                      | `±HH:MM`, the offset at the window start; the default for every local time in the document                                                                       |
+| `window`            | `{ start, end }`            | The resolved window, local ISO 8601 with offset, to the second (`2026-09-26T03:00:00-06:00`)                                                                     |
+| `first`, `last`     | string \| null              | Local time of the earliest and latest event in the response (`2026-09-26T03:12:45`, with the offset appended when it differs from `utc_offset`), null when empty |
+| `selectors`         | string[]                    | The selectors as requested, deduplicated, in request order. Absent when none were given                                                                          |
+| `no_events`         | string[]                    | The selectors that matched no event, in request order. Absent when every selector matched                                                                        |
 
 ## 3. `standard` document
 
@@ -136,12 +136,12 @@ Trailing `null` values are dropped, so a row has between 2 and 4 + n elements.
 
 Applies to `state`, constants, column values, and cause values:
 
-| Emitted value        | Meaning                                                                  |
-| -------------------- | ------------------------------------------------------------------------ |
-| Integer              | Reference into `strings`                                                 |
-| String               | Literal string                                                           |
-| `{ "v": <number> }`  | A literal number (never observed in logbook data; kept for losslessness) |
-| Any other JSON value | Literal (objects such as `attributes`, booleans)                         |
+| Emitted value        | Meaning                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Integer              | Reference into `strings`                                                                                                                                    |
+| String               | Literal string                                                                                                                                              |
+| `{ "v": <value> }`   | A literal that would otherwise be read as a reference: a number, or an object whose only key is `v` (never observed in logbook data; kept for losslessness) |
+| Any other JSON value | Literal (objects such as `attributes`, booleans)                                                                                                            |
 
 A string goes into `strings` when it has at least four characters and occurs at least twice across
 those positions. `entity_id` values in the entity table are never replaced by references.
@@ -156,7 +156,7 @@ in either form, so a context ID is always a string in the document.
 
 For an entity with two or more rows, a key other than `when`, `entity_id`, `state`, and the cause
 fields is a **constant** when every row has it with the same value. Every other such key is a
-**column**. Columns are sorted by key. An entity with one row has no constants.
+**column**. `context_id` is never a constant: its compact form depends on each event's second. Columns are sorted by key. An entity with one row has no constants.
 
 ### 3.4 Determinism
 
@@ -166,7 +166,7 @@ Identical input produces byte-identical output:
 - `entities` in order of first appearance; `causes` in order of first appearance.
 - `strings` sorted by descending occurrence count, then by code point.
 - Object keys: envelope in the order of §2, then `strings`, `entities`, `causes`, `events`.
-  Constants and cause objects in the key order of their first occurrence.
+  Constants in key order; cause objects in the fixed order of the cause fields (§1).
 - No object key is integer-like, so insertion order is emission order in every JavaScript engine.
 
 ## 4. `summary` document
@@ -190,7 +190,7 @@ Envelope (§2) plus:
 | #   | Rule                                                                               |
 | --- | ---------------------------------------------------------------------------------- |
 | P1  | `when` is truncated to the whole second (row order still records sub-second order) |
-| P2  | Keys whose value is `null` are removed                                             |
+| P2  | Top-level keys whose value is `null` are removed                                   |
 
 Redaction (§7) is applied before the projection. Nothing else is dropped: every other key and
 value of every selected row is recoverable.
