@@ -22,7 +22,7 @@ Expected: all green. The suite covers, against fixtures and a fake instance:
 
 | Check                                                                                                                                                       | Proves                 |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `standard` ratio ≥ 5 on the 500-entity reference fixture                                                                                                   | SC-001, FR-023         |
+| `standard` ratio ≥ 5 on the 500-entity reference fixture                                                                                                    | SC-001, FR-023         |
 | `expand(standard) == project(full)`; every entity ID present                                                                                                | SC-002, FR-008, FR-009 |
 | No six-character fragment of any planted secret, at every detail level                                                                                      | SC-003                 |
 | 1,000-entity fixture served by the fake instance completes in under 5 s                                                                                     | SC-004                 |
@@ -39,15 +39,18 @@ Build and pack both packages, then start the server in a container that has only
 ```bash
 pnpm build
 mkdir -p /tmp/domusops-pkgs
-pnpm --filter @domusops/schema pack --pack-destination /tmp/domusops-pkgs
-pnpm --filter @domusops/mcp pack --pack-destination /tmp/domusops-pkgs
+# pnpm@9.15's `pack` does not support `--filter` directly (it errors with
+# "Unknown option: 'recursive'"); run it through `exec` in each package instead.
+pnpm --filter @domusops/schema exec pnpm pack --pack-destination /tmp/domusops-pkgs
+pnpm --filter @domusops/mcp exec pnpm pack --pack-destination /tmp/domusops-pkgs
 
 printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"quickstart","version":"0"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
 | docker run --rm -i -v /tmp/domusops-pkgs:/pkgs node:22-slim sh -c \
-  'npx --yes --package=/pkgs/domusops-schema-*.tgz --package=/pkgs/domusops-mcp-*.tgz domusops-mcp'
+  'set -- /pkgs/domusops-schema-*.tgz /pkgs/domusops-mcp-*.tgz
+   npx --yes --package="$1" --package="$2" domusops-mcp'
 ```
 
 Expected: the response to `id: 2` lists exactly one tool, `ha_snapshot`, with the input schema and
