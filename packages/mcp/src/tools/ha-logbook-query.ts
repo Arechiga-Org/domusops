@@ -1,6 +1,7 @@
 import type { LogbookDetailLevel } from "@domusops/schema";
 import { HaClient, type Timeouts } from "../ha/client.js";
-import { readConfig } from "../ha/config.js";
+import { readConfig, readLogbookLimit } from "../ha/config.js";
+import { errors } from "../errors.js";
 import { fetchEvents, readContext } from "../ha/logbook.js";
 import { encodeStandard } from "../logbook/encode-standard.js";
 import {
@@ -11,7 +12,7 @@ import {
 } from "../logbook/selectors.js";
 import { parseWindowInput, resolveWindow } from "../logbook/window.js";
 import { LOGBOOK_EXEMPT_KEYS, redactRows } from "../snapshot/redact.js";
-import { finalize, measureRowsBytes } from "../snapshot/ratio.js";
+import { byteLength, finalize, measureRowsBytes } from "../snapshot/ratio.js";
 
 export interface LogbookQueryOptions {
   /** Defaults to `standard`. */
@@ -41,6 +42,7 @@ export async function runLogbookQuery(
     ...(options.end === undefined ? {} : { end: options.end }),
   });
   const selectors = parseSelectors(options.entities);
+  const limit = readLogbookLimit(env);
 
   const client = await HaClient.connect({
     wsUrl: config.wsUrl,
@@ -77,7 +79,11 @@ export async function runLogbookQuery(
       selectors,
       noEvents: selectors === undefined ? [] : noEvents(selectors, selected),
     });
-    return finalize(document, rawBytes);
+    const text = finalize(document, rawBytes);
+    // A result above the limit is an error, never a truncated result (spec FR-017, FR-019).
+    const bytes = byteLength(text);
+    if (bytes > limit) throw errors.tooLarge(selected.length, bytes, limit);
+    return text;
   } finally {
     client.close();
   }
