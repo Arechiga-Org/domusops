@@ -15,7 +15,10 @@ const groups = {
   description:
     'Rows grouped by template key. The key "_" holds inline records (objects); every other key ' +
     "holds positional rows (arrays), optionally ending with an extras object.",
-  additionalProperties: { type: "array" },
+  properties: {
+    _: { type: "array", items: object },
+  },
+  additionalProperties: { type: "array", items: { type: "array" } },
 } as const;
 
 const standardDocument = {
