@@ -70,12 +70,35 @@ const HAND: LogbookRow[] = [
     weird: [1, "two", null],
   },
   // A key present in some rows of an entity and absent in others.
-  { when: T + 14, entity_id: "sensor.mixed", state: "unavailable", icon: "mdi:eye" },
+  {
+    when: T + 14,
+    entity_id: "sensor.mixed",
+    state: "unavailable",
+    icon: "mdi:eye",
+  },
   { when: T + 15, entity_id: "sensor.mixed", state: "idle" },
   // A context ID that is not a ULID, one shaped like an encoded one, and a number.
-  { when: T + 20, entity_id: "script.x", name: "X", domain: "script", context_id: "abc-123" },
-  { when: T + 21, entity_id: "script.x", name: "X", domain: "script", context_id: "12:ABCDEFGHJKMNPQRS" },
-  { when: T + 22, entity_id: "script.x", name: "X", domain: "script", context_id: 5 },
+  {
+    when: T + 20,
+    entity_id: "script.x",
+    name: "X",
+    domain: "script",
+    context_id: "abc-123",
+  },
+  {
+    when: T + 21,
+    entity_id: "script.x",
+    name: "X",
+    domain: "script",
+    context_id: "12:ABCDEFGHJKMNPQRS",
+  },
+  {
+    when: T + 22,
+    entity_id: "script.x",
+    name: "X",
+    domain: "script",
+    context_id: 5,
+  },
   // The same context ID twice for one entity: it is never a constant.
   {
     when: T + 30,
@@ -92,8 +115,18 @@ const HAND: LogbookRow[] = [
     context_id: ulid(Math.round((T + 30) * 1000)),
   },
   // Events that belong to no entity, sharing constants.
-  { when: T + 40, name: "Home Assistant", message: "stopped", domain: "homeassistant" },
-  { when: T + 41, name: "Home Assistant", message: "started", domain: "homeassistant" },
+  {
+    when: T + 40,
+    name: "Home Assistant",
+    message: "stopped",
+    domain: "homeassistant",
+  },
+  {
+    when: T + 41,
+    name: "Home Assistant",
+    message: "started",
+    domain: "homeassistant",
+  },
   // A null-valued key is removed by the projection; a cause with a user and a service.
   {
     when: T + 50,
@@ -107,10 +140,15 @@ const HAND: LogbookRow[] = [
   },
 ];
 
-function roundTrip(rows: LogbookRow[]): { expanded: LogbookRow[]; doc: LogbookStandardDocument } {
+function roundTrip(rows: LogbookRow[]): {
+  expanded: LogbookRow[];
+  doc: LogbookStandardDocument;
+} {
   const window = { start: T - 3600, end: T + 3600 };
   const doc = JSON.parse(
-    JSON.stringify(encodeStandard(rows, contextFor({ haVersion: "x", window }))),
+    JSON.stringify(
+      encodeStandard(rows, contextFor({ haVersion: "x", window })),
+    ),
   ) as LogbookStandardDocument;
   return { expanded: expandLogbook(doc), doc };
 }
@@ -125,15 +163,18 @@ describe("expandLogbook(standard) equals projectLogbook(rows)", () => {
     ["reference", REFERENCE_LOGBOOK_24H],
     ["performance", PERFORMANCE_LOGBOOK],
     ["empty", LOGBOOK_EMPTY],
-  ] as const)("holds for the %s fixture, element by element and in order", (_name, fixture) => {
-    const doc = JSON.parse(
-      JSON.stringify(encodeStandard(fixture.logbook, contextFor(fixture))),
-    ) as LogbookStandardDocument;
-    const expanded = expandLogbook(doc);
-    const expected = projectLogbook(fixture.logbook);
-    expect(expanded).toHaveLength(expected.length);
-    expanded.forEach((row, i) => expect(row).toEqual(expected[i]));
-  });
+  ] as const)(
+    "holds for the %s fixture, element by element and in order",
+    (_name, fixture) => {
+      const doc = JSON.parse(
+        JSON.stringify(encodeStandard(fixture.logbook, contextFor(fixture))),
+      ) as LogbookStandardDocument;
+      const expanded = expandLogbook(doc);
+      const expected = projectLogbook(fixture.logbook);
+      expect(expanded).toHaveLength(expected.length);
+      expanded.forEach((row, i) => expect(row).toEqual(expected[i]));
+    },
+  );
 
   it("keeps the order of two events in the same second", () => {
     const { expanded } = roundTrip(HAND);
@@ -145,7 +186,11 @@ describe("expandLogbook(standard) equals projectLogbook(rows)", () => {
     const { doc } = roundTrip(HAND);
     const y = doc.entities.find((e) => Array.isArray(e) && e[0] === "script.y");
     expect(y).toBeDefined();
-    const [, constants, columns] = y as [string, Record<string, unknown>, string[]];
+    const [, constants, columns] = y as [
+      string,
+      Record<string, unknown>,
+      string[],
+    ];
     expect(constants).not.toHaveProperty("context_id");
     expect(columns).toContain("context_id");
     const encoded = encodeContextId(ulid(1_000_000), 999_000);

@@ -10,7 +10,10 @@ import {
   type LogbookFixture,
 } from "./fixtures/generate-logbook.js";
 
-function encoded(fixture: LogbookFixture): { text: string; doc: LogbookStandardDocument } {
+function encoded(fixture: LogbookFixture): {
+  text: string;
+  doc: LogbookStandardDocument;
+} {
   const doc = encodeStandard(fixture.logbook, contextFor(fixture));
   const text = finalize(doc, measureRowsBytes(fixture.logbook));
   return { text, doc: JSON.parse(text) as LogbookStandardDocument };
@@ -30,7 +33,8 @@ describe("compression", () => {
 
   it("is about 200 raw bytes per event, as measured live", () => {
     const perEvent =
-      measureRowsBytes(REFERENCE_LOGBOOK_24H.logbook) / REFERENCE_LOGBOOK_24H.logbook.length;
+      measureRowsBytes(REFERENCE_LOGBOOK_24H.logbook) /
+      REFERENCE_LOGBOOK_24H.logbook.length;
     expect(perEvent).toBeGreaterThan(170);
     expect(perEvent).toBeLessThan(230);
   });
@@ -38,7 +42,9 @@ describe("compression", () => {
 
 describe("determinism", () => {
   it("encodes the same rows to the same bytes", () => {
-    expect(encoded(REFERENCE_LOGBOOK_24H).text).toBe(encoded(REFERENCE_LOGBOOK_24H).text);
+    expect(encoded(REFERENCE_LOGBOOK_24H).text).toBe(
+      encoded(REFERENCE_LOGBOOK_24H).text,
+    );
   });
 });
 
@@ -49,14 +55,21 @@ describe("structure", () => {
 
   it("resolves every index of every row", () => {
     const isRef = (v: unknown): boolean =>
-      typeof v === "number" && Number.isInteger(v) && v >= 0 && v < strings.length;
+      typeof v === "number" &&
+      Number.isInteger(v) &&
+      v >= 0 &&
+      v < strings.length;
     for (const hours of Object.values(doc.events)) {
       for (const rows of Object.values(hours)) {
         for (const row of rows) {
           expect(row[0]).toMatch(/^\d\d:\d\d$/);
           expect(row[1]).toBeGreaterThanOrEqual(0);
           expect(row[1] as number).toBeLessThan(doc.entities.length);
-          if (row[2] !== null && row[2] !== undefined && typeof row[2] === "number") {
+          if (
+            row[2] !== null &&
+            row[2] !== undefined &&
+            typeof row[2] === "number"
+          ) {
             expect(isRef(row[2])).toBe(true);
           }
           if (row[3] !== null && row[3] !== undefined) {
@@ -108,8 +121,15 @@ describe("structure", () => {
   it("orders the string table by descending use, then code point", () => {
     const uses = new Map<string, number>();
     const walk = (v: unknown): void => {
-      if (typeof v === "number" && Number.isInteger(v) && strings[v] !== undefined) {
-        uses.set(strings[v] as string, (uses.get(strings[v] as string) ?? 0) + 1);
+      if (
+        typeof v === "number" &&
+        Number.isInteger(v) &&
+        strings[v] !== undefined
+      ) {
+        uses.set(
+          strings[v] as string,
+          (uses.get(strings[v] as string) ?? 0) + 1,
+        );
       }
     };
     for (const hours of Object.values(doc.events))
@@ -129,8 +149,16 @@ describe("structure", () => {
 describe("daylight-saving change inside the window", () => {
   // Europe/Madrid, 2026-10-25: 03:00 CEST (+02:00) becomes 02:00 CET (+01:00) at 01:00Z.
   const rows: LogbookRow[] = [
-    { when: Date.UTC(2026, 9, 25, 0, 30) / 1000, entity_id: "light.a", state: "on" },
-    { when: Date.UTC(2026, 9, 25, 1, 30) / 1000, entity_id: "light.a", state: "off" },
+    {
+      when: Date.UTC(2026, 9, 25, 0, 30) / 1000,
+      entity_id: "light.a",
+      state: "on",
+    },
+    {
+      when: Date.UTC(2026, 9, 25, 1, 30) / 1000,
+      entity_id: "light.a",
+      state: "off",
+    },
   ];
   const fixture = {
     haVersion: "2026.9.1",
@@ -141,9 +169,15 @@ describe("daylight-saving change inside the window", () => {
   };
 
   it("keeps the repeated local hour in two buckets, the second carrying its offset", () => {
-    const doc = encodeStandard(rows, contextFor(fixture)) as LogbookStandardDocument;
+    const doc = encodeStandard(
+      rows,
+      contextFor(fixture),
+    ) as LogbookStandardDocument;
     expect(doc.utc_offset).toBe("+02:00");
-    expect(Object.keys(doc.events["2026-10-25"] ?? {})).toEqual(["02:00", "02:00+01:00"]);
+    expect(Object.keys(doc.events["2026-10-25"] ?? {})).toEqual([
+      "02:00",
+      "02:00+01:00",
+    ]);
     expect(doc.first).toBe("2026-10-25T02:30:00");
     expect(doc.last).toBe("2026-10-25T02:30:00+01:00");
   });
@@ -163,6 +197,8 @@ describe("empty result", () => {
 
 describe("scale", () => {
   it("encodes the 10,000-event window", () => {
-    expect(encoded(PERFORMANCE_LOGBOOK).doc.compression_ratio).toBeGreaterThan(3);
+    expect(encoded(PERFORMANCE_LOGBOOK).doc.compression_ratio).toBeGreaterThan(
+      3,
+    );
   });
 });

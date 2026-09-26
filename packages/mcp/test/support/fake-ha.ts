@@ -48,20 +48,27 @@ function logbookResult(
 ): { error: { code: string; message: string } } | { result: unknown[] } {
   const start = Date.parse(String(message.start_time));
   if (Number.isNaN(start)) {
-    return { error: { code: "invalid_start_time", message: "Invalid start_time" } };
+    return {
+      error: { code: "invalid_start_time", message: "Invalid start_time" },
+    };
   }
   const end =
-    message.end_time === undefined ? Date.now() : Date.parse(String(message.end_time));
+    message.end_time === undefined
+      ? Date.now()
+      : Date.parse(String(message.end_time));
   if (Number.isNaN(end)) {
     return { error: { code: "invalid_end_time", message: "Invalid end_time" } };
   }
   if (start > Date.now()) return { result: [] };
-  const ids = Array.isArray(message.entity_ids) ? (message.entity_ids as string[]) : null;
+  const ids = Array.isArray(message.entity_ids)
+    ? (message.entity_ids as string[])
+    : null;
   const rows = (options.fixture.logbook ?? []).filter(
     (row) =>
       row.when * 1000 >= start &&
       row.when * 1000 <= end &&
-      (ids === null || (row.entity_id !== undefined && ids.includes(row.entity_id))),
+      (ids === null ||
+        (row.entity_id !== undefined && ids.includes(row.entity_id))),
   );
   return { result: rows };
 }
@@ -164,22 +171,33 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
       if (type === "logbook/get_events" && options.logbook !== false) {
         fake.receivedParams.push(
           Object.fromEntries(
-            Object.entries(message).filter(([key]) => key !== "id" && key !== "type"),
+            Object.entries(message).filter(
+              ([key]) => key !== "id" && key !== "type",
+            ),
           ),
         );
         const reply = logbookResult(message, options);
-        const send = (): void => socket.send(
-          JSON.stringify(
-            "error" in reply
-              ? { id: message.id, type: "result", success: false, error: reply.error }
-              : {
-                  id: message.id,
-                  type: "result",
-                  success: true,
-                  result: options.malformed === type ? "not the expected shape" : reply.result,
-                },
-          ),
-        );
+        const send = (): void =>
+          socket.send(
+            JSON.stringify(
+              "error" in reply
+                ? {
+                    id: message.id,
+                    type: "result",
+                    success: false,
+                    error: reply.error,
+                  }
+                : {
+                    id: message.id,
+                    type: "result",
+                    success: true,
+                    result:
+                      options.malformed === type
+                        ? "not the expected shape"
+                        : reply.result,
+                  },
+            ),
+          );
         if (options.logbookDelayMs === undefined) send();
         else setTimeout(send, options.logbookDelayMs);
         return;

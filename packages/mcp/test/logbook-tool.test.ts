@@ -3,6 +3,7 @@ import {
   projectLogbook,
   type LogbookRow,
   type LogbookStandardDocument,
+  type LogbookSummaryDocument,
 } from "@domusops/schema";
 import { afterEach, describe, expect, it } from "vitest";
 import { ALLOWED_COMMANDS } from "../src/ha/client.js";
@@ -37,21 +38,29 @@ async function query(
 }
 
 const iso = (seconds: number): string => new Date(seconds * 1000).toISOString();
-const inWindow = (rows: LogbookRow[], start: number, end: number): LogbookRow[] =>
-  rows.filter((r) => r.when >= start && r.when <= end);
+const inWindow = (
+  rows: LogbookRow[],
+  start: number,
+  end: number,
+): LogbookRow[] => rows.filter((r) => r.when >= start && r.when <= end);
 
 describe("ha_logbook_query, standard detail", () => {
   it("returns the last 24 hours by default, every event in order", async () => {
     const { doc } = await query(REFERENCE_LOGBOOK_24H);
     expect(doc.format).toBe("domusops.logbook/0.1");
     expect(doc.detail).toBe("standard");
-    expect(expandLogbook(doc)).toEqual(projectLogbook(REFERENCE_LOGBOOK_24H.logbook));
+    expect(expandLogbook(doc)).toEqual(
+      projectLogbook(REFERENCE_LOGBOOK_24H.logbook),
+    );
   });
 
   it("honours an explicit window", async () => {
     const { start, end } = REFERENCE_LOGBOOK_24H.window;
     const from = end - 6 * 3600;
-    const { doc } = await query(REFERENCE_LOGBOOK_24H, { start: iso(from), end: iso(end) });
+    const { doc } = await query(REFERENCE_LOGBOOK_24H, {
+      start: iso(from),
+      end: iso(end),
+    });
     expect(expandLogbook(doc)).toEqual(
       projectLogbook(inWindow(REFERENCE_LOGBOOK_24H.logbook, from, end)),
     );
@@ -68,7 +77,7 @@ describe("ha_logbook_query, standard detail", () => {
     });
     expect(doc.first).toMatch(/^2026-03-1[34]T\d\d:\d\d:\d\d$/);
     expect(doc.last).toMatch(/^2026-03-1[34]T\d\d:\d\d:\d\d$/);
-    expect(doc.first as string <= (doc.last as string)).toBe(true);
+    expect((doc.first as string) <= (doc.last as string)).toBe(true);
     expect(doc.ha_version).toBe("2026.9.1");
     expect(doc.compression_ratio).toBeGreaterThan(1);
   });
@@ -99,10 +108,13 @@ describe("ha_logbook_query, standard detail", () => {
 
 describe("ha_logbook_query, entity selectors", () => {
   const rows = REFERENCE_LOGBOOK_24H.logbook;
-  const someLight = rows.find((r) => r.entity_id?.startsWith("light."))?.entity_id as string;
+  const someLight = rows.find((r) => r.entity_id?.startsWith("light."))
+    ?.entity_id as string;
 
   it("sends exact IDs to the instance and nothing else", async () => {
-    const { ha, doc } = await query(REFERENCE_LOGBOOK_24H, { entities: [someLight] });
+    const { ha, doc } = await query(REFERENCE_LOGBOOK_24H, {
+      entities: [someLight],
+    });
     expect(ha.receivedParams[0]?.["entity_ids"]).toEqual([someLight]);
     expect(expandLogbook(doc)).toEqual(
       projectLogbook(rows.filter((r) => r.entity_id === someLight)),
@@ -110,7 +122,9 @@ describe("ha_logbook_query, entity selectors", () => {
   });
 
   it("does not send entity_ids for a pattern, and filters in the tool", async () => {
-    const { ha, doc } = await query(REFERENCE_LOGBOOK_24H, { entities: ["light.*"] });
+    const { ha, doc } = await query(REFERENCE_LOGBOOK_24H, {
+      entities: ["light.*"],
+    });
     expect(ha.receivedParams[0]).not.toHaveProperty("entity_ids");
     expect(expandLogbook(doc)).toEqual(
       projectLogbook(rows.filter((r) => r.entity_id?.startsWith("light."))),
@@ -121,13 +135,13 @@ describe("ha_logbook_query, entity selectors", () => {
     const withoutEntity = rows.filter((r) => r.entity_id === undefined).length;
     expect(withoutEntity).toBeGreaterThan(0);
     const all = await query(REFERENCE_LOGBOOK_24H);
-    expect(expandLogbook(all.doc).filter((r) => r["entity_id"] === undefined)).toHaveLength(
-      withoutEntity,
-    );
+    expect(
+      expandLogbook(all.doc).filter((r) => r["entity_id"] === undefined),
+    ).toHaveLength(withoutEntity);
     const narrowed = await query(REFERENCE_LOGBOOK_24H, { entities: ["*"] });
-    expect(expandLogbook(narrowed.doc).filter((r) => r["entity_id"] === undefined)).toHaveLength(
-      0,
-    );
+    expect(
+      expandLogbook(narrowed.doc).filter((r) => r["entity_id"] === undefined),
+    ).toHaveLength(0);
   });
 
   it("echoes the selectors and lists those that matched nothing", async () => {
@@ -181,5 +195,48 @@ describe("ha_logbook_query, scale", () => {
     );
     expect(performance.now() - started).toBeLessThan(5000);
     expect(expandLogbook(doc)).toHaveLength(PERFORMANCE_LOGBOOK.logbook.length);
+  });
+});
+
+describe("ha_logbook_query, detail levels", () => {
+  it("returns a standard document when detail is omitted", async () => {
+    const { doc } = await query(REFERENCE_LOGBOOK_24H);
+    expect(doc.detail).toBe("standard");
+  });
+
+  it("returns counts only at summary, applying the window and the selectors", async () => {
+    const { text } = await query(REFERENCE_LOGBOOK_24H, {
+      detail: "summary",
+      entities: ["light.*", "sensor.does_not_exist"],
+    });
+    const doc = JSON.parse(text) as LogbookSummaryDocument;
+    const lights = REFERENCE_LOGBOOK_24H.logbook.filter((r) =>
+      r.entity_id?.startsWith("light."),
+    );
+    expect(doc.detail).toBe("summary");
+    expect(doc.counts.events).toBe(lights.length);
+    expect(doc.counts.no_entity_events).toBe(0);
+    expect(doc.selectors).toEqual(["light.*", "sensor.does_not_exist"]);
+    expect(doc.no_events).toEqual(["sensor.does_not_exist"]);
+    expect(doc).not.toHaveProperty("events");
+  });
+
+  it("is not subject to the size limit that refuses the standard document", async () => {
+    const env = { DOMUSOPS_LOGBOOK_MAX_BYTES: "1000" };
+    await expect(query(REFERENCE_LOGBOOK_24H, {}, env)).rejects.toMatchObject({
+      kind: "too_large",
+    });
+    const { doc } = await query(
+      REFERENCE_LOGBOOK_24H,
+      { detail: "summary" },
+      env,
+    );
+    const summary = doc as unknown as LogbookSummaryDocument;
+    expect(summary.counts.events).toBe(REFERENCE_LOGBOOK_24H.logbook.length);
+  });
+
+  it("carries the same compression_ratio definition as standard", async () => {
+    const { doc } = await query(REFERENCE_LOGBOOK_24H, { detail: "summary" });
+    expect(doc.compression_ratio).toBeGreaterThan(5);
   });
 });

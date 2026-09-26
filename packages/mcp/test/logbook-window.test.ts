@@ -42,32 +42,42 @@ describe("defaults", () => {
   });
 
   it("clamps an end after the time of the call to it", () => {
-    const w = win({ start: "2026-09-25T00:00:00Z", end: "2099-01-01T00:00:00Z" });
+    const w = win({
+      start: "2026-09-25T00:00:00Z",
+      end: "2099-01-01T00:00:00Z",
+    });
     expect(w.endMs).toBe(NOW);
   });
 });
 
 describe("time zones", () => {
   it("reads a time without an offset in the instance time zone, winter and summer", () => {
-    expect(win({ start: "2026-01-15T10:00", end: "2026-01-15T12:00" }).startMs).toBe(
-      Date.UTC(2026, 0, 15, 9),
-    );
-    expect(win({ start: "2026-07-15T10:00", end: "2026-07-15T12:00" }).startMs).toBe(
-      Date.UTC(2026, 6, 15, 8),
-    );
+    expect(
+      win({ start: "2026-01-15T10:00", end: "2026-01-15T12:00" }).startMs,
+    ).toBe(Date.UTC(2026, 0, 15, 9));
+    expect(
+      win({ start: "2026-07-15T10:00", end: "2026-07-15T12:00" }).startMs,
+    ).toBe(Date.UTC(2026, 6, 15, 8));
   });
 
   it("honours an explicit Z or offset", () => {
-    expect(win({ start: "2026-07-15T10:00:00Z", end: "2026-07-15T12:00:00Z" }).startMs).toBe(
-      Date.UTC(2026, 6, 15, 10),
-    );
     expect(
-      win({ start: "2026-07-15T10:00:00-05:00", end: "2026-07-15T20:00:00-05:00" }).startMs,
+      win({ start: "2026-07-15T10:00:00Z", end: "2026-07-15T12:00:00Z" })
+        .startMs,
+    ).toBe(Date.UTC(2026, 6, 15, 10));
+    expect(
+      win({
+        start: "2026-07-15T10:00:00-05:00",
+        end: "2026-07-15T20:00:00-05:00",
+      }).startMs,
     ).toBe(Date.UTC(2026, 6, 15, 15));
   });
 
   it("accepts seconds and fractional seconds", () => {
-    const w = win({ start: "2026-09-25T10:00:00.250Z", end: "2026-09-25T10:00:05Z" });
+    const w = win({
+      start: "2026-09-25T10:00:00.250Z",
+      end: "2026-09-25T10:00:05Z",
+    });
     expect(w.startMs).toBe(Date.UTC(2026, 8, 25, 10, 0, 0, 250));
     expect(w.endMs).toBe(Date.UTC(2026, 8, 25, 10, 0, 5));
   });
@@ -100,21 +110,31 @@ describe("invalid windows", () => {
     "2026-09-25T10:00+0200",
     "",
   ])("rejects %j at the syntax check, before any connection", (text) => {
-    expect(kindOf(() => parseWindowInput({ start: text }))).toBe("window_invalid");
-    expect(kindOf(() => parseWindowInput({ end: text }))).toBe("window_invalid");
+    expect(kindOf(() => parseWindowInput({ start: text }))).toBe(
+      "window_invalid",
+    );
+    expect(kindOf(() => parseWindowInput({ end: text }))).toBe(
+      "window_invalid",
+    );
   });
 
   it("rejects an end that is not after the start", () => {
     expect(
-      kindOf(() => win({ start: "2026-09-25T10:00:00Z", end: "2026-09-25T10:00:00Z" })),
+      kindOf(() =>
+        win({ start: "2026-09-25T10:00:00Z", end: "2026-09-25T10:00:00Z" }),
+      ),
     ).toBe("window_invalid");
     expect(
-      kindOf(() => win({ start: "2026-09-25T10:00:00Z", end: "2026-09-25T09:00:00Z" })),
+      kindOf(() =>
+        win({ start: "2026-09-25T10:00:00Z", end: "2026-09-25T09:00:00Z" }),
+      ),
     ).toBe("window_invalid");
   });
 
   it("rejects a start after the time of the call", () => {
-    expect(kindOf(() => win({ start: "2026-09-27T00:00:00Z" }))).toBe("window_invalid");
+    expect(kindOf(() => win({ start: "2026-09-27T00:00:00Z" }))).toBe(
+      "window_invalid",
+    );
   });
 
   it("names the problem and the accepted form", () => {

@@ -37,15 +37,63 @@ function ulidAt(rng: Rng, ms: number): string {
 }
 
 const WORDS = [
-  "hallway", "kitchen", "garage", "porch", "bedroom", "office", "garden", "attic", "basement",
-  "studio", "terrace", "laundry", "nursery", "lounge", "pantry", "cellar", "balcony", "entry",
+  "hallway",
+  "kitchen",
+  "garage",
+  "porch",
+  "bedroom",
+  "office",
+  "garden",
+  "attic",
+  "basement",
+  "studio",
+  "terrace",
+  "laundry",
+  "nursery",
+  "lounge",
+  "pantry",
+  "cellar",
+  "balcony",
+  "entry",
 ];
-const AREAS = ["upstairs", "downstairs", "north", "south", "east", "west", "main", "guest"];
+const AREAS = [
+  "upstairs",
+  "downstairs",
+  "north",
+  "south",
+  "east",
+  "west",
+  "main",
+  "guest",
+];
 const THINGS = [
-  "motion", "door", "window", "lamp", "fan", "speaker", "vacuum", "heater", "blind", "camera",
-  "sensor", "plug", "strip", "lock", "scene", "timer",
+  "motion",
+  "door",
+  "window",
+  "lamp",
+  "fan",
+  "speaker",
+  "vacuum",
+  "heater",
+  "blind",
+  "camera",
+  "sensor",
+  "plug",
+  "strip",
+  "lock",
+  "scene",
+  "timer",
 ];
-const KINDS = ["occupancy", "status", "presence", "activity", "mode", "state", "schedule", "alert"];
+const KINDS = [
+  "occupancy",
+  "status",
+  "presence",
+  "activity",
+  "mode",
+  "state",
+  "schedule",
+  "alert",
+];
 const IDLE = ["idle", "playing", "paused", "off", "standby", "unavailable"];
 
 interface Entity {
@@ -65,8 +113,22 @@ const MIX: readonly { domain: string; share: number; entities: number }[] = [
   { domain: "binary_sensor", share: 0.05, entities: 20 },
 ];
 const TAIL = [
-  "number", "input_number", "button", "weather", "update", "select", "input_select", "event",
-  "remote", "device_tracker", "person", "zone", "switch", "conversation", "sun", "climate",
+  "number",
+  "input_number",
+  "button",
+  "weather",
+  "update",
+  "select",
+  "input_select",
+  "event",
+  "remote",
+  "device_tracker",
+  "person",
+  "zone",
+  "switch",
+  "conversation",
+  "sun",
+  "climate",
 ];
 
 function buildEntities(rng: Rng, count: number): Entity[] {
@@ -91,9 +153,11 @@ function buildEntities(rng: Rng, count: number): Entity[] {
       });
     }
   };
-  for (const m of MIX) add(m.domain, m.share, Math.max(1, Math.round(m.entities * scale)));
+  for (const m of MIX)
+    add(m.domain, m.share, Math.max(1, Math.round(m.entities * scale)));
   const tailShare = 1 - MIX.reduce((sum, m) => sum + m.share, 0);
-  for (const domain of TAIL) add(domain, tailShare / TAIL.length, Math.max(1, Math.round(scale)));
+  for (const domain of TAIL)
+    add(domain, tailShare / TAIL.length, Math.max(1, Math.round(scale)));
   return entities;
 }
 
@@ -103,7 +167,9 @@ interface Cause {
 
 function buildCauses(rng: Rng, entities: Entity[], count: number): Cause[] {
   const automations = entities.filter((e) => e.domain === "automation");
-  const lights = entities.filter((e) => e.domain === "light" || e.domain === "media_player");
+  const lights = entities.filter(
+    (e) => e.domain === "light" || e.domain === "media_player",
+  );
   const causes: Cause[] = [];
   for (let i = 0; i < count; i++) {
     const roll = rng.next();
@@ -122,14 +188,27 @@ function buildCauses(rng: Rng, entities: Entity[], count: number): Cause[] {
     } else if (roll < 0.8 && lights.length > 0) {
       const e = rng.pick(lights);
       causes.push({
-        fields: { context_state: rng.pick(["on", "off", "playing", "idle"]), context_entity_id: e.id },
+        fields: {
+          context_state: rng.pick(["on", "off", "playing", "idle"]),
+          context_entity_id: e.id,
+        },
       });
     } else if (roll < 0.95) {
       causes.push({
         fields: {
           context_event_type: "call_service",
-          context_domain: rng.pick(["light", "media_player", "script", "switch"]),
-          context_service: rng.pick(["turn_on", "turn_off", "toggle", "media_play"]),
+          context_domain: rng.pick([
+            "light",
+            "media_player",
+            "script",
+            "switch",
+          ]),
+          context_service: rng.pick([
+            "turn_on",
+            "turn_off",
+            "toggle",
+            "media_play",
+          ]),
         },
       });
     } else {
@@ -178,9 +257,21 @@ function stateFor(rng: Rng, e: Entity): string {
     case "input_number":
       return String(rng.int(0, 100));
     case "weather":
-      return rng.pick(["sunny", "cloudy", "rainy", "clear-night", "partlycloudy"]);
+      return rng.pick([
+        "sunny",
+        "cloudy",
+        "rainy",
+        "clear-night",
+        "partlycloudy",
+      ]);
     default:
-      return rng.pick(["idle", "on", "off", "unknown", "2026-09-26T08:12:44+00:00"]);
+      return rng.pick([
+        "idle",
+        "on",
+        "off",
+        "unknown",
+        "2026-09-26T08:12:44+00:00",
+      ]);
   }
 }
 
@@ -223,7 +314,11 @@ export function generateLogbook(
       if (e.domain === "automation" || e.domain === "script") {
         let sources = autoSources.get(e.id);
         if (sources === undefined) {
-          sources = Array.from({ length: rng.int(1, 3) }, () => `state of ${rng.pick(AREAS)} ${rng.pick(WORDS)} ${rng.pick(THINGS)} ${rng.pick(KINDS)}`);
+          sources = Array.from(
+            { length: rng.int(1, 3) },
+            () =>
+              `state of ${rng.pick(AREAS)} ${rng.pick(WORDS)} ${rng.pick(THINGS)} ${rng.pick(KINDS)}`,
+          );
           autoSources.set(e.id, sources);
         }
         const source = rng.pick(sources);
@@ -231,10 +326,19 @@ export function generateLogbook(
         row.message = `triggered by ${source}`;
         row.source = source;
         row.domain = e.domain;
-        row.context_id = ulidAt(rng, Math.round(when * 1000) - rng.weighted([{ w: 5, v: 0 }, { w: 40, v: rng.int(1, 5) }, { w: 2, v: rng.int(1000, 27000) }]));
+        row.context_id = ulidAt(
+          rng,
+          Math.round(when * 1000) -
+            rng.weighted([
+              { w: 5, v: 0 },
+              { w: 40, v: rng.int(1, 5) },
+              { w: 2, v: rng.int(1000, 27000) },
+            ]),
+        );
       } else {
         row.state = stateFor(rng, e);
-        if (rng.chance(0.16)) row.icon = `mdi:${rng.pick(["lightbulb", "speaker", "motion-sensor", "door", "fan"])}`;
+        if (rng.chance(0.16))
+          row.icon = `mdi:${rng.pick(["lightbulb", "speaker", "motion-sensor", "door", "fan"])}`;
       }
       if (cause !== null) Object.assign(row, cause.fields);
       rows.push(row);
@@ -244,7 +348,12 @@ export function generateLogbook(
 
   return {
     haVersion: "2026.9.1",
-    user: { id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", name: "Owner", is_owner: true, is_admin: true },
+    user: {
+      id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      name: "Owner",
+      is_owner: true,
+      is_admin: true,
+    },
     records: {
       config: {
         version: "2026.9.1",
@@ -265,6 +374,14 @@ export function generateLogbook(
   };
 }
 
-export const REFERENCE_LOGBOOK_24H: LogbookFixture = generateLogbook(2100, 150, 2100);
-export const PERFORMANCE_LOGBOOK: LogbookFixture = generateLogbook(10_000, 1000, 10_000);
+export const REFERENCE_LOGBOOK_24H: LogbookFixture = generateLogbook(
+  2100,
+  150,
+  2100,
+);
+export const PERFORMANCE_LOGBOOK: LogbookFixture = generateLogbook(
+  10_000,
+  1000,
+  10_000,
+);
 export const LOGBOOK_EMPTY: LogbookFixture = generateLogbook(0, 10, 0);

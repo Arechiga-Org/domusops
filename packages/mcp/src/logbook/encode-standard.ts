@@ -1,7 +1,6 @@
 import {
   CAUSE_FIELDS,
   CAUSE_PREFIX,
-  LOGBOOK_FORMAT,
   deepEqual,
   encodeContextId,
   projectLogbook,
@@ -11,16 +10,14 @@ import {
   type LogbookRow,
   type LogbookStandardDocument,
 } from "@domusops/schema";
-import { formatLocalIso, formatOffset, localParts } from "./local-time.js";
-import type { ResolvedWindow } from "./window.js";
+import {
+  baseOffsetMinutes,
+  buildEnvelope,
+  type EncodeContext,
+} from "./envelope.js";
+import { formatOffset, localParts } from "./local-time.js";
 
-export interface EncodeContext {
-  haVersion: string;
-  timeZone: string;
-  window: ResolvedWindow;
-  selectors: string[] | undefined;
-  noEvents: string[];
-}
+export type { EncodeContext } from "./envelope.js";
 
 /** Keys that are never a column or a constant: they have a fixed place in the row. */
 const FIXED = new Set(["when", "entity_id", "state", ...CAUSE_FIELDS]);
@@ -72,10 +69,7 @@ export function encodeStandard(
   context: EncodeContext,
 ): LogbookStandardDocument {
   const projected = projectLogbook(rows);
-  const baseOffset = localParts(
-    context.window.startMs,
-    context.timeZone,
-  ).offsetMinutes;
+  const baseOffset = baseOffsetMinutes(context);
 
   // Entity table, in order of first appearance; the entity of a row without one is null.
   const byEntity = new Map<string | null, LogbookRow[]>();
@@ -210,33 +204,8 @@ export function encodeStandard(
     (day[row.hourKey] ??= []).push(encoded);
   }
 
-  const firstRow = projected[0];
-  const lastRow = projected[projected.length - 1];
-  const document: LogbookStandardDocument = {
-    format: LOGBOOK_FORMAT,
-    detail: "standard",
-    ha_version: context.haVersion,
-    compression_ratio: 0,
-    time_zone: context.timeZone,
-    utc_offset: formatOffset(baseOffset),
-    window: {
-      start: formatLocalIso(context.window.startMs, context.timeZone, null),
-      end: formatLocalIso(context.window.endMs, context.timeZone, null),
-    },
-    first:
-      firstRow === undefined
-        ? null
-        : formatLocalIso(firstRow.when * 1000, context.timeZone, baseOffset),
-    last:
-      lastRow === undefined
-        ? null
-        : formatLocalIso(lastRow.when * 1000, context.timeZone, baseOffset),
-    ...(context.selectors === undefined
-      ? {}
-      : { selectors: context.selectors }),
-    ...(context.selectors === undefined || context.noEvents.length === 0
-      ? {}
-      : { no_events: context.noEvents }),
+  return {
+    ...buildEnvelope(context, projected, "standard"),
     ...(strings.length === 0 ? {} : { strings }),
     entities,
     ...(causes.length === 0
@@ -244,5 +213,4 @@ export function encodeStandard(
       : { causes: causes.map((cause) => encodeObject(cause)) }),
     events,
   };
-  return document;
 }

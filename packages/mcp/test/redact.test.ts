@@ -233,7 +233,9 @@ describe("C2: coordinate pairs written as text", () => {
 
   it("leaves numbers with fewer than three decimals alone", () => {
     expect(text("21.5, 22.0")).toBe("21.5, 22.0");
-    expect(text("temperatures 21.50 and 22.75")).toBe("temperatures 21.50 and 22.75");
+    expect(text("temperatures 21.50 and 22.75")).toBe(
+      "temperatures 21.50 and 22.75",
+    );
   });
 
   it("does not start in the middle of a longer number", () => {
@@ -244,7 +246,11 @@ describe("C2: coordinate pairs written as text", () => {
 });
 
 describe("C3: the instance's own coordinates", () => {
-  const withConfig = (latitude: unknown, longitude: unknown, note: string): unknown => {
+  const withConfig = (
+    latitude: unknown,
+    longitude: unknown,
+    note: string,
+  ): unknown => {
     const out = redact(
       records({
         config: { latitude, longitude },
@@ -256,9 +262,9 @@ describe("C3: the instance's own coordinates", () => {
   };
 
   it("redacts the configured latitude and longitude wherever they occur in text", () => {
-    expect(withConfig(41.385064, 2.173404, "home is 41.385064 by 2.173404")).toBe(
-      `home is ${M} by ${M}`,
-    );
+    expect(
+      withConfig(41.385064, 2.173404, "home is 41.385064 by 2.173404"),
+    ).toBe(`home is ${M} by ${M}`);
   });
 
   it("redacts a signed value and its unsigned form", () => {
@@ -272,7 +278,9 @@ describe("C3: the instance's own coordinates", () => {
   });
 
   it("does nothing when the config has no coordinates", () => {
-    expect(withConfig(undefined, undefined, "level 20.4746")).toBe("level 20.4746");
+    expect(withConfig(undefined, undefined, "level 20.4746")).toBe(
+      "level 20.4746",
+    );
   });
 });
 
@@ -288,7 +296,10 @@ describe("redactRows (feature 002)", () => {
 
   it("does not touch a row that has nothing to redact", () => {
     const input = { when: 1, entity_id: "light.a", state: "on" };
-    const [row] = redactRows([input], { token: "", exemptKeys: LOGBOOK_EXEMPT_KEYS });
+    const [row] = redactRows([input], {
+      token: "",
+      exemptKeys: LOGBOOK_EXEMPT_KEYS,
+    });
     expect(row).toEqual(input);
   });
 });

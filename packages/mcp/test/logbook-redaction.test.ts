@@ -29,7 +29,11 @@ async function query(
 }
 
 /** True when any run of `length` characters of `secret` occurs in `text`. */
-function leaksFragment(text: string, secret: string, length = 6): string | null {
+function leaksFragment(
+  text: string,
+  secret: string,
+  length = 6,
+): string | null {
   for (let i = 0; i + length <= secret.length; i++) {
     const fragment = secret.slice(i, i + length);
     if (text.includes(fragment)) return fragment;
@@ -40,6 +44,16 @@ function leaksFragment(text: string, secret: string, length = 6): string | null 
 describe("redaction oracle: no fragment of six or more characters of a planted value", () => {
   it("holds at detail=standard", async () => {
     const text = await query();
+    for (const secret of fixture.expected_absent) {
+      expect(
+        leaksFragment(text, secret),
+        `a fragment of ${secret.slice(0, 12)}… leaked`,
+      ).toBeNull();
+    }
+  });
+
+  it("holds at detail=summary", async () => {
+    const text = await query({ detail: "summary" });
     for (const secret of fixture.expected_absent) {
       expect(
         leaksFragment(text, secret),
@@ -92,6 +106,8 @@ describe("redactRows with the logbook exempt keys", () => {
   });
 
   it("redacts credential-named keys, keeping the field", () => {
-    expect(redact({ access_token: "x".repeat(30) })["access_token"]).toBe("[redacted]");
+    expect(redact({ access_token: "x".repeat(30) })["access_token"]).toBe(
+      "[redacted]",
+    );
   });
 });

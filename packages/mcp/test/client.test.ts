@@ -100,9 +100,7 @@ describe("config", () => {
         expect.unreachable();
       } catch (error) {
         expect(kindOf(error as ToolError)).toBe("config_invalid");
-        expect((error as ToolError).message).toContain(
-          "http://host[:port]",
-        );
+        expect((error as ToolError).message).toContain("http://host[:port]");
       }
     }
   });
@@ -288,7 +286,10 @@ describe("logbook command (feature 002)", () => {
   });
 
   it("lets the logbook command outlast the per-command limit", async () => {
-    const ha = await fake({ fixture: REFERENCE_LOGBOOK_24H, logbookDelayMs: 350 });
+    const ha = await fake({
+      fixture: REFERENCE_LOGBOOK_24H,
+      logbookDelayMs: 350,
+    });
     const client = await HaClient.connect({
       wsUrl: wsUrl(ha),
       token: FAKE_TOKEN,
@@ -314,7 +315,10 @@ describe("logbook command (feature 002)", () => {
   });
 
   it("times out at the overall limit with a shorter-window next step", async () => {
-    const ha = await fake({ fixture: REFERENCE_LOGBOOK_24H, logbookDelayMs: 1500 });
+    const ha = await fake({
+      fixture: REFERENCE_LOGBOOK_24H,
+      logbookDelayMs: 1500,
+    });
     const client = await HaClient.connect({
       wsUrl: wsUrl(ha),
       token: FAKE_TOKEN,

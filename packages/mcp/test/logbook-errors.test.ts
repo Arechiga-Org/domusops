@@ -26,7 +26,11 @@ interface CallResult {
   isError?: boolean;
 }
 
-const SHORT: Partial<Timeouts> = { connectMs: 300, commandMs: 300, totalMs: 1500 };
+const SHORT: Partial<Timeouts> = {
+  connectMs: 300,
+  commandMs: 300,
+  totalMs: 1500,
+};
 const iso = (seconds: number): string => new Date(seconds * 1000).toISOString();
 const WINDOW = {
   start: iso(REFERENCE_LOGBOOK_24H.window.start),
@@ -50,10 +54,15 @@ async function call(
   });
   cleanups.push(() => ha.close());
   const server = createServer({
-    env: { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN, ...options.env },
+    env: {
+      DOMUSOPS_HA_URL: ha.url,
+      DOMUSOPS_HA_TOKEN: FAKE_TOKEN,
+      ...options.env,
+    },
     timeouts: options.timeouts ?? SHORT,
   });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
   await server.connect(serverTransport);
   const client = new Client({ name: "errors-test", version: "0.0.0" });
   await client.connect(clientTransport);
@@ -61,7 +70,10 @@ async function call(
     await client.close();
     await server.close();
   });
-  const result = (await client.callTool({ name: tool, arguments: args })) as CallResult;
+  const result = (await client.callTool({
+    name: tool,
+    arguments: args,
+  })) as CallResult;
   return { result, ha, text: result.content[0]?.text ?? "", client };
 }
 
@@ -94,11 +106,17 @@ describe("failures shared with ha_snapshot (FR-014)", () => {
   });
 
   it("config_invalid for an address that is not http(s)://host[:port]", async () => {
-    expectFailure(await logbook({}, { env: { DOMUSOPS_HA_URL: "ftp://nope" } }), "config_invalid");
+    expectFailure(
+      await logbook({}, { env: { DOMUSOPS_HA_URL: "ftp://nope" } }),
+      "config_invalid",
+    );
   });
 
   it("unreachable names the address", async () => {
-    const run = await logbook({}, { env: { DOMUSOPS_HA_URL: "http://127.0.0.1:1" } });
+    const run = await logbook(
+      {},
+      { env: { DOMUSOPS_HA_URL: "http://127.0.0.1:1" } },
+    );
     expectFailure(run, "unreachable");
     expect(run.text).toContain("127.0.0.1:1");
   });
@@ -124,7 +142,10 @@ describe("failures shared with ha_snapshot (FR-014)", () => {
   });
 
   it("auth_invalid does not echo the token", async () => {
-    const run = await logbook({}, { env: { DOMUSOPS_HA_TOKEN: "some-other-token-0000" } });
+    const run = await logbook(
+      {},
+      { env: { DOMUSOPS_HA_TOKEN: "some-other-token-0000" } },
+    );
     expectFailure(run, "auth_invalid");
     expect(run.text).not.toContain("some-other-token-0000");
   });
@@ -137,27 +158,39 @@ describe("failures shared with ha_snapshot (FR-014)", () => {
 
   it("retrieval_failed when the logbook retrieval fails, with no events", async () => {
     const run = await logbook(WINDOW, {
-      fake: { failCommand: { type: "logbook/get_events", code: "boom", message: "db locked" } },
+      fake: {
+        failCommand: {
+          type: "logbook/get_events",
+          code: "boom",
+          message: "db locked",
+        },
+      },
     });
     expectFailure(run, "retrieval_failed");
     expect(run.text).toContain("logbook/get_events");
   });
 
   it("retrieval_failed when the connection drops during the retrieval", async () => {
-    expectFailure(await logbook(WINDOW, { fake: { dropAfter: "logbook/get_events" } }), "retrieval_failed");
+    expectFailure(
+      await logbook(WINDOW, { fake: { dropAfter: "logbook/get_events" } }),
+      "retrieval_failed",
+    );
   });
 
   it("protocol_error for a reply of the wrong shape", async () => {
-    expectFailure(await logbook(WINDOW, { fake: { malformed: "logbook/get_events" } }), "protocol_error");
+    expectFailure(
+      await logbook(WINDOW, { fake: { malformed: "logbook/get_events" } }),
+      "protocol_error",
+    );
   });
 
   it("uses the same cause and next step as ha_snapshot", async () => {
-    const same = async (
-      options: Parameters<typeof call>[2],
-    ): Promise<void> => {
+    const same = async (options: Parameters<typeof call>[2]): Promise<void> => {
       const a = await logbook({}, options);
       const b = await call("ha_snapshot", {}, options);
-      expect(a.text.replace("ha_logbook_query failed", "ha_snapshot failed")).toBe(b.text);
+      expect(
+        a.text.replace("ha_logbook_query failed", "ha_snapshot failed"),
+      ).toBe(b.text);
     };
     await same({ fake: { isAdmin: false } });
     await same({ fake: { haVersion: "2024.12.0" } });
@@ -176,7 +209,10 @@ describe("window_invalid", () => {
   });
 
   it("rejects an end before the start without asking the instance for events", async () => {
-    const run = await logbook({ start: "2000-01-02T00:00:00Z", end: "2000-01-01T00:00:00Z" });
+    const run = await logbook({
+      start: "2000-01-02T00:00:00Z",
+      end: "2000-01-01T00:00:00Z",
+    });
     expectFailure(run, "window_invalid");
     expect(run.ha.received).not.toContain("logbook/get_events");
   });
@@ -204,7 +240,10 @@ describe("history_unavailable", () => {
       ...REFERENCE_LOGBOOK_24H,
       records: {
         ...REFERENCE_LOGBOOK_24H.records,
-        config: { ...REFERENCE_LOGBOOK_24H.records.config, components: ["light"] },
+        config: {
+          ...REFERENCE_LOGBOOK_24H.records.config,
+          components: ["light"],
+        },
       },
     };
     const run = await logbook(WINDOW, { fixture });
@@ -214,7 +253,10 @@ describe("history_unavailable", () => {
   });
 
   it("when the instance does not know logbook/get_events", async () => {
-    expectFailure(await logbook(WINDOW, { fake: { logbook: false } }), "history_unavailable");
+    expectFailure(
+      await logbook(WINDOW, { fake: { logbook: false } }),
+      "history_unavailable",
+    );
   });
 });
 
@@ -235,7 +277,9 @@ describe("too_large (FR-019)", () => {
   });
 
   it("reports the limit the user set in the configuration", async () => {
-    const run = await logbook(WINDOW, { env: { DOMUSOPS_LOGBOOK_MAX_BYTES: "1000" } });
+    const run = await logbook(WINDOW, {
+      env: { DOMUSOPS_LOGBOOK_MAX_BYTES: "1000" },
+    });
     expectFailure(run, "too_large");
     expect(run.text).toContain("limit of 1000 bytes");
   });
@@ -262,10 +306,40 @@ describe("DOMUSOPS_LOGBOOK_MAX_BYTES must be a positive whole number", () => {
   it.each(["zero", "-5", "1.5", "0", "1e3", "12 34"])(
     "config_invalid for %j, before connecting",
     async (value) => {
-      const run = await logbook(WINDOW, { env: { DOMUSOPS_LOGBOOK_MAX_BYTES: value } });
+      const run = await logbook(WINDOW, {
+        env: { DOMUSOPS_LOGBOOK_MAX_BYTES: value },
+      });
       expectFailure(run, "config_invalid");
       expect(run.text).toContain("DOMUSOPS_LOGBOOK_MAX_BYTES");
       expect(run.ha.authReceived).toBe(false);
     },
   );
+});
+
+describe("detail (spec User Story 4)", () => {
+  it("rejects an unrecognised value, listing the accepted ones, with no events", async () => {
+    let text = "";
+    let isError: boolean | undefined;
+    try {
+      const run = await logbook({ ...WINDOW, detail: "full" });
+      text = run.text;
+      isError = run.result.isError;
+    } catch (error) {
+      // The SDK may report a schema violation as a protocol error instead of a tool result.
+      text = String(error instanceof Error ? error.message : error);
+      isError = true;
+    }
+    expect(isError).toBe(true);
+    expect(text).toContain("summary");
+    expect(text).toContain("standard");
+    expect(text).not.toContain('"events"');
+  });
+
+  it("accepts summary and standard", async () => {
+    for (const detail of ["summary", "standard"]) {
+      const run = await logbook({ ...WINDOW, detail });
+      expect(run.result.isError).not.toBe(true);
+      expect(JSON.parse(run.text).detail).toBe(detail);
+    }
+  });
 });

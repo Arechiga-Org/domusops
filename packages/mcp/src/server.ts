@@ -1,4 +1,4 @@
-import { DETAIL_LEVELS } from "@domusops/schema";
+import { DETAIL_LEVELS, LOGBOOK_DETAIL_LEVELS } from "@domusops/schema";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { errors, ToolError } from "./errors.js";
@@ -21,6 +21,8 @@ const START_DESCRIPTION =
   "Window start, ISO 8601 (2026-09-26T03:00 or 2026-09-26T03:00:00-06:00). Default: 24 hours before end.";
 const END_DESCRIPTION =
   "Window end, ISO 8601. Default: now. A later time is clamped to now.";
+const LOGBOOK_DETAIL_DESCRIPTION =
+  "summary: counts per entity, domain, and cause. standard: every event, compressed.";
 const ENTITIES_DESCRIPTION =
   "Entity IDs or patterns where * matches anything (light.*, *_motion). Omit for every event.";
 
@@ -86,6 +88,10 @@ export function createServer(options: ServerOptions = {}): McpServer {
       inputSchema: {
         start: z.string().optional().describe(START_DESCRIPTION),
         end: z.string().optional().describe(END_DESCRIPTION),
+        detail: z
+          .enum(LOGBOOK_DETAIL_LEVELS)
+          .default("standard")
+          .describe(LOGBOOK_DETAIL_DESCRIPTION),
         entities: z
           .array(z.string())
           .min(1)
@@ -101,9 +107,10 @@ export function createServer(options: ServerOptions = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ start, end, entities }) => {
+    async ({ start, end, entities, detail }) => {
       try {
         const text = await runLogbookQuery(options.env ?? process.env, {
+          detail,
           ...(start === undefined ? {} : { start }),
           ...(end === undefined ? {} : { end }),
           ...(entities === undefined ? {} : { entities }),

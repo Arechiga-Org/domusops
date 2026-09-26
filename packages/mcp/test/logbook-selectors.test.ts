@@ -44,17 +44,19 @@ describe("parseSelectors", () => {
   });
 
   it("removes duplicates and keeps the request order", () => {
-    expect(parseSelectors(["light.b", "light.*", "light.b", "light.a"])).toEqual([
-      "light.b",
-      "light.*",
-      "light.a",
-    ]);
+    expect(
+      parseSelectors(["light.b", "light.*", "light.b", "light.a"]),
+    ).toEqual(["light.b", "light.*", "light.a"]);
   });
 
-  it.each([[[""]], [["Light.Hallway"]], [["light hallway"]], [["light.?"]], [["light.[a]"]], [["light-hallway"]]])(
-    "rejects %j",
-    (list) => invalid(list),
-  );
+  it.each([
+    [[""]],
+    [["Light.Hallway"]],
+    [["light hallway"]],
+    [["light.?"]],
+    [["light.[a]"]],
+    [["light-hallway"]],
+  ])("rejects %j", (list) => invalid(list));
 
   it("rejects an empty list and more than 100 selectors", () => {
     invalid([]);
@@ -62,7 +64,9 @@ describe("parseSelectors", () => {
   });
 
   it("accepts exactly 100 selectors", () => {
-    expect(parseSelectors(Array.from({ length: 100 }, (_, i) => `light.n${i}`))).toHaveLength(100);
+    expect(
+      parseSelectors(Array.from({ length: 100 }, (_, i) => `light.n${i}`)),
+    ).toHaveLength(100);
   });
 });
 
@@ -78,7 +82,12 @@ const rows: LogbookRow[] = [
   { when: 1, entity_id: "light.a", state: "on" },
   { when: 2, entity_id: "light.b", state: "on" },
   { when: 3, entity_id: "switch.a", state: "on" },
-  { when: 4, name: "Home Assistant", message: "started", domain: "homeassistant" },
+  {
+    when: 4,
+    name: "Home Assistant",
+    message: "started",
+    domain: "homeassistant",
+  },
 ];
 
 describe("selectRows and noEvents", () => {
@@ -93,6 +102,9 @@ describe("selectRows and noEvents", () => {
 
   it("lists the selectors that matched no row, in request order", () => {
     const selectors = ["sensor.*", "light.a", "light.zzz", "switch.*"];
-    expect(noEvents(selectors, selectRows(rows, selectors))).toEqual(["sensor.*", "light.zzz"]);
+    expect(noEvents(selectors, selectRows(rows, selectors))).toEqual([
+      "sensor.*",
+      "light.zzz",
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import { readConfig, readLogbookLimit } from "../ha/config.js";
 import { errors } from "../errors.js";
 import { fetchEvents, readContext } from "../ha/logbook.js";
 import { encodeStandard } from "../logbook/encode-standard.js";
+import { encodeSummary } from "../logbook/encode-summary.js";
 import {
   noEvents,
   parseSelectors,
@@ -72,14 +73,18 @@ export async function runLogbookQuery(
       // The instance's own coordinates, so a message that spells them out is redacted (rule C3).
       coordinates: { latitude: context.latitude, longitude: context.longitude },
     });
-    const document = encodeStandard(redacted, {
+    const encoding = {
       haVersion: context.haVersion,
       timeZone: context.timeZone,
       window,
       selectors,
       noEvents: selectors === undefined ? [] : noEvents(selectors, selected),
-    });
-    const text = finalize(document, rawBytes);
+    };
+    if (options.detail === "summary") {
+      // Counts only: not subject to the size limit (spec FR-019).
+      return finalize(encodeSummary(redacted, encoding), rawBytes);
+    }
+    const text = finalize(encodeStandard(redacted, encoding), rawBytes);
     // A result above the limit is an error, never a truncated result (spec FR-017, FR-019).
     const bytes = byteLength(text);
     if (bytes > limit) throw errors.tooLarge(selected.length, bytes, limit);

@@ -1,7 +1,12 @@
 {
   "token": "lb-tok-9Qw8Er7Ty6Ui5Op4As3Df2Gh1Jk",
   "haVersion": "2026.9.1",
-  "user": { "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "name": "Owner", "is_owner": true, "is_admin": true },
+  "user": {
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "name": "Owner",
+    "is_owner": true,
+    "is_admin": true
+  },
   "window": { "start": 1773396000, "end": 1773482400 },
   "records": {
     "config": {

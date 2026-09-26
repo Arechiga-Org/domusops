@@ -14,7 +14,10 @@ const base = {
   compression_ratio: 1,
   time_zone: "America/Mexico_City",
   utc_offset: "-06:00",
-  window: { start: "2026-09-26T00:00:00-06:00", end: "2026-09-26T06:00:00-06:00" },
+  window: {
+    start: "2026-09-26T00:00:00-06:00",
+    end: "2026-09-26T06:00:00-06:00",
+  },
   first: "2026-09-26T03:12:44",
   last: "2026-09-26T04:20:10",
 } as const;
@@ -94,16 +97,23 @@ describe("expandLogbook", () => {
       entities: ["light.a"],
       events: { "2026-10-25": { "02:00+01:00": [["30:00", 0, "off"]] } },
     };
-    expect(expandLogbook(shifted)[0]?.when).toBe(Date.UTC(2026, 9, 25, 1, 30) / 1000);
+    expect(expandLogbook(shifted)[0]?.when).toBe(
+      Date.UTC(2026, 9, 25, 1, 30) / 1000,
+    );
   });
 
   it("reads a literal number and an escaped object", () => {
     const literal: LogbookStandardDocument = {
       ...base,
       entities: [["sensor.a", { extra: { v: { v: 7 } } }, ["count"]]],
-      events: { "2026-09-26": { "03:00": [["00:01", 0, null, null, { v: 5 }]] } },
+      events: {
+        "2026-09-26": { "03:00": [["00:01", 0, null, null, { v: 5 }]] },
+      },
     };
-    expect(expandLogbook(literal)[0]).toMatchObject({ count: 5, extra: { v: 7 } });
+    expect(expandLogbook(literal)[0]).toMatchObject({
+      count: 5,
+      extra: { v: 7 },
+    });
   });
 });
 
@@ -111,7 +121,12 @@ describe("projectLogbook", () => {
   it("truncates when to the second and removes null-valued top-level keys", () => {
     expect(
       projectLogbook([
-        { when: 10.9, entity_id: "a.b", icon: null, attributes: { keep: null } },
+        {
+          when: 10.9,
+          entity_id: "a.b",
+          icon: null,
+          attributes: { keep: null },
+        },
       ]),
     ).toEqual([{ when: 10, entity_id: "a.b", attributes: { keep: null } }]);
   });
@@ -120,7 +135,9 @@ describe("projectLogbook", () => {
 describe("context IDs", () => {
   it("returns anything that is not a ULID verbatim, wrapping only an encoded-looking string", () => {
     expect(encodeContextId("abc-123", 0)).toBe("abc-123");
-    expect(encodeContextId("12:ABCDEFGHJKMNPQRS", 0)).toEqual({ v: "12:ABCDEFGHJKMNPQRS" });
+    expect(encodeContextId("12:ABCDEFGHJKMNPQRS", 0)).toEqual({
+      v: "12:ABCDEFGHJKMNPQRS",
+    });
     expect(decodeContextId("abc-123", 0)).toBe("abc-123");
   });
 });

@@ -54,13 +54,8 @@ export function expandLogbook(document: LogbookStandardDocument): LogbookRow[] {
       const hour = Number(match[1]);
       const offset = offsetSeconds(match[2] ?? document.utc_offset);
       for (const encodedRow of bucket) {
-        const [time, entityIndex, state, causeIndex, ...columns] = encodedRow as [
-          string,
-          number,
-          unknown,
-          unknown,
-          ...unknown[],
-        ];
+        const [time, entityIndex, state, causeIndex, ...columns] =
+          encodedRow as [string, number, unknown, unknown, ...unknown[]];
         const minute = Number(time.slice(0, 2));
         const second = Number(time.slice(3, 5));
         const when =
@@ -75,7 +70,8 @@ export function expandLogbook(document: LogbookStandardDocument): LogbookRow[] {
         for (const [key, encoded] of Object.entries(constants)) {
           row[key] = value(encoded);
         }
-        if (state !== null && state !== undefined) row.state = value(state) as string;
+        if (state !== null && state !== undefined)
+          row.state = value(state) as string;
         if (typeof causeIndex === "number") {
           const cause = causes[causeIndex];
           if (cause === undefined) throw new Error(`No cause ${causeIndex}`);
