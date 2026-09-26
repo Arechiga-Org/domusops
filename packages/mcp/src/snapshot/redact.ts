@@ -139,6 +139,36 @@ function walkObject(
 
 const DEVICE_EXEMPT = new Set([...EXEMPT_KEYS, "id"]);
 
+/** Identifier keys of a logbook row that are never redacted (data-model §7 of feature 002). */
+export const LOGBOOK_EXEMPT_KEYS: ReadonlySet<string> = new Set([
+  "entity_id",
+  "context_entity_id",
+  "context_user_id",
+  "context_id",
+]);
+
+export interface RedactRowsOptions {
+  /** The configured access token, redacted wherever it occurs (rule V5). */
+  token: string;
+  /** Keys whose values are identifiers and are never touched, at any depth. */
+  exemptKeys: ReadonlySet<string>;
+  /** The instance's own coordinates, redacted wherever they occur in text (rule C3). */
+  coordinates?: { latitude: unknown; longitude: unknown };
+}
+
+/**
+ * Returns a deep copy of `rows` with secrets, credentials, coordinates, and e-mail addresses
+ * replaced by the redaction marker. Fields are kept, so an agent can see that a value existed.
+ */
+export function redactRows<T extends JsonObject>(
+  rows: readonly T[],
+  options: RedactRowsOptions,
+): T[] {
+  return rows.map(
+    (row) => walkObject(row, options.token, options.exemptKeys) as T,
+  );
+}
+
 /**
  * Returns a deep copy of the records with secrets, credentials, coordinates, and e-mail addresses
  * replaced by the redaction marker (data-model §8). Fields are kept, so an agent can see that a

@@ -1,7 +1,7 @@
 import { DETAIL_LEVELS } from "@domusops/schema";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { errors, SnapshotError } from "./errors.js";
+import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 
@@ -44,10 +44,10 @@ export function createServer(options: ServerOptions = {}): McpServer {
       } catch (error) {
         // Domain failures are tool results, so the agent always sees the remediation text.
         const failure =
-          error instanceof SnapshotError
+          error instanceof ToolError
             ? error
             : errors.protocolError(error instanceof Error ? error.message : "unknown error");
-        return { isError: true, content: [{ type: "text" as const, text: failure.toToolText() }] };
+        return { isError: true, content: [{ type: "text" as const, text: failure.toToolText("ha_snapshot") }] };
       }
     },
   );

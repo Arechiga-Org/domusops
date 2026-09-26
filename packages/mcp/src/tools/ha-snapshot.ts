@@ -17,7 +17,7 @@ export interface RunOptions {
 
 /**
  * The whole `ha_snapshot` pipeline: configuration, connection, all-or-nothing retrieval, and
- * encoding. Resolves with the minified snapshot document, or throws a `SnapshotError`.
+ * encoding. Resolves with the minified snapshot document, or throws a `ToolError`.
  */
 export async function runSnapshot(
   env: Readonly<Record<string, string | undefined>>,
