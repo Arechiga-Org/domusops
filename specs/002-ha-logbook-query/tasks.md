@@ -187,7 +187,7 @@ repository root. Section references (`data-model §3.2`, `research R6`) point in
 - [x] T042 [P] Update the "Current focus" section of `CLAUDE.md`: `ha_snapshot` is done; the current feature is `ha_logbook_query` (`specs/002-ha-logbook-query/`), backlog item 1 of `docs/SEED.md` §6; nothing else lands until it works end to end.
 - [x] T043 Run the full `pnpm lint && pnpm typecheck && pnpm test` and fix anything left. Confirm the 5x floor test, the redaction oracles at both detail levels, and all 95 tests of feature 001 (unchanged in behaviour).
 - [x] T044 Live verification (SC-007): run `quickstart.md` scenarios 2 to 4 with the maintainer's instance and an administrator token, and for scenario 4 a token of a non-administrator user. Record in the pull request description only: `ha_version`, the event count of the 24-hour window, the `standard` ratio of the 24-hour and the single-automation queries, and their wall-clock times. Never paste response content. A 24-hour ratio below 5 blocks release (research R7).
-- [ ] T045 Open the pull request from `002-ha-logbook-query`, title `feat: add the ha_logbook_query tool`, with a summary of the design decisions of plan.md "Decisions to confirm at review" and the results of T044. Wait for CI (`verify` and the sandbox matrix) to pass.
+- [x] T045 Open the pull request from `002-ha-logbook-query`, title `feat: add the ha_logbook_query tool`, with a summary of the design decisions of plan.md "Decisions to confirm at review" and the results of T044. Wait for CI (`verify` and the sandbox matrix) to pass.
 
 ---
 
