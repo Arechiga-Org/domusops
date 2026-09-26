@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 /**
- * @domusops/mcp — entrypoint.
- *
- * Real tool registration (ha_snapshot first — see 01-SEED.md §5) lands via
- * /speckit.implement. This stub exists so `pnpm build` and `npx @domusops/mcp`
- * have something to run against from commit one.
+ * @domusops/mcp entrypoint: serves the MCP tools over stdio. Stdout carries protocol traffic only;
+ * diagnostics go to stderr and never include the access token.
  */
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { createServer } from "./server.js";
 
-console.error("[domusops-mcp] no tools registered yet — see specs/ha-snapshot/");
-process.exit(1);
+async function main(): Promise<void> {
+  const server = createServer();
+  await server.connect(new StdioServerTransport());
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[domusops-mcp] failed to start: ${message}`);
+  process.exit(1);
+});
