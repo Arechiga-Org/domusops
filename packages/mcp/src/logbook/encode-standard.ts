@@ -1,6 +1,5 @@
 import {
   CAUSE_FIELDS,
-  CAUSE_PREFIX,
   deepEqual,
   encodeContextId,
   projectLogbook,
@@ -10,6 +9,7 @@ import {
   type LogbookRow,
   type LogbookStandardDocument,
 } from "@domusops/schema";
+import { extractCause } from "./cause.js";
 import {
   baseOffsetMinutes,
   buildEnvelope,
@@ -105,11 +105,8 @@ export function encodeStandard(
   const causes: JsonObject[] = [];
   const causeIndex = new Map<string, number>();
   const causeOf = (row: LogbookRow): number | null => {
-    const cause: JsonObject = {};
-    for (const field of CAUSE_FIELDS) {
-      if (field in row) cause[field.slice(CAUSE_PREFIX.length)] = row[field];
-    }
-    if (Object.keys(cause).length === 0) return null;
+    const cause = extractCause(row);
+    if (cause === null) return null;
     const key = JSON.stringify(cause);
     let index = causeIndex.get(key);
     if (index === undefined) {

@@ -24,12 +24,12 @@ The limit is configuration only. It is not a tool parameter (FR-019).
 
 ## Input
 
-| Property   | Type                        | Default              | Rules                                                                                             |
-| ---------- | --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------- |
-| `start`    | string                      | `end` minus 24 hours | `YYYY-MM-DDTHH:MM[:SS[.fff]][Z\|±HH:MM]`; no offset means the instance's time zone                |
-| `end`      | string                      | the time of the call | Same form; later than the time of the call is clamped to it; must be after `start`                |
-| `entities` | string[] (1 to 100 items)   | all events           | Each an entity ID or a pattern of `a-z 0-9 _ . *`, where `*` matches any sequence; case-sensitive |
-| `detail`   | `"summary"` \| `"standard"` | `"standard"`         | Any other value is rejected with the accepted values                                              |
+| Property   | Type                        | Default              | Rules                                                                                                                          |
+| ---------- | --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `start`    | string                      | `end` minus 24 hours | `YYYY-MM-DDTHH:MM[:SS[.fff]][Z\|±HH:MM]`; no offset means the instance's time zone                                             |
+| `end`      | string                      | the time of the call | Same form; later than the time of the call is clamped to it; must be after `start`                                             |
+| `entities` | string[] (1 to 100 items)   | all events           | Each an entity ID or a pattern of `a-z 0-9 _ . *`, where `*` matches any sequence; case-sensitive, each at most 128 characters |
+| `detail`   | `"summary"` \| `"standard"` | `"standard"`         | Any other value is rejected with the accepted values                                                                           |
 
 Local times that do not exist (the gap of a daylight-saving change) move forward by the gap;
 local times that occur twice resolve to the earlier instant.

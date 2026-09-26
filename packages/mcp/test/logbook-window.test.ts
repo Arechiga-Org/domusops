@@ -41,6 +41,17 @@ describe("defaults", () => {
     expect(w.endMs).toBe(NOW);
   });
 
+  it("defaults the start from the clamped end when only an end in the future is given", () => {
+    // One hour ahead: the window is still 24 hours, ending now.
+    const near = win({ end: "2026-09-26T11:00:00Z" });
+    expect(near.endMs).toBe(NOW);
+    expect(near.endMs - near.startMs).toBe(24 * HOUR);
+    // Two days ahead: not an error about a start the caller never gave.
+    const far = win({ end: "2026-09-28T00:00:00Z" });
+    expect(far.endMs).toBe(NOW);
+    expect(far.startMs).toBe(NOW - 24 * HOUR);
+  });
+
   it("clamps an end after the time of the call to it", () => {
     const w = win({
       start: "2026-09-25T00:00:00Z",

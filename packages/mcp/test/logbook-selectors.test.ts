@@ -2,6 +2,8 @@ import type { LogbookRow } from "@domusops/schema";
 import { describe, expect, it } from "vitest";
 import { ToolError } from "../src/errors.js";
 import {
+  MAX_SELECTOR_LENGTH,
+  MAX_SELECTORS,
   matches,
   noEvents,
   parseSelectors,
@@ -38,6 +40,34 @@ describe("matches", () => {
   });
 });
 
+describe("matches never backtracks", () => {
+  it("answers a pathological pattern in well under a second (CWE-1333)", () => {
+    const id = `sensor.${"a".repeat(60)}`;
+    const started = performance.now();
+    expect(matches(`${"*a".repeat(60)}*b`, id)).toBe(false);
+    expect(matches(`${"*a".repeat(60)}*`, id)).toBe(true);
+    expect(matches("*".repeat(100), id)).toBe(true);
+    expect(performance.now() - started).toBeLessThan(200);
+  });
+
+  it.each([
+    ["a*b*c", "abc", true],
+    ["a*b*c", "axbxc", true],
+    ["a*b*c", "acb", false],
+    ["*a*a*", "a", false],
+    ["*a*a*", "aa", true],
+    ["a**b", "ab", true],
+    ["*abc", "xxabc", true],
+    ["*abc", "abcx", false],
+    ["abc*", "abcx", true],
+    ["abc*", "xabc", false],
+    ["", "", true],
+    ["*", "", true],
+  ])("%s against %s is %s", (selector, id, expected) => {
+    expect(matches(selector, id)).toBe(expected);
+  });
+});
+
 describe("parseSelectors", () => {
   it("returns undefined when no selectors were given", () => {
     expect(parseSelectors(undefined)).toBeUndefined();
@@ -57,6 +87,15 @@ describe("parseSelectors", () => {
     [["light.[a]"]],
     [["light-hallway"]],
   ])("rejects %j", (list) => invalid(list));
+
+  it("rejects a selector longer than the limit, and accepts one of exactly the limit", () => {
+    invalid([`light.${"a".repeat(MAX_SELECTOR_LENGTH)}`]);
+    expect(parseSelectors(["a".repeat(MAX_SELECTOR_LENGTH)])).toHaveLength(1);
+  });
+
+  it("shares its count limit with the advertised input schema", () => {
+    expect(MAX_SELECTORS).toBe(100);
+  });
 
   it("rejects an empty list and more than 100 selectors", () => {
     invalid([]);

@@ -109,7 +109,8 @@ interface Context {
 /**
  * Rule C3 matcher for the instance's own coordinates. A value is used only when written with at
  * least three decimals: a shorter one (20.4) would match unrelated numbers. The unsigned form is
- * matched too, so "-103.4425" and "103.4425" are both caught.
+ * matched too, so "-103.4425" and "103.4425" are both caught. Like C2, a match may not start or
+ * end inside a longer number: 20.4746 is not found in 120.4746 or 20.47461.
  */
 function coordinateMatcher(values: readonly unknown[]): RegExp | null {
   const forms: string[] = [];
@@ -120,7 +121,7 @@ function coordinateMatcher(values: readonly unknown[]): RegExp | null {
   }
   return forms.length === 0
     ? null
-    : new RegExp(`-?(?:${forms.join("|")})`, "g");
+    : new RegExp(`(?<![\\d.])-?(?:${forms.join("|")})(?!\\d)`, "g");
 }
 
 /** Rules V1 to V6, C2, and C3, applied to one string. The configured token goes first (V5). */

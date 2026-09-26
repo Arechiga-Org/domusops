@@ -124,7 +124,7 @@ export const errors = {
     return new ToolError(
       "retrieval_failed",
       `The retrieval "${retrieval}" failed (${detail})`,
-      "No snapshot was produced. Check the instance logs and try again",
+      "Nothing was returned, because a partial result would look complete. Check the instance logs and try again",
     );
   },
 

@@ -1,11 +1,10 @@
 import {
-  CAUSE_FIELDS,
-  CAUSE_PREFIX,
   projectLogbook,
   type JsonObject,
   type LogbookRow,
   type LogbookSummaryDocument,
 } from "@domusops/schema";
+import { extractCause } from "./cause.js";
 import {
   buildEnvelope,
   baseOffsetMinutes,
@@ -57,11 +56,8 @@ export function encodeSummary(
       const domain = row.entity_id.split(".")[0] as string;
       domains.set(domain, (domains.get(domain) ?? 0) + 1);
     }
-    const cause: JsonObject = {};
-    for (const field of CAUSE_FIELDS) {
-      if (field in row) cause[field.slice(CAUSE_PREFIX.length)] = row[field];
-    }
-    if (Object.keys(cause).length > 0) {
+    const cause = extractCause(row);
+    if (cause !== null) {
       const key = JSON.stringify(cause);
       const seen = causes.get(key);
       if (seen === undefined) causes.set(key, { cause, count: 1 });

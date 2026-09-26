@@ -79,12 +79,12 @@ administrator-token requirement as `ha_snapshot`, so one configuration serves bo
 
 ### Input
 
-| Property   | Meaning                                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------------------- |
-| `start`    | Window start, ISO 8601 (`2026-09-26T03:00`, or with `Z` or an offset). Default: 24 hours before `end`     |
-| `end`      | Window end, ISO 8601. Default: now. A later time is clamped to now                                        |
-| `entities` | Up to 100 entity IDs or patterns where `*` matches anything (`light.*`, `*_motion`). Default: every event |
-| `detail`   | `summary` (counts per entity, domain, and cause) or `standard` (every event, compressed, the default)     |
+| Property   | Meaning                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `start`    | Window start, ISO 8601 (`2026-09-26T03:00`, or with `Z` or an offset). Default: 24 hours before `end`                                |
+| `end`      | Window end, ISO 8601. Default: now. A later time is clamped to now                                                                   |
+| `entities` | Up to 100 entity IDs or patterns of at most 128 characters, where `*` matches anything (`light.*`, `*_motion`). Default: every event |
+| `detail`   | `summary` (counts per entity, domain, and cause) or `standard` (every event, compressed, the default)                                |
 
 A time without an offset is read in the instance's time zone, and every time in the result is in
 that zone. Without `entities`, the result also includes events that belong to no entity, such as

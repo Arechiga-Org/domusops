@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
+import { MAX_SELECTORS } from "./logbook/selectors.js";
 import { runLogbookQuery } from "./tools/ha-logbook-query.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 
@@ -95,7 +96,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
         entities: z
           .array(z.string())
           .min(1)
-          .max(100)
+          .max(MAX_SELECTORS)
           .optional()
           .describe(ENTITIES_DESCRIPTION),
       },

@@ -273,6 +273,16 @@ describe("C3: the instance's own coordinates", () => {
     );
   });
 
+  it("does not start or end in the middle of a longer number", () => {
+    // 20.4746 inside 120.4746, -1103.4425, and 20.47461 is a different number: left intact.
+    expect(withConfig(20.4746, -103.4425, "a 120.4746 b")).toBe("a 120.4746 b");
+    expect(withConfig(20.4746, -103.4425, "a -1103.4425 b")).toBe(
+      "a -1103.4425 b",
+    );
+    expect(withConfig(20.4746, -103.4425, "a 20.47461 b")).toBe("a 20.47461 b");
+    expect(withConfig(20.4746, -103.4425, "a 20.4746. b")).toBe(`a ${M}. b`);
+  });
+
   it("skips a configured value written with fewer than three decimals", () => {
     expect(withConfig(20.4, 3, "level 20.4 and 3")).toBe("level 20.4 and 3");
   });

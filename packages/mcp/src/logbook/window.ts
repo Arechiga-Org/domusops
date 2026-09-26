@@ -104,10 +104,10 @@ export function resolveWindow(
   const requestedEnd =
     parsed.end === null ? nowMs : toInstant(parsed.end, timeZone);
   const endMs = Math.min(requestedEnd, nowMs);
+  // The default start counts back from the clamped end, so an end in the future still gives the
+  // documented 24 hours instead of a shorter window or a start "in the future".
   const startMs =
-    parsed.start === null
-      ? requestedEnd - day
-      : toInstant(parsed.start, timeZone);
+    parsed.start === null ? endMs - day : toInstant(parsed.start, timeZone);
   if (startMs > nowMs) {
     throw errors.windowInvalid("the start is in the future");
   }

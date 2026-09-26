@@ -168,6 +168,8 @@ describe("failures shared with ha_snapshot (FR-014)", () => {
     });
     expectFailure(run, "retrieval_failed");
     expect(run.text).toContain("logbook/get_events");
+    // The text is shared with ha_snapshot, so it must not talk about a snapshot.
+    expect(run.text).not.toMatch(/snapshot/i);
   });
 
   it("retrieval_failed when the connection drops during the retrieval", async () => {

@@ -1,7 +1,10 @@
 import type { LogbookRow } from "@domusops/schema";
 import { errors } from "../errors.js";
 
-const MAX_SELECTORS = 100;
+/** The most selectors one call may carry. The advertised input schema uses the same number. */
+export const MAX_SELECTORS = 100;
+/** The longest selector, in characters. A real entity ID is far shorter. */
+export const MAX_SELECTOR_LENGTH = 128;
 const VALID = /^[a-z0-9_.*]+$/;
 
 export type Strategy = "all" | "exact" | "filtered";
@@ -27,28 +30,45 @@ export function parseSelectors(
     );
   }
   for (const selector of list) {
+    if (selector.length > MAX_SELECTOR_LENGTH) {
+      throw errors.selectorInvalid(
+        selector,
+        `An entity selector is ${selector.length} characters long, and the limit is ${MAX_SELECTOR_LENGTH}`,
+      );
+    }
     if (!VALID.test(selector)) throw errors.selectorInvalid(selector);
   }
   return [...new Set(list)];
 }
 
-const compiled = new Map<string, RegExp>();
-
-function patternOf(selector: string): RegExp {
-  let pattern = compiled.get(selector);
-  if (pattern === undefined) {
-    // The valid alphabet has one regex metacharacter besides `*`: the dot.
-    pattern = new RegExp(
-      `^${selector.replace(/\./g, "\\.").replace(/\*/g, ".*")}$`,
-    );
-    compiled.set(selector, pattern);
-  }
-  return pattern;
-}
-
-/** Anchored, case-sensitive match; `*` matches any sequence, including an empty one. */
+/**
+ * Anchored, case-sensitive match; `*` matches any sequence, including an empty one. It walks the
+ * text once, remembering only the last `*`, so it never backtracks exponentially: a regular
+ * expression built from many `*` can take seconds, or hang the process, on a pattern that fails
+ * (CWE-1333). The work is at most the selector length times the ID length.
+ */
 export function matches(selector: string, entityId: string): boolean {
-  return patternOf(selector).test(entityId);
+  let p = 0;
+  let t = 0;
+  let star = -1;
+  let mark = 0;
+  while (t < entityId.length) {
+    const c = selector.charAt(p);
+    if (p < selector.length && c === "*") {
+      star = p++;
+      mark = t;
+    } else if (p < selector.length && c === entityId.charAt(t)) {
+      p++;
+      t++;
+    } else if (star !== -1) {
+      p = star + 1;
+      t = ++mark;
+    } else {
+      return false;
+    }
+  }
+  while (selector.charAt(p) === "*") p++;
+  return p === selector.length;
 }
 
 /** How the query is sent to the instance (research R4). */
@@ -67,11 +87,10 @@ export function selectRows(
   selectors: readonly string[] | undefined,
 ): LogbookRow[] {
   if (selectors === undefined) return [...rows];
-  const patterns = selectors.map(patternOf);
   return rows.filter(
     (row) =>
       typeof row.entity_id === "string" &&
-      patterns.some((pattern) => pattern.test(row.entity_id as string)),
+      selectors.some((selector) => matches(selector, row.entity_id as string)),
   );
 }
 

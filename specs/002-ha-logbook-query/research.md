@@ -101,7 +101,7 @@ thinks in ("at 3 a.m.").
 
 ## R4. Entity selectors
 
-**Decision**: Input `entities`: an optional list of 1 to 100 selectors. A selector is an exact
+**Decision**: Input `entities`: an optional list of 1 to 100 selectors of at most 128 characters each. A selector is an exact
 entity ID (`light.hallway`) or a pattern in which `*` matches any sequence, including an empty one
 (`light.*`, `*_motion`, `*`). Valid characters are `a-z`, `0-9`, `_`, `.`, and `*`; anything else
 (including uppercase, since entity IDs are lowercase) is `selector_invalid`. Duplicates are
@@ -116,7 +116,8 @@ Retrieval strategy:
 | At least one pattern | `logbook/get_events` without `entity_ids`    | Rows whose `entity_id` matches any selector |
 
 With selectors, rows without an `entity_id` are dropped (spec Clarifications). Matching is
-anchored and case-sensitive. Each selector that matched no row is listed in `no_events`.
+anchored and case-sensitive, done by a linear walk over the ID rather than a regular expression,
+because a selector with many `*` can make a regular expression backtrack for seconds (CWE-1333). Each selector that matched no row is listed in `no_events`.
 
 **Live check**: for the five most active entities over 24 hours, the exact-ID query and the
 unfiltered query filtered in the tool returned the same 965 rows, and the exact-ID query returned
