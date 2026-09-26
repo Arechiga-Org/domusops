@@ -81,12 +81,15 @@ export async function fetchEvents(
     throw error;
   }
   if (!Array.isArray(result)) {
-    throw errors.protocolError("the logbook events were not a list", client.haVersion);
+    throw errors.protocolError(
+      "the logbook events were not a list",
+      client.haVersion,
+    );
   }
   for (const row of result) {
     if (!isObject(row) || typeof row["when"] !== "number") {
       throw errors.protocolError(
-        "a logbook event had no numeric \"when\"",
+        'a logbook event had no numeric "when"',
         client.haVersion,
       );
     }

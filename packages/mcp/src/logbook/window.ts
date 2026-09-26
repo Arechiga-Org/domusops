@@ -52,7 +52,9 @@ function parseTime(text: string, which: "start" | "end"): ParsedTime {
     minute <= 59 &&
     second <= 59;
   if (!valid) {
-    throw errors.windowInvalid(`${which} "${text}" is not a real date and time`);
+    throw errors.windowInvalid(
+      `${which} "${text}" is not a real date and time`,
+    );
   }
   let offsetMinutes: number | null = null;
   if (m[8] !== undefined) {

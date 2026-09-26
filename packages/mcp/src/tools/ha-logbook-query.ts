@@ -67,6 +67,8 @@ export async function runLogbookQuery(
     const redacted = redactRows(selected, {
       token: config.token,
       exemptKeys: LOGBOOK_EXEMPT_KEYS,
+      // The instance's own coordinates, so a message that spells them out is redacted (rule C3).
+      coordinates: { latitude: context.latitude, longitude: context.longitude },
     });
     const document = encodeStandard(redacted, {
       haVersion: context.haVersion,

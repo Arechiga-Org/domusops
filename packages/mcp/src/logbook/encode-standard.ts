@@ -11,11 +11,7 @@ import {
   type LogbookRow,
   type LogbookStandardDocument,
 } from "@domusops/schema";
-import {
-  formatLocalIso,
-  formatOffset,
-  localParts,
-} from "./local-time.js";
+import { formatLocalIso, formatOffset, localParts } from "./local-time.js";
 import type { ResolvedWindow } from "./window.js";
 
 export interface EncodeContext {
@@ -76,8 +72,10 @@ export function encodeStandard(
   context: EncodeContext,
 ): LogbookStandardDocument {
   const projected = projectLogbook(rows);
-  const baseOffset = localParts(context.window.startMs, context.timeZone)
-    .offsetMinutes;
+  const baseOffset = localParts(
+    context.window.startMs,
+    context.timeZone,
+  ).offsetMinutes;
 
   // Entity table, in order of first appearance; the entity of a row without one is null.
   const byEntity = new Map<string | null, LogbookRow[]>();
@@ -201,7 +199,9 @@ export function encodeStandard(
       row.entity,
       row.state === undefined ? null : encodeValue(row.state),
       row.cause,
-      ...row.columns.map((value) => (value === null ? null : encodeValue(value))),
+      ...row.columns.map((value) =>
+        value === null ? null : encodeValue(value),
+      ),
     ];
     while (encoded.length > 2 && encoded[encoded.length - 1] === null) {
       encoded.pop();
@@ -231,7 +231,9 @@ export function encodeStandard(
       lastRow === undefined
         ? null
         : formatLocalIso(lastRow.when * 1000, context.timeZone, baseOffset),
-    ...(context.selectors === undefined ? {} : { selectors: context.selectors }),
+    ...(context.selectors === undefined
+      ? {}
+      : { selectors: context.selectors }),
     ...(context.selectors === undefined || context.noEvents.length === 0
       ? {}
       : { no_events: context.noEvents }),
