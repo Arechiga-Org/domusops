@@ -240,7 +240,7 @@ version control would include (quickstart scenario 2; SC-001).
 
 ### Tests for User Story 2
 
-- [ ] T024 [P] [US2] Create `packages/bootstrap/test/secrets.test.ts`: the round trip (encrypt
+- [x] T024 [P] [US2] Create `packages/bootstrap/test/secrets.test.ts`: the round trip (encrypt
       then decrypt reproduces the original keys and values, FR-012); key creation when none
       exists versus reuse of an existing one (US2 acceptance scenarios 2 and 3); the exposure
       check stops `sops-config` and `encrypted-secrets` with `secrets_exposed` and rewrites no
@@ -251,17 +251,17 @@ version control would include (quickstart scenario 2; SC-001).
 
 ### Implementation for User Story 2
 
-- [ ] T025 [P] [US2] Create `packages/bootstrap/src/env/sops.ts` (depends on T005): `encrypt(dir,
+- [x] T025 [P] [US2] Create `packages/bootstrap/src/env/sops.ts` (depends on T005): `encrypt(dir,
 srcPath, destPath)`, `decrypt(dir, srcPath)` returning content, `updateKeys(dir, sopsPath)`;
       `parseEncType(value)` reads the `type:` field of a SOPS `ENC[AES256_GCM,data:…,type:…]`
       string (research R6, aes/cipher.go), used later by `validate.ts` (T035) to type placeholder
       values (research R7). Every call passes `opts.sensitive: true` to `exec.run` (T005).
-- [ ] T026 [P] [US2] Create `packages/bootstrap/src/env/age.ts` (depends on T005):
+- [x] T026 [P] [US2] Create `packages/bootstrap/src/env/age.ts` (depends on T005):
       `resolveIdentity()` follows the lookup order of research R6 (`SOPS_AGE_KEY`,
       `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY_CMD`, then the per-OS user config directory); `keygen(path)`
       runs `age-keygen -o` at mode 0600, never overwriting an existing file; `parsePublicKey(text)`
       validates the `age1` prefix and 58-character body (FR-028), used by `secrets add-key`.
-- [ ] T027 [US2] Create `packages/bootstrap/src/baseline/secrets.ts` (depends on T007, T025, T026):
+- [x] T027 [US2] Create `packages/bootstrap/src/baseline/secrets.ts` (depends on T007, T025, T026):
       `checkExposure(dir)` (`logAllTouching` plus a tracked check via `lsFilesTracked`, T007) for
       FR-014; `encryptWithRoundtrip(dir)` (encrypts, decrypts back to memory, compares parsed
       mappings, deletes the new file and returns the `roundtrip_mismatch` stop on a mismatch,
@@ -269,19 +269,19 @@ srcPath, destPath)`, `decrypt(dir, srcPath)` returning content, `updateKeys(dir,
       under keys matching `password|passwd|token|api_key|apikey|secret|client_secret|private_key`
       (case-insensitive) that are not `!secret` references (FR-015, data-model §3
       `findings.inline_secrets`), never including the value itself.
-- [ ] T028 [US2] Register the `sops-config` and `encrypted-secrets` element computers in
+- [x] T028 [US2] Register the `sops-config` and `encrypted-secrets` element computers in
       `elements.ts` (T011), using T025 to T027; on `--apply`, resolve or create the key (T026),
       populate the summary's `key` object (data-model §3), run the exposure check before
       encrypting, and extend `commands/init.ts` (T022) to call `findInlineSecrets` (T027) into
       `findings.inline_secrets`.
-- [ ] T029 [US2] Create `packages/bootstrap/src/commands/secrets.ts` (depends on T025, T026,
+- [x] T029 [US2] Create `packages/bootstrap/src/commands/secrets.ts` (depends on T025, T026,
       T027): `decrypt` (writes `secrets.yaml` atomically at mode 0600; refuses with `--force`
       required when the file exists and differs, FR-013); `encrypt` (re-runs
       `encryptWithRoundtrip`); `add-key <age-public-key>` and `remove-key <age-public-key>` (edit
       `.sops.yaml`'s recipients, run `sops updatekeys`, update the `sops-config` record entry so
       it is not reported as user-edited, refuse removing the last recipient, FR-028). Wire
       `secrets <sub>` into the `cli.ts` dispatch table (T013).
-- [ ] T030 [US2] Extend `packages/bootstrap/test/init.test.ts` (T023; sequential, same file):
+- [x] T030 [US2] Extend `packages/bootstrap/test/init.test.ts` (T023; sequential, same file):
       `secrets.sops.yaml` and `.sops.yaml` appear in the summary as `created`; `key.found`/
       `key.created`/`key.public` are correct in both the no-key and existing-key cases;
       `findings.inline_secrets` names the file, line, and key of the fixture's inline `api_key`

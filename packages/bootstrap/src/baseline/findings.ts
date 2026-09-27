@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { run } from "../env/exec.js";
+import { isEncryptedValue } from "../env/sops.js";
 import { isMap, isScalar, parse } from "../yaml/ha-yaml.js";
 
 /** Filesystem and repository findings the run summary reports alongside the baseline elements. */
@@ -58,8 +59,9 @@ export function findRemote(dir: string): RemoteKind {
   return /(^|[@/.])github\.com([/:]|$)/.test(url) ? "github" : "other";
 }
 
+// A substring match, not exact (spec FR-015): "backup_password" and "api_key_prod" both count.
 const SECRET_KEY_PATTERN =
-  /^(password|passwd|token|api_key|apikey|secret|client_secret|private_key)$/i;
+  /password|passwd|token|api_key|apikey|secret|client_secret|private_key/i;
 
 export interface InlineSecretFinding {
   path: string;
@@ -88,7 +90,14 @@ export function findInlineSecrets(dir: string): InlineSecretFinding[] {
       if (entry.isDirectory()) {
         if (skip.has(entry.name)) continue;
         walk(full);
-      } else if (entry.isFile() && /\.ya?ml$/.test(entry.name)) {
+      } else if (
+        entry.isFile() &&
+        /\.ya?ml$/.test(entry.name) &&
+        entry.name !== "secrets.yaml" &&
+        entry.name !== "secrets.sops.yaml"
+      ) {
+        // secrets.yaml (anywhere) legitimately holds secret-named keys, and secrets.sops.yaml's
+        // values are already encrypted (`ENC[...]`), not literal — neither is an FR-015 finding.
         scanFile(full, dir, findings);
       }
     }
@@ -119,7 +128,11 @@ function scanFile(
         SECRET_KEY_PATTERN.test(String(item.key.value))
       ) {
         const value = item.value;
-        if (isScalar(value) && (value as { tag?: string }).tag === undefined) {
+        if (
+          isScalar(value) &&
+          (value as { tag?: string }).tag === undefined &&
+          !isEncryptedValue(String(value.value))
+        ) {
           const range = (item.key as { range?: readonly number[] }).range;
           const line = range?.[0] === undefined ? 0 : lineOf(text, range[0]);
           out.push({ path: rel, line, key: String(item.key.value) });

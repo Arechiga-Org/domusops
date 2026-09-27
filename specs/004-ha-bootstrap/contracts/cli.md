@@ -5,8 +5,11 @@ CI workflow are its only intended callers; the commands are also documented for 
 FR-027, FR-028). Output formats are in [data-model.md](../data-model.md) §3 and §4.
 
 Every command runs these run-scope checks first and changes nothing when one fails:
-`native_windows`, then the prerequisites the command needs (table below), then `not_config_dir`
-for commands that take a directory.
+`native_windows`, then the prerequisites the command needs (table below). `init` and `validate`
+also check `not_config_dir` (they act on the whole baseline, which assumes a Home Assistant
+configuration directory); `check` and `secrets *` do not, since they work on git and on
+`secrets.yaml`/`.sops.yaml` directly and are useful in a directory that is not (yet, or ever)
+`init`-ed.
 
 ## Global
 

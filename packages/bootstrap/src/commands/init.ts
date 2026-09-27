@@ -21,8 +21,11 @@ import {
   computePackagesLoading,
   computePackagesReadme,
 } from "../baseline/packages.js";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   findCustomIntegrations,
+  findInlineSecrets,
   findNestedSecretsFiles,
   findRemote,
   hasUiDashboards,
@@ -34,14 +37,31 @@ import {
   type RecordEntry,
 } from "../baseline/record.js";
 import { currentGitignoreTemplate } from "../baseline/gitignore.js";
-import { renderPackagesReadme } from "../baseline/templates.js";
+import {
+  renderPackagesReadme,
+  renderSopsConfig,
+} from "../baseline/templates.js";
 import { sha256 } from "../baseline/templates.js";
+import {
+  applySopsConfig,
+  computeSopsConfig,
+  readRecipients,
+  SOPS_CONFIG_FILE,
+} from "../baseline/sops-config.js";
+import {
+  checkExposure,
+  encryptWithRoundtrip,
+  secretsExposedStop,
+  ENCRYPTED_FILE,
+} from "../baseline/secrets.js";
+import { resolveOrCreateKey } from "../baseline/key.js";
 import {
   buildSummary,
   emptyFindings,
   printSummary,
   type ElementReport,
   type Findings,
+  type KeyInfo,
 } from "../report/summary.js";
 import type { RunStop } from "../env/platform.js";
 
@@ -94,6 +114,7 @@ export function runInit(args: CliArgs): number {
     ...(record?.elements ?? {}),
   };
   const elements: ElementReport[] = [];
+  let key: KeyInfo | null = null;
 
   for (const id of APPLY_ORDER) {
     const report = computeElement(id, dir, record, args.apply);
@@ -101,6 +122,7 @@ export function runInit(args: CliArgs): number {
     elements.push(report.element);
     if (report.entry !== undefined) newEntries[id] = report.entry;
     else if (report.removeEntry === true) delete newEntries[id];
+    if (report.key !== undefined) key = report.key;
     // An element-scope stop (data-model §1.2) is already carried by its own `state: "blocked"`
     // and `reason`; only a run-scope stop occupies the summary's top-level `stop` field.
   }
@@ -110,6 +132,7 @@ export function runInit(args: CliArgs): number {
     tracked_excluded: findTrackedExcludedPaths(dir),
     custom_integrations: findCustomIntegrations(dir),
     nested_secrets_files: findNestedSecretsFiles(dir),
+    inline_secrets: findInlineSecrets(dir),
     ui_dashboards: hasUiDashboards(dir),
     remote: findRemote(dir),
   };
@@ -127,7 +150,7 @@ export function runInit(args: CliArgs): number {
     }
   }
 
-  const nextSteps = buildNextSteps(elements, findings, mode);
+  const nextSteps = buildNextSteps(elements, findings, mode, key);
   const summary = buildSummary(
     mode,
     packageVersion(),
@@ -135,7 +158,7 @@ export function runInit(args: CliArgs): number {
     null,
     elements,
     findings,
-    null,
+    key,
     nextSteps,
   );
   printSummary(summary, args.json);
@@ -148,6 +171,7 @@ interface ComputedElement {
   entry?: RecordEntry | undefined;
   removeEntry?: boolean;
   stop?: RunStop | undefined;
+  key?: KeyInfo | undefined;
 }
 
 function computeElement(
@@ -231,6 +255,140 @@ function computeElement(
         stop: result.stop,
       };
     }
+    case "sops-config": {
+      const existingRecipients = readRecipients(dir);
+      if (!apply) {
+        const result = computeSopsConfig(dir, existingRecipients, record);
+        return {
+          element: {
+            id,
+            path: SOPS_CONFIG_FILE,
+            state: result.state,
+            reason: result.reason,
+          },
+        };
+      }
+      if (existingRecipients.length > 0) {
+        const result = applySopsConfig(dir, existingRecipients, record);
+        const entry =
+          result.state === "outdated"
+            ? {
+                path: SOPS_CONFIG_FILE,
+                sha256: sha256(renderSopsConfig(existingRecipients)),
+                release: packageVersion(),
+              }
+            : undefined;
+        return {
+          element: {
+            id,
+            path: SOPS_CONFIG_FILE,
+            state: result.state,
+            reason: result.reason,
+          },
+          entry,
+        };
+      }
+      if (checkExposure(dir)) {
+        return {
+          element: {
+            id,
+            path: SOPS_CONFIG_FILE,
+            state: "blocked",
+            reason: "secrets.yaml is tracked or in its history",
+          },
+          stop: secretsExposedStop(),
+        };
+      }
+      const resolved = resolveOrCreateKey();
+      const key: KeyInfo = {
+        found: !resolved.created,
+        created: resolved.created,
+        path: resolved.path,
+        public: resolved.publicKey,
+      };
+      const result = applySopsConfig(dir, [resolved.publicKey], record);
+      return {
+        element: {
+          id,
+          path: SOPS_CONFIG_FILE,
+          state: result.state,
+          reason: result.reason,
+        },
+        entry: {
+          path: SOPS_CONFIG_FILE,
+          sha256: sha256(renderSopsConfig([resolved.publicKey])),
+          release: packageVersion(),
+        },
+        key,
+      };
+    }
+    case "encrypted-secrets": {
+      const path = join(dir, ENCRYPTED_FILE);
+      if (existsSync(path)) {
+        return {
+          element: {
+            id,
+            path: ENCRYPTED_FILE,
+            state: "current",
+            reason: "already present",
+          },
+        };
+      }
+      if (!apply) {
+        return {
+          element: {
+            id,
+            path: ENCRYPTED_FILE,
+            state: "missing",
+            reason: "not present yet",
+          },
+        };
+      }
+      if (checkExposure(dir)) {
+        return {
+          element: {
+            id,
+            path: ENCRYPTED_FILE,
+            state: "blocked",
+            reason: "secrets.yaml is tracked or in its history",
+          },
+          stop: secretsExposedStop(),
+        };
+      }
+      if (readRecipients(dir).length === 0) {
+        // sops-config was blocked or is not yet applicable this run; nothing to encrypt against.
+        return {
+          element: {
+            id,
+            path: ENCRYPTED_FILE,
+            state: "missing",
+            reason: "waiting for .sops.yaml",
+          },
+        };
+      }
+      const result = encryptWithRoundtrip(dir);
+      if (!result.ok) {
+        return {
+          element: {
+            id,
+            path: ENCRYPTED_FILE,
+            state: "blocked",
+            reason:
+              result.stop?.message ??
+              "the encrypted file did not decrypt back to the original",
+          },
+          stop: result.stop,
+        };
+      }
+      return {
+        element: {
+          id,
+          path: ENCRYPTED_FILE,
+          state: "missing",
+          reason: "encrypted from secrets.yaml",
+        },
+      };
+    }
     default:
       return null;
   }
@@ -240,11 +398,17 @@ function buildNextSteps(
   elements: ElementReport[],
   findings: Findings,
   mode: "preview" | "apply",
+  key: KeyInfo | null,
 ): string[] {
   if (mode === "preview") {
     return ["Run again with --apply once you are happy with this preview."];
   }
   const steps: string[] = [];
+  if (key !== null && key.created) {
+    steps.push(
+      `Back up the new key file at ${key.path}: losing it means losing access to the encrypted secrets.`,
+    );
+  }
   const anyChange = elements.some(
     (e) => e.state === "missing" || e.state === "outdated",
   );
@@ -255,6 +419,11 @@ function buildNextSteps(
   if (findings.tracked_excluded.length > 0) {
     steps.push(
       "Untrack the files the baseline now excludes: `git rm --cached <path>` for each one listed above.",
+    );
+  }
+  if (findings.inline_secrets.length > 0) {
+    steps.push(
+      "Move the inline secret values listed above into secrets.yaml and reference them with !secret.",
     );
   }
   return steps;

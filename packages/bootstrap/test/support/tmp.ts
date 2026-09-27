@@ -23,7 +23,7 @@ export function makeThrowawayAgeKey(): { keyFile: string; publicKey: string } {
   if (result.code !== 0) {
     throw new Error(`age-keygen failed: ${result.stderr.trim()}`);
   }
-  const match = /# public key: (age1\w+)/.exec(result.stderr);
+  const match = /Public key:\s*(age1[a-z0-9]+)/.exec(result.stderr);
   const publicKey = match?.[1];
   if (publicKey === undefined) {
     throw new Error("age-keygen did not report a public key on stderr");
