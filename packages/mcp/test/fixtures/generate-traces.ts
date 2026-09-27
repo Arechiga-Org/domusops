@@ -18,7 +18,9 @@ import { Rng, type Fixture } from "./generate.js";
  * service-call results, free text (notification and prompt messages) on about a tenth of the
  * steps, canonical `isoformat()` timestamps, ULID contexts with about a third of the runs sharing
  * their parent's context, automations that start scripts (a fifth of the stored child runs are
- * already evicted), a median of 6 steps per run (1 to 89), and about 4.3 KB per run. Every name
+ * already evicted), a median of 6 steps per run (1 to 89), and about 4.3 KB per run. The
+ * reference set's `standard` ratio (about 3.15) was tuned to the live one (3.07 on 92 traces,
+ * research R6), by adding computed-variable texts, after a first calibration read too high. Every name
  * and value is generated from the seed, never copied from a real instance.
  */
 
@@ -420,6 +422,14 @@ function makeRun(
         },
         result: { delay: rng.int(1, 10), done: true },
       });
+    } else if (roll === 8 && rng.chance(0.5)) {
+      // A computed variable with a text of its own, as an AI prompt or a rendered message is.
+      push(base, {
+        changed_variables: {
+          resultado_ia: `${sentence(rng, item.room)}; ${sentence(rng, item.room)}`,
+        },
+        result: { delay: rng.float(1, 30, 1), done: true },
+      });
     } else {
       push(base, { result: { delay: rng.float(1, 30, 1), done: true } });
     }
@@ -663,7 +673,7 @@ export function generateEdgeTraces(): TraceFixture {
       },
     }),
   );
-  repeated.last_step = "action/2/repeat/sequence/0";
+  repeated.last_step = Object.keys(repeated.trace).at(-1) as string;
   extra.push(repeated);
 
   // Two steps with the same timestamp.

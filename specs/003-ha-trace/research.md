@@ -169,6 +169,15 @@ lossless response is small in absolute terms (per item: median 6.5 KB, largest 1
 what constitution §4 protects; the size limit (R12) bounds the rest. The spec's floor of 5 (FR-019,
 SC-001) is replaced by 3, measured on the fixture, with the live ratio recorded (SC-008).
 
+**Shipped encoder, measured live** (2026-09-26, same instance, 92 traces): `standard` for every
+stored trace is 145,893 bytes, ratio **3.07**, 2% above the floor and below the prototype's 3.51:
+the shipped format names the fields of each run (about 8 KB) where the prototype used positions.
+One automation's 5 runs measure 2.63, and a single run 1.14 (the configuration is stated once, so
+a lone run pays for it whole). `summary` of all runs is 14,485 bytes, ratio 17. The reference
+fixture was retuned to 3.15 so the CI floor reflects the live figure. The floor holds, with a thin
+margin (plan, decision 2); a positional run encoding would give about 5% more and is a format
+change, left for a later version.
+
 **Alternatives considered**: The three lossy rows above (rejected: loss of diagnostic content,
 and still below 5). Without the state deltas the per-item aggregate is 3.10x, too close to the
 floor; they are kept.
