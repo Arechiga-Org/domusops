@@ -81,14 +81,19 @@ export function buildEnvelope<D extends "summary" | "standard">(
   };
 }
 
-const startOf = (record: TraceExtendedRecord): number =>
+/** What ordering runs needs of a record: the short record has it too. */
+interface Sortable {
+  run_id: string;
+  domain: string;
+  item_id: string;
+  timestamp: { start: string };
+}
+
+const startOf = (record: Sortable): number =>
   parseIsoMicros(record.timestamp.start) as number;
 
 /** Runs of an item, newest first, then by run ID (data-model §3.1). */
-export function runOrder(
-  a: TraceExtendedRecord,
-  b: TraceExtendedRecord,
-): number {
+export function runOrder(a: Sortable, b: Sortable): number {
   return (
     startOf(b) - startOf(a) ||
     (a.run_id < b.run_id ? -1 : a.run_id > b.run_id ? 1 : 0)
@@ -96,11 +101,11 @@ export function runOrder(
 }
 
 /** Groups records by item key: items by their newest run, newest first, then by key. */
-export function groupByItem(
-  records: readonly TraceExtendedRecord[],
+export function groupByItem<T extends Sortable>(
+  records: readonly T[],
   keyOf: (domain: string, itemId: string) => string,
-): [string, TraceExtendedRecord[]][] {
-  const groups = new Map<string, TraceExtendedRecord[]>();
+): [string, T[]][] {
+  const groups = new Map<string, T[]>();
   for (const record of [...records].sort(runOrder)) {
     const key = keyOf(record.domain, record.item_id);
     const list = groups.get(key);
@@ -109,8 +114,7 @@ export function groupByItem(
   }
   return [...groups].sort(
     ([ka, a], [kb, b]) =>
-      startOf(b[0] as TraceExtendedRecord) -
-        startOf(a[0] as TraceExtendedRecord) ||
+      startOf(b[0] as T) - startOf(a[0] as T) ||
       (ka < kb ? -1 : ka > kb ? 1 : 0),
   );
 }

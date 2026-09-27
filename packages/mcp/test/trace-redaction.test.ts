@@ -62,6 +62,20 @@ describe("redaction oracle: no fragment of six or more characters of a planted v
     }
   });
 
+  it("holds at detail=summary, where the error text is a column", async () => {
+    const text = await query({ detail: "summary" });
+    for (const secret of fixture.expected_absent) {
+      expect(
+        leaksFragment(text, secret),
+        `a fragment of ${secret.slice(0, 12)}… leaked`,
+      ).toBeNull();
+    }
+    expect(text).toContain("Could not notify [redacted] about the door");
+    for (const id of fixture.expected_present.slice(0, 2)) {
+      expect(text).toContain(id);
+    }
+  });
+
   it("holds for a single run, and for a context lookup", async () => {
     for (const options of [
       { run: "a1b2c3d4e5f60718293a4b5c6d7e8f90" },
