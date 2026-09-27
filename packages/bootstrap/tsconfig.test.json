@@ -3,7 +3,9 @@
   "compilerOptions": {
     "noEmit": true,
     "composite": false,
-    "rootDir": "."
+    "rootDir": ".",
+    "allowJs": true,
+    "checkJs": false
   },
   "include": ["src", "test"]
 }
