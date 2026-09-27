@@ -37,8 +37,9 @@ pnpm build
 npx @modelcontextprotocol/inspector --cli node packages/mcp/dist/cli.js --method tools/list
 ```
 
-Expected: two tools, `ha_snapshot` and `ha_logbook_query`, the latter with the input schema and
-annotations of [ha_logbook_query.tool.json](./contracts/ha_logbook_query.tool.json).
+Expected: three tools, `ha_snapshot`, `ha_logbook_query`, and (from feature 003) `ha_trace`, the
+second with the input schema and annotations of
+[ha_logbook_query.tool.json](./contracts/ha_logbook_query.tool.json).
 
 ## 3. Live instance (SC-007)
 
