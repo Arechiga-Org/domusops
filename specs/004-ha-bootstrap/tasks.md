@@ -35,13 +35,13 @@ New pnpm workspace package `packages/bootstrap/` (the CLI) and a new skill `skil
 
 **Purpose**: Commit the specification and scaffold the new package
 
-- [ ] T001 Commit `specs/004-ha-bootstrap/` and the "Current focus" update already made to
+- [x] T001 Commit `specs/004-ha-bootstrap/` and the "Current focus" update already made to
       `CLAUDE.md` together on the existing branch `004-ha-bootstrap`, as
       `docs: add ha-bootstrap spec, plan, and tasks`, after the maintainer confirms. `main` is
       protected (constitution §9). The branch is cut from `003-ha-trace` (PR #4, unmerged); its
       pull request targets that branch until #4 merges, then is rebased onto `main` (plan,
       Decisions to confirm at review, item 6).
-- [ ] T002 [P] Scaffold `packages/bootstrap/`: `package.json` (`@domusops/bootstrap`, private
+- [x] T002 [P] Scaffold `packages/bootstrap/`: `package.json` (`@domusops/bootstrap`, private
       false, `"type": "module"`, `"bin": { "domusops-bootstrap": "./dist/cli.js" }`,
       `"files": ["dist"]`, `"scripts": { "build": "tsc -b", "test": "vitest run --root ../.. packages/bootstrap/" }`, so the package runs under the root `vitest.config.ts` and its exclusions,, one dependency `"yaml": "^2.6.0"`,
       following `packages/sandbox/package.json` as the closest existing example); `tsconfig.json`
@@ -52,7 +52,7 @@ New pnpm workspace package `packages/bootstrap/` (the CLI) and a new skill `skil
       `{ "path": "packages/bootstrap" }` to the root `tsconfig.json` references. Add
       `tsc -p packages/bootstrap/tsconfig.test.json` to the root `package.json` `typecheck` script.
       No change to `eslint.config.js` or `pnpm-workspace.yaml`: both already match `packages/*`.
-- [ ] T003 [P] Update `vitest.config.ts`: add `**/*.container.test.ts` to `test.exclude` unless
+- [x] T003 [P] Update `vitest.config.ts`: add `**/*.container.test.ts` to `test.exclude` unless
       the environment variable `DOMUSOPS_CONTAINER_TESTS` is set
       (`packages/bootstrap/test/validate.container.test.ts`, added in T037, needs a real container
       runtime and is not part of the default `pnpm test` run). Add a `test:bootstrap:container`
@@ -71,27 +71,27 @@ the test fixtures every story depends on
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 [P] Create `packages/bootstrap/src/env/platform.ts`: `isNativeWindows()` returns
+- [x] T004 [P] Create `packages/bootstrap/src/env/platform.ts`: `isNativeWindows()` returns
       `process.platform === "win32"` (WSL reports `linux`, research R14); `nativeWindowsStop()`
       returns the `native_windows` stop object of data-model §1.2 with the WSL guidance text.
-- [ ] T005 [P] Create `packages/bootstrap/src/env/exec.ts`: `run(cmd, args, opts)` wraps
+- [x] T005 [P] Create `packages/bootstrap/src/env/exec.ts`: `run(cmd, args, opts)` wraps
       `node:child_process` `execFile`/`spawnSync`, returns `{ code, stdout, stderr }` or throws on
       `ENOENT`; accepts `input` for stdin and `env` overrides; never logs `args` or output when
       `opts.sensitive` is true (used by every command that touches a secret value or key).
-- [ ] T006 Create `packages/bootstrap/src/env/prereqs.ts` (depends on T005): `checkPrerequisites(names)`
+- [x] T006 Create `packages/bootstrap/src/env/prereqs.ts` (depends on T005): `checkPrerequisites(names)`
       probes each of `git`, `sops`, `age-keygen`, and (only when asked) `docker`/`podman` by
       running `<name> --version`; returns the missing ones with install lines for macOS (`brew`)
       and Debian/Ubuntu (`apt`, or the tool's release page when it has no package), per
       spec edge case "the encryption tool or the key tool is not installed" and FR-004.
       `missingPrerequisiteStop(missing)` builds the `missing_prerequisite` stop object of
       data-model §1.2.
-- [ ] T007 [P] Create `packages/bootstrap/src/env/git.ts` (depends on T005): `isRepo(dir)`, `init(dir)`,
+- [x] T007 [P] Create `packages/bootstrap/src/env/git.ts` (depends on T005): `isRepo(dir)`, `init(dir)`,
       `lsFilesTracked(dir, patterns)` (which of the given glob patterns are tracked, for FR-007),
       `lsFilesAll(dir)` and `lsFilesUntrackedNotIgnored(dir)` (for `validate`'s temp copy, R9),
       `diffCachedNames(dir)` and `showStagedBlob(dir, path)` (for `check --staged`, R8),
       `logAllTouching(dir, path)` (for the exposure check, FR-014), `getLocalConfig`/
       `setLocalConfig(dir, key, value)` (for `core.hooksPath`).
-- [ ] T008 Create `packages/bootstrap/src/yaml/ha-yaml.ts`: parse with the `yaml` package,
+- [x] T008 Create `packages/bootstrap/src/yaml/ha-yaml.ts`: parse with the `yaml` package,
       registering `!include`, `!include_dir_list`, `!include_dir_named`,
       `!include_dir_merge_list`, `!include_dir_merge_named`, `!secret`, `!env_var`, and `!input`
       as opaque tags (research R3); `parse(text)` returns the document plus an error list of
@@ -99,7 +99,7 @@ the test fixtures every story depends on
 key)` and `findChildKey(mapping, key)` return the node and its position, used by
       `packages.ts` (T020) and `findings.ts` (T021) to locate `homeassistant:`, `packages:`, and
       `!secret` references without re-serialising the document.
-- [ ] T009 [P] Create `packages/bootstrap/src/baseline/templates.ts`: `sha256(content)` (hex
+- [x] T009 [P] Create `packages/bootstrap/src/baseline/templates.ts`: `sha256(content)` (hex
       digest); one deterministic render function per skill-owned element listed in
       [generated-files.md](./contracts/generated-files.md) (`renderGitignoreBlock()`,
       `renderPackagesReadme()`, `renderSopsConfig(recipients)`, `renderHook(release)`,
@@ -110,7 +110,7 @@ key)` and `findChildKey(mapping, key)` return the node and its position, used by
       the character class of "Signal 1" in `.claude/hooks/guard-language.sh`, written in the test
       as Unicode escapes so the test file itself passes the hook); and "Home Assistant" appears only in the nominative form "for Home Assistant"
       (FR-024, constitution §6).
-- [ ] T010 Create `packages/bootstrap/src/baseline/record.ts` (depends on T009): `readRecord(dir)`
+- [x] T010 Create `packages/bootstrap/src/baseline/record.ts` (depends on T009): `readRecord(dir)`
       (parses `.domusops/generated.json`; a missing file, invalid JSON, or a `format` other than
       `"domusops.bootstrap/0.1"` returns `null`, data-model §2); `writeRecord(dir, record)`
       (pretty-printed, sorted keys, trailing newline, so a re-run writes identical bytes, FR-021);
@@ -118,7 +118,7 @@ key)` and `findChildKey(mapping, key)` return the node and its position, used by
       `"missing" | "current" | "outdated" | "edited"` per data-model §1.1 (no record ⇒ `edited`
       when `actualContent` differs from `currentContent`, else `current`; matches the recorded
       hash but not the current template ⇒ `outdated`; matches neither ⇒ `edited`).
-- [ ] T011 Create `packages/bootstrap/src/baseline/elements.ts` (depends on T007, T009, T010):
+- [x] T011 Create `packages/bootstrap/src/baseline/elements.ts` (depends on T007, T009, T010):
       `BASELINE_ELEMENTS`, the ordered list of the 12 elements of data-model §1 (id, owner,
       requirement ids); a registry `registerElement(id, computeFn)` where `computeFn(ctx)` returns
       `{ state, path, action, reason }` for one element, plus `applyOrder`, the fixed order of
@@ -128,24 +128,24 @@ key)` and `findChildKey(mapping, key)` return the node and its position, used by
       tasks (T021, T028, T036); this task only builds the orchestrator and a stub computer that
       always reports `missing`; the orchestrator is first exercised end to end by T023, and its
       state logic by T039.
-- [ ] T012 [P] Create `packages/bootstrap/src/report/summary.ts`: `buildSummary(mode, release,
+- [x] T012 [P] Create `packages/bootstrap/src/report/summary.ts`: `buildSummary(mode, release,
 target, stop, elements, findings, key, nextSteps)` and `printSummary(summary, json)` per
       data-model §3 (human form: `<verb padded> <path>  <reason>` per element, then findings, then
       numbered next steps; JSON form verbatim); `buildCheckResult(hits)` and
       `printCheckResult(result, json)` per data-model §4. No function here ever receives a secret
       value or private key; callers pass only paths, key names, and the public key.
-- [ ] T013 Create `packages/bootstrap/src/cli.ts` (depends on T004, T006): argument parsing for
+- [x] T013 Create `packages/bootstrap/src/cli.ts` (depends on T004, T006): argument parsing for
       `--dir`, `--json`, `--version`, `--help`; the exit codes of [cli.md](./contracts/cli.md)
       (0, 1, 2, 64); a `runScopeGuard(dir, needs)` helper that checks, in order, `native_windows`
       (T004) then the prerequisites the command needs (T006), returning early with exit 2 and no
       side effect on any failure (FR-004, FR-030); a command dispatch table with placeholders for
       `init`, `check`, `validate`, and `secrets`, wired to their real implementations in T022,
       T034, T035, and T029.
-- [ ] T014 [P] Create `packages/bootstrap/test/support/tmp.ts`: `makeTempDir()` and its cleanup;
+- [x] T014 [P] Create `packages/bootstrap/test/support/tmp.ts`: `makeTempDir()` and its cleanup;
       `makeThrowawayAgeKey()` runs `age-keygen` into a temp file and returns its path and public
       key, for tests that must never touch the developer's real key; `withoutOnPath(names, fn)`
       runs `fn` with a `PATH` that hides the named binaries, for prerequisite-missing tests.
-- [ ] T015 [P] Create `packages/bootstrap/test/fixtures/build-reference.mjs`: builds the reference
+- [x] T015 [P] Create `packages/bootstrap/test/fixtures/build-reference.mjs`: builds the reference
       configuration directory of quickstart.md "Prerequisites" (`configuration.yaml` with one
       inline `api_key`, `automations.yaml`, `secrets.yaml` with fake values, `home-assistant_v2.db`
       plus `-shm`/`-wal`, `home-assistant.log`, `.storage/` with one `lovelace` file,
@@ -155,7 +155,7 @@ target, stop, elements, findings, key, nextSteps)` and `printSummary(summary, js
       no `secrets.yaml`, a `secrets.yaml` in a subdirectory, `secrets.yaml` already tracked or in
       history, a `homeassistant:` block mapping with other keys, custom components already
       tracked, and one with a configuration error for the validator (scenario 8).
-- [ ] T016 Create `packages/bootstrap/test/ha-yaml.test.ts` (depends on T008): parses every custom
+- [x] T016 Create `packages/bootstrap/test/ha-yaml.test.ts` (depends on T008): parses every custom
       tag without error; reports a syntax error and a duplicate key with line and column; the five
       branches of research R5's `homeassistant`/`packages` table, each returning the right located
       node or "leave as is" result.

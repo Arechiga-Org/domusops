@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/schema" },
     { "path": "packages/mcp" },
-    { "path": "packages/sandbox" }
+    { "path": "packages/sandbox" },
+    { "path": "packages/bootstrap" }
   ]
 }
