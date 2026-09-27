@@ -1,0 +1,290 @@
+{
+  "token": "tr-tok-9Qw8Er7Ty6Ui5Op4As3Df2Gh1Jk",
+  "haVersion": "2026.9.3",
+  "user": {
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "name": "Owner",
+    "is_owner": true,
+    "is_admin": true
+  },
+  "windowEnd": 1773482400,
+  "records": {
+    "config": {
+      "latitude": 41.385064,
+      "longitude": 2.173404,
+      "time_zone": "Europe/Madrid",
+      "version": "2026.9.3",
+      "components": ["automation", "script", "trace"]
+    },
+    "states": [
+      {
+        "entity_id": "automation.notify_owner",
+        "state": "on",
+        "attributes": {
+          "id": "1700000000101"
+        }
+      }
+    ],
+    "entity_registry": [
+      {
+        "entity_id": "automation.notify_owner",
+        "unique_id": "1700000000101",
+        "platform": "automation"
+      },
+      {
+        "entity_id": "script.door_helper",
+        "unique_id": "door_helper",
+        "platform": "script"
+      }
+    ],
+    "device_registry": [],
+    "area_registry": [],
+    "config_entries": []
+  },
+  "traces": [
+    {
+      "last_step": "action/1",
+      "run_id": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "state": "stopped",
+      "script_execution": "error",
+      "timestamp": {
+        "start": "2026-03-14T09:30:00.100000+00:00",
+        "finish": "2026-03-14T09:30:00.900000+00:00"
+      },
+      "domain": "automation",
+      "item_id": "1700000000101",
+      "trigger": "state of sensor.a1b2c3d4e5f6g7h8",
+      "error": "Could not notify maria.lopez.k7x2@example.com about the door",
+      "trace": {
+        "trigger/0": [
+          {
+            "path": "trigger/0",
+            "timestamp": "2026-03-14T09:30:00.100500+00:00",
+            "changed_variables": {
+              "this": {
+                "entity_id": "automation.notify_owner",
+                "state": "on",
+                "attributes": {
+                  "id": "1700000000101",
+                  "mode": "single",
+                  "webhook_secret": "Hh8Gg7Ff6Ee5Dd4Cc3Bb2Aa1Zz0Yy9Xx"
+                },
+                "last_changed": "2026-03-14T08:00:00+00:00",
+                "last_reported": "2026-03-14T08:00:00+00:00",
+                "last_updated": "2026-03-14T08:00:00+00:00",
+                "context": {
+                  "id": "01KKMXPYK4QW7ER9TY2MN4BV8C",
+                  "parent_id": null,
+                  "user_id": null
+                }
+              },
+              "trigger": {
+                "platform": "state",
+                "entity_id": "sensor.a1b2c3d4e5f6g7h8",
+                "from_state": {
+                  "entity_id": "sensor.a1b2c3d4e5f6g7h8",
+                  "state": "away",
+                  "attributes": {
+                    "friendly_name": "Phone",
+                    "latitude": 41.401234,
+                    "longitude": 2.199999
+                  },
+                  "last_changed": "2026-03-14T09:00:00.000000+00:00",
+                  "last_reported": "2026-03-14T09:00:00.000000+00:00",
+                  "last_updated": "2026-03-14T09:00:00.000000+00:00",
+                  "context": {
+                    "id": "01KKMXPYK0AAAAAAAAAAAAAAAA",
+                    "parent_id": null,
+                    "user_id": null
+                  }
+                },
+                "to_state": {
+                  "entity_id": "sensor.a1b2c3d4e5f6g7h8",
+                  "state": "home",
+                  "attributes": {
+                    "friendly_name": "Phone",
+                    "latitude": 41.401234,
+                    "longitude": 2.199999
+                  },
+                  "last_changed": "2026-03-14T09:30:00.050000+00:00",
+                  "last_reported": "2026-03-14T09:30:00.050000+00:00",
+                  "last_updated": "2026-03-14T09:30:00.050000+00:00",
+                  "context": {
+                    "id": "01KKMXPYK0AAAAAAAAAAAAAAAA",
+                    "parent_id": null,
+                    "user_id": null
+                  }
+                },
+                "description": "state of sensor.a1b2c3d4e5f6g7h8"
+              },
+              "header": "Bearer Xq9Wp8Vo7Un6Tm5Sl4Rk3Qj2Pi1Oh0Ng",
+              "note": "here 41.385064 and 2.173404 plus 41.3851, 2.1734",
+              "session": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cmFjZSJ9.c2lnbmF0dXJlLXRlc3Q"
+            }
+          }
+        ],
+        "action/0": [
+          {
+            "path": "action/0",
+            "timestamp": "2026-03-14T09:30:00.300000+00:00",
+            "result": {
+              "params": {
+                "domain": "notify",
+                "service": "mobile_app_phone",
+                "service_data": {
+                  "title": "Front door",
+                  "message": "See http://192.168.1.20:8123/api/camera_proxy_stream/camera.porch?token=7f3a9c2e51b8d4066e1a8b3c5d7f9e2a and write to guest-4f9q8w2e@example.org"
+                },
+                "target": {
+                  "device_id": ["0123456789abcdef0123456789abcdef"]
+                }
+              },
+              "running_script": false,
+              "limit": 10
+            },
+            "template_errors": [
+              "Failed to call https://hooks.hookhost.test/notify?api_key=Kq3vZ8xN2mP7wR4tY9bL6cD1fG5hJ0sA"
+            ]
+          }
+        ],
+        "action/1": [
+          {
+            "path": "action/1",
+            "timestamp": "2026-03-14T09:30:00.700000+00:00",
+            "result": {
+              "params": {
+                "domain": "script",
+                "service": "door_helper",
+                "service_data": {},
+                "target": {}
+              },
+              "running_script": true,
+              "limit": 10
+            },
+            "child_id": {
+              "domain": "script",
+              "item_id": "door_helper",
+              "run_id": "b1b2c3d4e5f60718293a4b5c6d7e8f91"
+            },
+            "error": "Could not notify maria.lopez.k7x2@example.com about the door"
+          }
+        ]
+      },
+      "config": {
+        "id": "1700000000101",
+        "alias": "Notify owner",
+        "triggers": [
+          {
+            "trigger": "device",
+            "device_id": "0123456789abcdef0123456789abcdef",
+            "domain": "mobile_app",
+            "type": "arrived"
+          }
+        ],
+        "actions": [
+          {
+            "action": "notify.mobile_app_phone",
+            "data": {
+              "message": "Door"
+            }
+          },
+          {
+            "action": "rest_command.push",
+            "data": {
+              "url": "mqtt://broker:S3cr3tPassw0rdXyZ42@10.0.0.5:1883",
+              "api_key": "Lp0Oi9Ui8Yt7Tr6Re5Ww4Qq3Aa2Ss1Dd"
+            }
+          }
+        ],
+        "mode": "single"
+      },
+      "blueprint_inputs": {
+        "target": {
+          "device_id": "0123456789abcdef0123456789abcdef"
+        },
+        "password": "Zx9Yw8Vu7Ts6Rq5Pn4Mm3Lk2Jh1Gf0Ed"
+      },
+      "context": {
+        "id": "01KKMXPYK4QW7ER9TY2MN4BV8C",
+        "parent_id": "01KKMXPYK0AAAAAAAAAAAAAAAA",
+        "user_id": "fedcba9876543210fedcba9876543210"
+      }
+    },
+    {
+      "last_step": "sequence/0",
+      "run_id": "b1b2c3d4e5f60718293a4b5c6d7e8f91",
+      "state": "stopped",
+      "script_execution": "finished",
+      "timestamp": {
+        "start": "2026-03-14T09:30:00.710000+00:00",
+        "finish": "2026-03-14T09:30:00.800000+00:00"
+      },
+      "domain": "script",
+      "item_id": "door_helper",
+      "trace": {
+        "sequence/0": [
+          {
+            "path": "sequence/0",
+            "timestamp": "2026-03-14T09:30:00.710500+00:00",
+            "result": {
+              "params": {
+                "domain": "light",
+                "service": "turn_on",
+                "service_data": {},
+                "target": {
+                  "entity_id": ["light.porch"]
+                }
+              },
+              "running_script": false,
+              "limit": 10
+            }
+          }
+        ]
+      },
+      "config": {
+        "alias": "Door helper",
+        "sequence": [
+          {
+            "action": "light.turn_on",
+            "target": {
+              "entity_id": "light.porch"
+            }
+          }
+        ],
+        "mode": "queued"
+      },
+      "blueprint_inputs": null,
+      "context": {
+        "id": "01KKMXPYK4QW7ER9TY2MN4BV8C",
+        "parent_id": "01KKMXPYK4QW7ER9TY2MN4BV8C",
+        "user_id": null
+      }
+    }
+  ],
+  "expected_absent": [
+    "7f3a9c2e51b8d4066e1a8b3c5d7f9e2a",
+    "Kq3vZ8xN2mP7wR4tY9bL6cD1fG5hJ0sA",
+    "S3cr3tPassw0rdXyZ42",
+    "Lp0Oi9Ui8Yt7Tr6Re5Ww4Qq3Aa2Ss1Dd",
+    "Zx9Yw8Vu7Ts6Rq5Pn4Mm3Lk2Jh1Gf0Ed",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0cmFjZSJ9.c2lnbmF0dXJlLXRlc3Q",
+    "Xq9Wp8Vo7Un6Tm5Sl4Rk3Qj2Pi1Oh0Ng",
+    "maria.lopez.k7x2@example.com",
+    "guest-4f9q8w2e@example.org",
+    "41.3851, 2.1734",
+    "41.385064",
+    "2.173404",
+    "Hh8Gg7Ff6Ee5Dd4Cc3Bb2Aa1Zz0Yy9Xx",
+    "41.401234"
+  ],
+  "expected_present": [
+    "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "b1b2c3d4e5f60718293a4b5c6d7e8f91",
+    "0123456789abcdef0123456789abcdef",
+    "QW7ER9TY2MN4BV8C",
+    "AAAAAAAAAAAAAAAA",
+    "fedcba9876543210fedcba9876543210",
+    "sensor.a1b2c3d4e5f6g7h8",
+    "automation.notify_owner"
+  ]
+}
