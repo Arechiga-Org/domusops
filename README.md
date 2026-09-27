@@ -13,11 +13,18 @@ inventory of a live Home Assistant instance) is in progress. See
 
 ## Packages
 
-| Package | Status |
-|---|---|
-| [`@domusops/schema`](./packages/schema) | scaffolded |
-| [`@domusops/mcp`](./packages/mcp) | scaffolded, no tools registered yet |
-| [`@domusops/sandbox`](./packages/sandbox) | not started |
+| Package                                       | Status                                        |
+| --------------------------------------------- | --------------------------------------------- |
+| [`@domusops/schema`](./packages/schema)       | scaffolded                                    |
+| [`@domusops/mcp`](./packages/mcp)             | `ha_snapshot`, `ha_logbook_query`, `ha_trace` |
+| [`@domusops/bootstrap`](./packages/bootstrap) | CLI behind the `ha-bootstrap` skill           |
+| [`@domusops/sandbox`](./packages/sandbox)     | not started                                   |
+
+## Skills
+
+| Skill                                   | Does                                                                                                                                                                                                                                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`ha-bootstrap`](./skills/ha-bootstrap) | Brings an existing Home Assistant configuration directory to a GitOps baseline: a repository, an exclusion list for runtime files, `packages/` loading, SOPS/age encryption of `secrets.yaml`, pre-commit checks, and a GitHub Actions workflow that runs the instance's own configuration validator. Free. |
 
 ## Supported Home Assistant versions
 

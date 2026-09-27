@@ -424,38 +424,38 @@ feature-complete
 
 **Purpose**: The skill itself, documentation, packaging, and CI for the new package
 
-- [ ] T043 [P] Replace the placeholder `skills/ha-bootstrap/SKILL.md` with the real skill:
+- [x] T043 [P] Replace the placeholder `skills/ha-bootstrap/SKILL.md` with the real skill:
       run `npx --yes @domusops/bootstrap@~<major.minor> init` (no `--apply`) for the preview,
       explain the findings and any stop to the user in plain language, ask before re-running with
       `--apply`, report the summary's next steps afterwards, and point to
       `reference/troubleshooting.md` for any `blocked` element or stop reason (research R16).
-- [ ] T044 [P] Create `skills/ha-bootstrap/reference/troubleshooting.md`: one section per stop
+- [x] T044 [P] Create `skills/ha-bootstrap/reference/troubleshooting.md`: one section per stop
       reason of data-model §1.2 (`native_windows`, `missing_prerequisite`, `not_config_dir`,
       `version_unknown`, `secrets_exposed`, `packages_elsewhere`, `hooks_conflict`,
       `roundtrip_mismatch`), each with what it means and the recovery step, including the key
       backup reminder of FR-011.
-- [ ] T045 [P] Create `packages/bootstrap/test/skill.test.ts`: the `npx --yes
+- [x] T045 [P] Create `packages/bootstrap/test/skill.test.ts`: the `npx --yes
 @domusops/bootstrap@~X.Y` range in `SKILL.md` matches `packages/bootstrap/package.json`'s
       major and minor version (research R16), so a minor bump fails this test until the skill is
       updated.
-- [ ] T046 [P] Create `packages/bootstrap/README.md`: every command and flag of
+- [x] T046 [P] Create `packages/bootstrap/README.md`: every command and flag of
       [cli.md](./contracts/cli.md), the exit codes, the environment variables, and a link to
       `skills/ha-bootstrap/SKILL.md`.
-- [ ] T047 [P] Add `.changeset/ha-bootstrap-package.md`: `"@domusops/bootstrap": minor` (0.0.0 →
+- [x] T047 [P] Add `.changeset/ha-bootstrap-package.md`: `"@domusops/bootstrap": minor` (0.0.0 →
       0.1.0, the package's first release), describing the CLI and its commands, following the
       style of the existing changesets in `.changeset/`.
-- [ ] T048 [P] Update `.github/workflows/ci.yml`: install `sops` 3.13.x and `age` 1.2.x (pinned)
+- [x] T048 [P] Update `.github/workflows/ci.yml`: install `sops` 3.13.x and `age` 1.2.x (pinned)
       before `pnpm test` in the existing `verify` job, since `packages/bootstrap/test/` needs
       them; add a `bootstrap-macos` job (`macos-latest`, `brew install sops age`, then
       `pnpm --filter @domusops/bootstrap test`, research R14); add a `bootstrap-validate` job
       (`ubuntu-latest`, which has Docker preinstalled, same `sops`/`age` install, then
       `pnpm --filter @domusops/bootstrap run test:bootstrap:container`, T003).
-- [ ] T049 [P] Add a short "ha-bootstrap" section to the root `README.md`: what the skill does, the
+- [x] T049 [P] Add a short "ha-bootstrap" section to the root `README.md`: what the skill does, the
       command it runs, and a link to `packages/bootstrap/README.md` (SEED §7: the article itself
       is drafted outside this repository).
-- [ ] T050 Run `pnpm lint && pnpm typecheck && pnpm test` (the default, non-container set) and fix
+- [x] T050 Run `pnpm lint && pnpm typecheck && pnpm test` (the default, non-container set) and fix
       anything left. Confirm every test of features 001 to 003 is unchanged in behaviour.
-- [ ] T051 Install `sops` and `age` locally (`brew install sops age`) and run
+- [x] T051 Install `sops` and `age` locally (`brew install sops age`) and run
       `pnpm --filter @domusops/bootstrap run test:bootstrap:container` once against the pinned
       instance image, to catch a container-specific failure before CI does.
 - [ ] T052 Live check (SC-006): with the maintainer's consent, run
