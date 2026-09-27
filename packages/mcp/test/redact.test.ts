@@ -8,6 +8,7 @@ import {
   LOGBOOK_EXEMPT_KEYS,
   redact,
   redactRows,
+  TRACE_EXEMPT_KEYS,
 } from "../src/snapshot/redact.js";
 
 const TOKEN = "configured-token-abcdef123456";
@@ -429,5 +430,37 @@ describe("redact", () => {
       "",
     );
     expect(out.states[0]?.attributes?.["n"]).toBe("abc");
+  });
+});
+
+describe("redactRows with the trace exempt keys (feature 003)", () => {
+  const HEX = "0f3c9a2b7d1e4c5f8a6b9c0d1e2f3a4b";
+  const run = (input: JsonObject): JsonObject =>
+    redactRows([input], {
+      token: TOKEN,
+      exemptKeys: TRACE_EXEMPT_KEYS,
+    })[0] as JsonObject;
+
+  it("keeps run, device, and config entry IDs and step positions", () => {
+    const out = run({
+      run_id: HEX,
+      last_step: "action/1/choose/0",
+      trace: { "action/1/choose/0": [{ path: "action/1/choose/0" }] },
+      config: {
+        triggers: [{ trigger: "device", device_id: HEX }],
+        actions: [{ data: { config_entry_id: HEX } }],
+      },
+      context: { id: HEX, parent_id: HEX, user_id: HEX },
+    });
+    expect(JSON.stringify(out)).not.toContain(M);
+  });
+
+  it("still redacts credential-named keys and secrets inside text", () => {
+    const out = run({
+      token: HEX,
+      text: "see https://example.test/hook?token=abc123def456",
+    }) as Record<string, unknown>;
+    expect(out["token"]).toBe(M);
+    expect(out["text"]).toBe(`see https://example.test/hook?token=${M}`);
   });
 });

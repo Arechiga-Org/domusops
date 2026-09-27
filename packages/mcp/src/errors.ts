@@ -12,6 +12,9 @@ export const ERROR_KINDS = [
   "selector_invalid",
   "history_unavailable",
   "too_large",
+  "traces_unavailable",
+  "run_not_found",
+  "selection_invalid",
 ] as const;
 
 export type ErrorKind = (typeof ERROR_KINDS)[number];
@@ -167,6 +170,54 @@ export const errors = {
       "too_large",
       `The result has ${events} events and would be ${bytes} bytes, above the limit of ${limit} bytes`,
       "Use detail=summary to see where the activity is, or narrow the query with a shorter window or fewer entities; to allow larger results, raise DOMUSOPS_LOGBOOK_MAX_BYTES",
+    );
+  },
+
+  tracesUnavailable(): ToolError {
+    return new ToolError(
+      "traces_unavailable",
+      "The instance does not provide automation and script traces",
+      "Traces come with the automation and script integrations (both are part of default_config); enable them in Home Assistant, then try again",
+    );
+  },
+
+  runNotFound(what: "run" | "context"): ToolError {
+    return new ToolError(
+      "run_not_found",
+      what === "run"
+        ? "No stored trace has that run ID"
+        : "No stored trace ran in that context",
+      `The instance keeps only the most recent traces of each automation or script (stored_traces, 5 by default), so older ones are gone${
+        what === "context"
+          ? ", and the cause of an event may not be an automation or script"
+          : ""
+      }. Use detail=summary to list the runs that are stored`,
+    );
+  },
+
+  selectionInvalid(problem: string): ToolError {
+    return new ToolError(
+      "selection_invalid",
+      `The selection is not valid: ${problem}`,
+      "Give either run (32 lowercase hexadecimal characters) or context (a 26-character context ID, a compact ID from ha_trace or ha_logbook_query, or at most 64 printable ASCII characters), and no entities, start, or end with them; detail combines with anything",
+    );
+  },
+
+  /** A trace result above the size limit, at either detail level (spec FR-020). */
+  tooLargeRuns(
+    runs: number,
+    bytes: number,
+    limit: number,
+    detail: "summary" | "standard",
+  ): ToolError {
+    const narrow =
+      detail === "standard"
+        ? "use detail=summary to list the runs, ask for one run or context, or narrow the query with fewer entities or a shorter window"
+        : "narrow the query with fewer entities or a shorter window";
+    return new ToolError(
+      "too_large",
+      `The result has ${runs} runs and would be ${bytes} bytes, above the limit of ${limit} bytes`,
+      `To fit it, ${narrow}; to allow larger results, raise DOMUSOPS_TRACE_MAX_BYTES`,
     );
   },
 };

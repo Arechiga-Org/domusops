@@ -42,6 +42,24 @@ export function readConfig(
 export const LOGBOOK_LIMIT_VARIABLE = "DOMUSOPS_LOGBOOK_MAX_BYTES";
 export const DEFAULT_LOGBOOK_LIMIT = 100_000;
 
+function readLimit(
+  env: Readonly<Record<string, string | undefined>>,
+  variable: string,
+  fallback: number,
+): number {
+  const raw = env[variable]?.trim();
+  if (raw === undefined || raw === "") return fallback;
+  const limit = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    throw errors.configInvalidValue(
+      variable,
+      raw,
+      "a positive whole number of bytes, for example 100000",
+    );
+  }
+  return limit;
+}
+
 /**
  * Size limit of a `standard` logbook result, in bytes (spec FR-019). Read on every invocation. It
  * is configuration only, never a tool parameter. An unset or empty variable means the default; any
@@ -50,15 +68,19 @@ export const DEFAULT_LOGBOOK_LIMIT = 100_000;
 export function readLogbookLimit(
   env: Readonly<Record<string, string | undefined>>,
 ): number {
-  const raw = env[LOGBOOK_LIMIT_VARIABLE]?.trim();
-  if (raw === undefined || raw === "") return DEFAULT_LOGBOOK_LIMIT;
-  const limit = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
-  if (!Number.isSafeInteger(limit) || limit < 1) {
-    throw errors.configInvalidValue(
-      LOGBOOK_LIMIT_VARIABLE,
-      raw,
-      "a positive whole number of bytes, for example 100000",
-    );
-  }
-  return limit;
+  return readLimit(env, LOGBOOK_LIMIT_VARIABLE, DEFAULT_LOGBOOK_LIMIT);
+}
+
+export const TRACE_LIMIT_VARIABLE = "DOMUSOPS_TRACE_MAX_BYTES";
+export const DEFAULT_TRACE_LIMIT = 100_000;
+
+/**
+ * Size limit of a trace result at either detail level, in bytes (spec FR-020). Its own setting,
+ * separate from the logbook limit. Read on every invocation; configuration only, never a tool
+ * parameter.
+ */
+export function readTraceLimit(
+  env: Readonly<Record<string, string | undefined>>,
+): number {
+  return readLimit(env, TRACE_LIMIT_VARIABLE, DEFAULT_TRACE_LIMIT);
 }

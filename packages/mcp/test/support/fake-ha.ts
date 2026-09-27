@@ -1,4 +1,5 @@
 import { WebSocketServer, type WebSocket as ServerSocket } from "ws";
+import type { TraceExtendedRecord } from "@domusops/schema";
 import type { Fixture } from "../fixtures/generate.js";
 
 export interface FakeHaOptions {
@@ -19,6 +20,12 @@ export interface FakeHaOptions {
   logbook?: boolean;
   /** Milliseconds the instance takes to answer `logbook/get_events`. */
   logbookDelayMs?: number;
+  /** `false` makes the instance answer `unknown_command` to the `trace/*` commands (feature 003). */
+  traces?: boolean;
+  /** Makes the `trace/*` commands fail with `unauthorized`, as they do for a non-administrator. */
+  traceNotAdmin?: boolean;
+  /** A run ID that `trace/list` returns but `trace/get` no longer finds (evicted meanwhile). */
+  evictOnGet?: string;
 }
 
 export interface FakeHa {
@@ -28,6 +35,8 @@ export interface FakeHa {
   received: string[];
   /** Parameters of every `logbook/get_events` received, in order (feature 002). */
   receivedParams: Record<string, unknown>[];
+  /** Parameters of every `trace/*` command received, in order (feature 003). */
+  receivedTraceParams: Record<string, unknown>[];
   /** Whether an `auth` message (which carries the token) was ever received. */
   authReceived: boolean;
   close(): Promise<void>;
@@ -73,6 +82,61 @@ function logbookResult(
   return { result: rows };
 }
 
+type Reply = { error: { code: string; message: string } } | { result: unknown };
+
+const SHORT_OMITTED = new Set([
+  "trace",
+  "config",
+  "blueprint_inputs",
+  "context",
+]);
+
+/** Serves the `trace/*` commands the way Home Assistant does (research R1). */
+function traceReply(
+  type: string,
+  message: { domain?: unknown; item_id?: unknown; run_id?: unknown },
+  options: FakeHaOptions,
+): Reply {
+  if (options.traceNotAdmin === true) {
+    return { error: { code: "unauthorized", message: "Unauthorized" } };
+  }
+  const traces: TraceExtendedRecord[] = options.fixture.traces ?? [];
+  if (type === "trace/list") {
+    return {
+      result: traces
+        .filter((t) => t.domain === message.domain)
+        .map((t) =>
+          Object.fromEntries(
+            Object.entries(t).filter(([key]) => !SHORT_OMITTED.has(key)),
+          ),
+        ),
+    };
+  }
+  if (type === "trace/contexts") {
+    const map: Record<string, unknown> = {};
+    for (const t of traces) {
+      map[t.context.id] = {
+        run_id: t.run_id,
+        domain: t.domain,
+        item_id: t.item_id,
+      };
+    }
+    return { result: map };
+  }
+  const found = traces.find(
+    (t) =>
+      t.run_id === message.run_id &&
+      t.domain === message.domain &&
+      t.item_id === message.item_id,
+  );
+  if (found === undefined || options.evictOnGet === message.run_id) {
+    return {
+      error: { code: "not_found", message: "The trace could not be found" },
+    };
+  }
+  return { result: found };
+}
+
 function resultFor(type: string, options: FakeHaOptions): unknown {
   const { records } = options.fixture;
   switch (type) {
@@ -110,6 +174,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
     port,
     received: [],
     receivedParams: [],
+    receivedTraceParams: [],
     authReceived: false,
     close: () =>
       new Promise<void>((resolve) => {
@@ -128,6 +193,9 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
         id?: number;
         type?: string;
         access_token?: string;
+        domain?: unknown;
+        item_id?: unknown;
+        run_id?: unknown;
       } & LogbookMessage;
       if (message.type === "auth") {
         fake.authReceived = true;
@@ -165,6 +233,37 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
               message: options.failCommand.message ?? "simulated failure",
             },
           }),
+        );
+        return;
+      }
+      if (type.startsWith("trace/") && options.traces !== false) {
+        fake.receivedTraceParams.push(
+          Object.fromEntries(
+            Object.entries(message).filter(
+              ([key]) => key !== "id" && key !== "type",
+            ),
+          ),
+        );
+        const reply = traceReply(type, message, options);
+        socket.send(
+          JSON.stringify(
+            "error" in reply
+              ? {
+                  id: message.id,
+                  type: "result",
+                  success: false,
+                  error: reply.error,
+                }
+              : {
+                  id: message.id,
+                  type: "result",
+                  success: true,
+                  result:
+                    options.malformed === type
+                      ? "not the expected shape"
+                      : reply.result,
+                },
+          ),
         );
         return;
       }

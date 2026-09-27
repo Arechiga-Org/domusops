@@ -7,6 +7,7 @@ import type {
   RawEntityRegistryEntry,
   RawRecords,
   RawState,
+  TraceExtendedRecord,
 } from "@domusops/schema";
 
 /**
@@ -27,6 +28,8 @@ export interface Fixture {
   records: RawRecords;
   /** Logbook rows served by `logbook/get_events` (feature 002); absent for snapshot fixtures. */
   logbook?: LogbookRow[];
+  /** Extended trace records served by the `trace/*` commands (feature 003). */
+  traces?: TraceExtendedRecord[];
 }
 
 export class Rng {

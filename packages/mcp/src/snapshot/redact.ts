@@ -7,7 +7,7 @@ import {
 const M = REDACTION_MARKER;
 
 /** Values of these keys are never redacted, at any depth (data-model §8). */
-const EXEMPT_KEYS = new Set([
+export const EXEMPT_KEYS: ReadonlySet<string> = new Set([
   "entity_id",
   "device_id",
   "area_id",
@@ -184,6 +184,23 @@ export const LOGBOOK_EXEMPT_KEYS: ReadonlySet<string> = new Set([
   "context_entity_id",
   "context_user_id",
   "context_id",
+]);
+
+/**
+ * Identifier keys of a trace record that are never redacted (data-model §7 of feature 003): every
+ * identifier `ha_snapshot` exempts (traces carry device, area, and config entry IDs in triggers,
+ * conditions, and action targets), plus the IDs and positions of runs and contexts.
+ */
+export const TRACE_EXEMPT_KEYS: ReadonlySet<string> = new Set([
+  ...EXEMPT_KEYS,
+  "run_id",
+  "item_id",
+  "domain",
+  "id",
+  "parent_id",
+  "user_id",
+  "path",
+  "last_step",
 ]);
 
 export interface RedactRowsOptions {
