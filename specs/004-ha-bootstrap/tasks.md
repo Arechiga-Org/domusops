@@ -458,7 +458,7 @@ feature-complete
 - [x] T051 Install `sops` and `age` locally (`brew install sops age`) and run
       `pnpm --filter @domusops/bootstrap run test:bootstrap:container` once against the pinned
       instance image, to catch a container-specific failure before CI does.
-- [ ] T052 Live check (SC-006): with the maintainer's consent, run
+- [x] T052 Live check (SC-006): with the maintainer's consent, run
       `node packages/bootstrap/dist/cli.js init` (preview only, no `--apply`; the local build,
       because `@domusops/bootstrap` is not on npm until the release after merge) against a
       disposable copy of `mi-ha-config`. Record in the pull request
