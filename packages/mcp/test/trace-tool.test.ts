@@ -12,6 +12,7 @@ import {
   EDGE_TRACES,
   PERFORMANCE_TRACES,
   REFERENCE_TRACES,
+  TRACES_EMPTY,
   type TraceFixture,
 } from "./fixtures/generate-traces.js";
 import { FAKE_TOKEN, startFakeHa, type FakeHa } from "./support/fake-ha.js";
@@ -301,5 +302,72 @@ describe("performance (spec SC-004, first half)", () => {
     const { doc } = await query(PERFORMANCE_TRACES, { entities: [entity] });
     expect(Date.now() - started).toBeLessThan(5000);
     expectSame(doc, recordsOf(PERFORMANCE_TRACES, entity));
+  });
+});
+
+describe("what produced no runs (spec User Story 3, scenario 4)", () => {
+  const real = entityOf(
+    EDGE_TRACES,
+    EDGE_TRACES.traces[0] as TraceExtendedRecord,
+  );
+
+  it("tells a selector that matched nothing, an item with no runs, and an untraceable automation apart", async () => {
+    const { doc } = await query(EDGE_TRACES, {
+      entities: ["light.*", "automation.never_ran", "automation.no_id", real],
+    });
+    expect(doc.no_runs).toEqual({
+      no_match: ["light.*"],
+      no_stored_runs: ["automation.never_ran"],
+      untraceable: ["automation.no_id"],
+    });
+    expect(Object.keys(doc.items)).toEqual([real]);
+    expect(doc.selection.entities).toEqual([
+      "light.*",
+      "automation.never_ran",
+      "automation.no_id",
+      real,
+    ]);
+  });
+
+  it("lists an item whose runs are all outside the window apart from one with no runs", async () => {
+    const { doc } = await query(EDGE_TRACES, {
+      entities: ["automation.*"],
+      start: "2020-01-01T00:00",
+      end: "2020-01-02T00:00",
+    });
+    expect(doc.items).toEqual({});
+    expect(doc.no_runs?.none_in_window).toContain(real);
+    expect(doc.no_runs?.no_stored_runs).toEqual(["automation.never_ran"]);
+    expect(doc.no_runs?.untraceable).toEqual(["automation.no_id"]);
+    expect(doc.no_runs).not.toHaveProperty("no_match");
+    expect(doc.selection.start).toBe("2020-01-01T00:00:00+01:00");
+  });
+
+  it("omits no_runs when every selector produced runs, and without selectors", async () => {
+    expect(
+      (await query(EDGE_TRACES, { entities: [real] })).doc.no_runs,
+    ).toBeUndefined();
+    expect((await query(EDGE_TRACES)).doc.no_runs).toBeUndefined();
+  });
+
+  it("keeps the runs of a removed item out of a selector, and in an unfiltered query", async () => {
+    const filtered = await query(EDGE_TRACES, { entities: ["automation.*"] });
+    expect(Object.keys(filtered.doc.items).some((k) => k.includes(":"))).toBe(
+      false,
+    );
+    const all = await query(EDGE_TRACES);
+    expect(Object.keys(all.doc.items)).toContain("automation:1699999999999");
+  });
+
+  it("returns a valid empty document when nothing is stored, or nothing is selected", async () => {
+    const none = await query(TRACES_EMPTY);
+    expect(none.doc.items).toEqual({});
+    expect(none.doc.counts).toEqual({ items: 0, runs: 0, not_triggered: 0 });
+    expect(none.doc.compression_ratio).toBeLessThan(1);
+    expect(none.doc.compression_ratio).toBeGreaterThan(0);
+    const nothing = await query(REFERENCE_TRACES, { entities: ["light.*"] });
+    expect(nothing.doc.items).toEqual({});
+    expect(nothing.doc.no_runs).toEqual({ no_match: ["light.*"] });
+    expect(nothing.ha.receivedTraceParams).toEqual([]);
   });
 });
