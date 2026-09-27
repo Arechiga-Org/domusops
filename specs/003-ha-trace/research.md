@@ -235,13 +235,13 @@ encoding, with the instance's coordinates (rule C3) and this exemption set: ever
 `ha_snapshot` exempts (`entity_id`, `device_id`, `area_id`, `floor_id`, `config_entry_id`,
 `config_subentry_id`, `entry_id`, `via_device_id`, `parent_device_id`, and the rest of its list),
 plus `run_id`, `item_id`, `domain`, `id`, `parent_id`, `user_id`, `path`, and `last_step`. Traces
-carry these identifiers in device triggers, conditions, and action targets (a `device_id` is 32
-hexadecimal characters and would otherwise match the secret-by-value rules), and FR-015 keeps
-them.
+carry these identifiers in device triggers, conditions, and action targets, and FR-015 keeps them.
+The redaction rules work on key names and on patterns inside text; none of them matches a bare
+hexadecimal ID, so the exemption pins FR-015 against a future rule rather than fixing a current
+leak.
 
-**Rationale**: The record kinds are new, but the walk is the same. `run_id` is 32 hex characters
-and would trip the secret-by-value rules; `id` covers context IDs and the automation's own `id` in
-its configuration and in `this`; `path` and `last_step` are positions. Everything else is walked:
+**Rationale**: The record kinds are new, but the walk is the same. `id` covers context IDs and the
+automation's own `id` in its configuration and in `this`; `path` and `last_step` are positions. Everything else is walked:
 variables, results (service call parameters, AI responses), error texts, template errors, the
 configuration (YAML automations have `!secret` values already substituted), and blueprint inputs.
 Redaction happens before `compression_ratio` is measured, as in the other tools, and the raw side

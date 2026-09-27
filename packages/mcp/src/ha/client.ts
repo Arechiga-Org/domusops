@@ -14,24 +14,54 @@ export const ALLOWED_COMMANDS = [
   "config/area_registry/list",
   "config_entries/get",
   "logbook/get_events",
+  "trace/list",
+  "trace/get",
+  "trace/contexts",
 ] as const;
 
 export type AllowedCommand = (typeof ALLOWED_COMMANDS)[number];
 
-/**
- * The only command that takes parameters, and the only keys it may carry. Every other command is
- * sent bare, so no caller can smuggle anything else onto the socket.
- */
+/** Parameters of `logbook/get_events` (feature 002). */
 export interface LogbookParams {
   start_time: string;
   end_time: string;
   entity_ids?: string[];
 }
-const LOGBOOK_PARAM_KEYS: ReadonlySet<string> = new Set([
-  "start_time",
-  "end_time",
-  "entity_ids",
-]);
+
+/** Parameters of `trace/list`: the domain whose stored traces are listed (feature 003). */
+export interface TraceListParams {
+  domain: "automation" | "script";
+}
+
+/** Parameters of `trace/get`: one stored trace (feature 003). */
+export interface TraceGetParams {
+  domain: "automation" | "script";
+  item_id: string;
+  run_id: string;
+}
+
+export type CommandParams = LogbookParams | TraceListParams | TraceGetParams;
+
+/**
+ * The commands that take parameters, and the only keys each may carry. Every other command is sent
+ * bare, so no caller can smuggle anything else onto the socket. A command with parameters must
+ * carry every required key, and only those (`trace/contexts` takes none: it is sent bare).
+ */
+const PARAM_KEYS: Partial<
+  Record<
+    AllowedCommand,
+    { required: readonly string[]; optional: readonly string[] }
+  >
+> = {
+  "logbook/get_events": {
+    required: ["start_time", "end_time"],
+    optional: ["entity_ids"],
+  },
+  "trace/list": { required: ["domain"], optional: [] },
+  "trace/get": { required: ["domain", "item_id", "run_id"], optional: [] },
+};
+
+const TRACE_DOMAIN_VALUES: readonly unknown[] = ["automation", "script"];
 
 export interface Timeouts {
   /** Connecting and authenticating. */
@@ -64,6 +94,33 @@ interface Pending {
 
 function isAllowed(type: string): type is AllowedCommand {
   return (ALLOWED_COMMANDS as readonly string[]).includes(type);
+}
+
+/** Why `params` may not accompany `type`, or `null` when they may (and must). */
+function paramProblem(
+  type: AllowedCommand,
+  params: CommandParams | undefined,
+): string | null {
+  const keys = PARAM_KEYS[type];
+  if (keys === undefined) {
+    return params === undefined
+      ? null
+      : `command "${type}" does not take parameters`;
+  }
+  const given = Object.keys(params ?? {});
+  const stray = given.find(
+    (key) => !keys.required.includes(key) && !keys.optional.includes(key),
+  );
+  if (stray !== undefined) return `parameter "${stray}" is not allowed`;
+  const missing = keys.required.find((key) => !given.includes(key));
+  if (missing !== undefined) return `parameter "${missing}" is required`;
+  if (
+    "domain" in (params ?? {}) &&
+    !TRACE_DOMAIN_VALUES.includes((params as TraceListParams).domain)
+  ) {
+    return 'parameter "domain" must be "automation" or "script"';
+  }
+  return null;
 }
 
 function describe(error: unknown): string {
@@ -250,7 +307,7 @@ export class HaClient {
    * `logbook/get_events` only. That command may use the whole remaining overall budget, because
    * its duration grows with the window; every other command keeps the per-command limit.
    */
-  command(type: AllowedCommand, params?: LogbookParams): Promise<unknown> {
+  command(type: AllowedCommand, params?: CommandParams): Promise<unknown> {
     if (!isAllowed(type)) {
       return Promise.reject(
         errors.protocolError(
@@ -259,20 +316,9 @@ export class HaClient {
         ),
       );
     }
-    if (params !== undefined) {
-      const stray = Object.keys(params).find(
-        (key) => !LOGBOOK_PARAM_KEYS.has(key),
-      );
-      if (type !== "logbook/get_events" || stray !== undefined) {
-        return Promise.reject(
-          errors.protocolError(
-            type !== "logbook/get_events"
-              ? `command "${type}" does not take parameters`
-              : `parameter "${String(stray)}" is not allowed`,
-            this.haVersion,
-          ),
-        );
-      }
+    const problem = paramProblem(type, params);
+    if (problem !== null) {
+      return Promise.reject(errors.protocolError(problem, this.haVersion));
     }
     if (this.closed || this.failure !== null) {
       return Promise.reject(

@@ -1,56 +1,19 @@
 import type { LogbookRow } from "@domusops/schema";
 import { errors, ToolError } from "../errors.js";
 import type { HaClient } from "./client.js";
+import { isObject, readInstance, type Instance } from "./instance.js";
 
 /** What a logbook query needs to know about the instance before it can resolve a window. */
-export interface LogbookContext {
-  haVersion: string;
-  /** IANA name, from `get_config`. */
-  timeZone: string;
-  /** The instance's own coordinates, for redaction rule C3. Never emitted. */
-  latitude: unknown;
-  longitude: unknown;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+export type LogbookContext = Omit<Instance, "components">;
 
 /**
- * Requires an administrator user (one shared configuration and error set with `ha_snapshot`,
- * research R2), then reads the core config: the time zone the window is resolved in, and whether
- * the logbook is loaded at all.
+ * Requires an administrator user and reads the core config (`readInstance`), then requires the
+ * logbook to be loaded at all.
  */
 export async function readContext(client: HaClient): Promise<LogbookContext> {
-  const haVersion = client.haVersion;
-  const user = await client.command("auth/current_user");
-  if (!isObject(user)) {
-    throw errors.protocolError("the current user was not an object", haVersion);
-  }
-  if (user["is_admin"] !== true) throw errors.notAdmin();
-
-  const config = await client.command("get_config");
-  if (!isObject(config)) {
-    throw errors.protocolError("the core config was not an object", haVersion);
-  }
-  const timeZone = config["time_zone"];
-  if (typeof timeZone !== "string" || timeZone === "") {
-    throw errors.protocolError("the core config has no time zone", haVersion);
-  }
-  const components = config["components"];
-  if (!Array.isArray(components)) {
-    throw errors.protocolError(
-      "the core config has no list of components",
-      haVersion,
-    );
-  }
+  const { components, ...context } = await readInstance(client);
   if (!components.includes("logbook")) throw errors.historyUnavailable();
-  return {
-    haVersion,
-    timeZone,
-    latitude: config["latitude"],
-    longitude: config["longitude"],
-  };
+  return context;
 }
 
 /**
