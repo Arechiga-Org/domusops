@@ -174,29 +174,29 @@ would be committed (quickstart scenario 1).
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Create `packages/bootstrap/test/gitignore.test.ts`: the block is appended and
+- [x] T017 [P] [US1] Create `packages/bootstrap/test/gitignore.test.ts`: the block is appended and
       marked (research R4); an existing `.gitignore` keeps its own entries (US1 acceptance
       scenario 4); each excluded path already tracked is reported with its `git rm --cached`
       command and none is untracked automatically (FR-007); `custom_components/` and
       `www/community/` are left out of the block when the user already tracks files under them
       (spec edge case).
-- [ ] T018 [P] [US1] Create `packages/bootstrap/test/packages.test.ts`: the five branches of
+- [x] T018 [P] [US1] Create `packages/bootstrap/test/packages.test.ts`: the five branches of
       research R5 (no `homeassistant` key, block mapping without `packages`, any existing
       `packages` key, an `!include`d or flow-mapping `homeassistant`, and the base case); every
       other byte of `configuration.yaml` is unchanged in each case (SC-008).
 
 ### Implementation for User Story 1
 
-- [ ] T019 [P] [US1] Create `packages/bootstrap/src/baseline/gitignore.ts` (depends on T007, T009):
+- [x] T019 [P] [US1] Create `packages/bootstrap/src/baseline/gitignore.ts` (depends on T007, T009):
       `computeGitignoreBlock(dir)` and `applyGitignoreBlock(dir)` implementing research R4's entry
       list and the marked-block insertion; `findTrackedExcludedPaths(dir)` using
       `lsFilesTracked` (T007) against the block's patterns, for `findings.tracked_excluded`
       (data-model §3).
-- [ ] T020 [US1] Create `packages/bootstrap/src/baseline/packages.ts` (depends on T008, T009):
+- [x] T020 [US1] Create `packages/bootstrap/src/baseline/packages.ts` (depends on T008, T009):
       `computePackagesLoading(dir)` and `applyPackagesLoading(dir)` implementing the research R5
       table by text-level insertion only (never re-serialising the document); `computePackagesReadme(dir)`
       and `applyPackagesReadme(dir)` using `renderPackagesReadme()` (T009).
-- [ ] T021 [US1] Create `packages/bootstrap/src/baseline/findings.ts` (depends on T008): `findCustomIntegrations(dir)`
+- [x] T021 [US1] Create `packages/bootstrap/src/baseline/findings.ts` (depends on T008): `findCustomIntegrations(dir)`
       (directory names under `custom_components/`); `hasUiDashboards(dir)` (true when
       `.storage/lovelace` or any `.storage/lovelace.*` file exists, for the run summary note that UI-mode dashboards are not
       versioned, spec edge case); `findNestedSecretsFiles(dir)` lists every `secrets.yaml` below
@@ -206,12 +206,12 @@ would be committed (quickstart scenario 1).
       or `"other"`, for `findings.remote` (data-model §3). Register the `repository`, `gitignore-block`,
       `packages-loading`, and `packages-readme` computers in `elements.ts` (T011), using T019 to
       T021 and `env/git.ts` `init`/`isRepo` (T007) for `repository`.
-- [ ] T022 [US1] Create `packages/bootstrap/src/commands/init.ts` (depends on T011, T012, T013):
+- [x] T022 [US1] Create `packages/bootstrap/src/commands/init.ts` (depends on T011, T012, T013):
       `init(dir, { apply, instanceVersion, json })` runs `runScopeGuard` (T013) with `not_config_dir`
       added (no `configuration.yaml`), then `runElements` (T011) over every element registered so
       far, writes `.domusops/generated.json` for the skill-owned elements it applied (T010), and
       prints the run summary (T012). Wire `init` into the `cli.ts` dispatch table (T013).
-- [ ] T023 [US1] Create `packages/bootstrap/test/init.test.ts` (depends on T014, T015, T022):
+- [x] T023 [US1] Create `packages/bootstrap/test/init.test.ts` (depends on T014, T015, T022):
       quickstart scenario 1 for the elements built so far — preview writes nothing; `--apply`
       creates the repository, the `.gitignore` block, `packages/README.md`, and the packages
       loading line; the summary's `findings.custom_integrations` and `findings.tracked_excluded`

@@ -76,7 +76,11 @@ export function writeRecord(dir: string, record: GenerationRecord): void {
   writeFileSync(path, `${JSON.stringify(sorted, null, 2)}\n`, "utf8");
 }
 
-export type ElementState = "missing" | "current" | "outdated" | "edited";
+/**
+ * A subset of `elements.ts`'s `ElementState`: `elementState` below never returns `"blocked"`
+ * (that state only arises from an element-scope stop check, outside the record's concern).
+ */
+export type RecordState = "missing" | "current" | "outdated" | "edited";
 
 /**
  * Data-model §1.1: `missing` when the file is absent; otherwise, with no usable record entry for
@@ -89,7 +93,7 @@ export function elementState(
   entry: RecordEntry | undefined,
   currentTemplate: string,
   actualContent: string | null,
-): ElementState {
+): RecordState {
   if (actualContent === null) return "missing";
   const actualHash = sha256(actualContent);
   if (entry === undefined) {
