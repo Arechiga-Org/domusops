@@ -200,7 +200,7 @@ function buildItems(rng: Rng, count: number, scriptShare: number): Item[] {
       sensor: `binary_sensor.${room}_${rng.pick(KINDS)}`,
       target: `light.${room}_${rng.pick(["lamp", "ceiling", "strip"])}`,
     };
-    item.config = buildConfig(rng, item, rng.int(3, 8));
+    item.config = buildConfig(rng, item, rng.int(6, 12));
     items.push(item);
   }
   return items;
@@ -397,7 +397,7 @@ function makeRun(
           run_id: childRun.record.run_id,
         },
       });
-    } else if (roll <= 7) {
+    } else if (roll === 6) {
       push(base, {
         result: {
           params: {
@@ -413,7 +413,7 @@ function makeRun(
           limit: 10,
         },
       });
-    } else if (roll === 8) {
+    } else if (roll === 7) {
       push(`${base}/repeat/sequence/0`, {
         changed_variables: {
           repeat: { first: s === 1, index: s, last: false },
@@ -582,6 +582,15 @@ export function generateEdgeTraces(): TraceFixture {
   const fresh = (record: TraceExtendedRecord): TraceExtendedRecord => ({
     ...record,
     run_id: rng.hex(32),
+    // A run of its own has a context of its own; only child script runs share their parent's.
+    context: {
+      ...record.context,
+      id: ulidAt(
+        rng,
+        Math.floor((parseIsoMicros(record.timestamp.start) as number) / 1000) -
+          rng.int(0, 5000),
+      ),
+    },
   });
   const extra: TraceExtendedRecord[] = [];
 

@@ -215,7 +215,8 @@ function decodeState(
   if (base === undefined) {
     throw new Error(`a state delta against "${String(form[0])}" has no base`);
   }
-  const unset = new Set(Array.isArray(form[3]) ? form[3] : []);
+  const unsetValue = at(3);
+  const unset = new Set(Array.isArray(unsetValue) ? unsetValue : []);
   const attributes: JsonObject = {};
   for (const [key, item] of Object.entries(base.attributes)) {
     if (!unset.has(key)) attributes[key] = item;
@@ -233,4 +234,28 @@ function decodeState(
     last_updated: lastUpdated,
     context: at(7),
   };
+}
+
+const LOCAL_ISO =
+  /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d{6}))?([+-])(\d\d):(\d\d)$/;
+
+/**
+ * Parses a local ISO 8601 time with its offset and up to six fraction digits, as a `standard`
+ * document writes a run's `start`, into microseconds since the epoch. `null` when it is not of
+ * that form.
+ */
+export function parseLocalIsoMicros(text: string): number | null {
+  const m = LOCAL_ISO.exec(text);
+  if (m === null) return null;
+  const seconds = Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6]),
+  );
+  if (Number.isNaN(seconds)) return null;
+  const offset = (m[8] === "-" ? -1 : 1) * (Number(m[9]) * 60 + Number(m[10]));
+  return (seconds - offset * 60_000) * 1000 + Number(m[7] ?? "0");
 }
