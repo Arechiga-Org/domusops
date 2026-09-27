@@ -157,8 +157,10 @@ Housekeeping, also in scope:
 1. **Floor of 3, lossless `standard`** (maintainer decision, 2026-09-26). 5x is not reachable
    without dropping the configuration, `this`, and trigger attributes, and even then not reliably
    ([research R6](./research.md#r6-compression-approach-for-standard-and-the-floor)).
-2. **Floor margin.** The live per-item aggregate is 3.26x, 9% above 3; the smallest single item
-   (one run, mostly free text) is 1.33x. The fixture is calibrated to the aggregate.
+2. **Floor margin.** Measured live with the shipped encoder: 3.07x over every stored trace, 2%
+   above 3 (the prototype predicted 3.51x); one automation's 5 runs 2.63x; a single run 1.14x. The
+   fixture is calibrated to 3.15x. A positional run encoding would add about 5%, at the cost of a
+   format change ([research R6](./research.md#r6-compression-approach-for-standard-and-the-floor)).
 3. **Not-triggered traces are included** as stored traces with outcome `not_triggered`, counted
    separately (research R10). They exist only from 2026.7.
 4. **Context IDs match on their last 16 characters**, because the offset part differs between
