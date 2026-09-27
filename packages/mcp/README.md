@@ -118,3 +118,70 @@ logbook on the 24-hour reference fixture, which CI asserts. The format is versio
 (`domusops.logbook/0.1`) and public; its types, JSON Schema, and a reference decoder
 (`expandLogbook`) are in `@domusops/schema`. See
 [`specs/002-ha-logbook-query/data-model.md`](../../specs/002-ha-logbook-query/data-model.md).
+
+## `ha_trace`
+
+A read-only, step-by-step record of what automations and scripts did: what triggered each run,
+which conditions passed or failed, which branches and actions ran with which data, how long each
+step took, and where and why the run stopped. Use it for questions such as "why did the hallway
+light turn on at full brightness?" or "why did the alarm automation stop halfway?". It also
+returns the traces Home Assistant records when a trigger evaluated a change but did not fire
+(from 2026.7), which answer "why did it not run?". `ha_logbook_query` says what an automation
+changed; `ha_trace` says why.
+
+It uses the same server, the same `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`, and the same
+administrator-token requirement as the other tools (Home Assistant itself restricts traces to
+administrators).
+
+### Input
+
+| Property   | Meaning                                                                                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entities` | Up to 100 automation or script entity IDs, or patterns where `*` matches anything (`automation.*`, `script.*_lights`). Default: every automation and script |
+| `start`    | Keep runs that started at or after this time, ISO 8601. Default when only `end` is given: 24 hours before it                                                |
+| `end`      | Keep runs that started at or before this time, ISO 8601. Default when only `start` is given: now                                                            |
+| `run`      | A run ID from an earlier response. Returns that run only                                                                                                    |
+| `context`  | A context ID from a `ha_trace` or `ha_logbook_query` response (the cause of an event). Returns every run in that context, in one call                       |
+| `detail`   | `summary` (one row per run) or `standard` (every step, variable, and result, plus the configuration the run executed; the default)                          |
+
+Without `start` and `end`, every stored run is returned. `run` and `context` each exclude every other
+selection parameter; `detail` combines with anything. A time without an offset is read in the
+instance's time zone, and every time in the result is in that zone. A selector that matched
+nothing, an automation or script with no stored runs, one whose runs all started outside the window,
+and an automation that cannot be traced are listed apart in `no_runs`, so "it did not run" is never
+confused with "it cannot be traced" or "it does not exist".
+
+Every run carries its context ID. Two context IDs of one context match when their last 16
+characters are equal: the number before the colon of the compact form depends on the tool that
+wrote it. A step that started a script names the script run it started, so an agent can follow an
+automation into its scripts.
+
+### Size limit
+
+A result larger than 100,000 bytes, at either detail level, is refused with an error that states
+the run count and how to narrow the query. It is never truncated. Set `DOMUSOPS_TRACE_MAX_BYTES`
+in the server configuration to change the limit; it is separate from `DOMUSOPS_LOGBOOK_MAX_BYTES`
+and cannot be changed from a tool call.
+
+### What the instance keeps
+
+- Home Assistant keeps only the most recent traces of each automation or script (5 by default, a
+  setting of the instance), in memory, and saves them on a clean stop. Stored traces are not a
+  complete history: `ha_logbook_query` is.
+- Only automations with an `id` in their configuration are traced. The others are listed as
+  `untraceable`.
+
+### Redaction and format
+
+The redaction of the other tools applies to every field of every run: variables, action data,
+error messages, the automation's configuration, and blueprint inputs. Credentials, coordinates,
+and e-mail addresses are replaced by `[redacted]`. Identifiers (entity, device, area, and config
+entry IDs, run and context IDs) are kept. Hardware identifiers such as MAC addresses are not
+redacted.
+
+Every response carries a `compression_ratio`. Traces are far less repetitive than registries or
+logbooks, and `standard` is lossless, so it is at least 3 times smaller than the raw traces on the
+reference set, which CI asserts; `summary` is far smaller. The format is versioned
+(`domusops.trace/0.1`) and public; its types, JSON Schema, and a reference decoder (`expandTrace`)
+are in `@domusops/schema`. See
+[`specs/003-ha-trace/data-model.md`](../../specs/003-ha-trace/data-model.md).

@@ -8,7 +8,8 @@ is defined in [data-model.md](../data-model.md). Everything not stated here is a
 ## Server
 
 Unchanged, except that the server advertises two tools: `ha_snapshot` (unchanged, FR-001) and
-`ha_logbook_query`.
+`ha_logbook_query`. Feature 003 adds a third, `ha_trace`
+([contract](../../003-ha-trace/contracts/ha_trace.md)).
 
 ## Configuration
 
