@@ -152,8 +152,9 @@ the skill reads to explain the result.
 - `mode`: `preview` or `apply`.
 - `stop`: `null`, or `{ "reason": <§1.2>, "message": <text>, "details": [...] }` for a run-scope
   stop; element-scope stops appear as `state: "blocked"` with the reason in `reason`.
-- `findings.inline_secrets` (FR-015): values of keys matching
-  `password|passwd|token|api_key|apikey|secret|client_secret|private_key` (case-insensitive) that
+- `findings.inline_secrets` (FR-015): values of keys whose name contains
+  `password|passwd|token|api_key|apikey|secret|client_secret|private_key` (case-insensitive,
+  substring match, so `backup_password` and `api_key_prod` both count) that
   are literal scalars rather than `!secret`; the value is never included.
 - `findings.custom_integrations`: directory names under `custom_components/`, for the note that
   their configuration is not schema-checked in CI (R9).
