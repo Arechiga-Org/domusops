@@ -387,7 +387,7 @@ file and re-run (edit survives, reported as differing); simulate an older releas
 
 ### Tests for User Story 4
 
-- [ ] T039 [P] [US4] Create `packages/bootstrap/test/record.test.ts`: `elementState` (T010)
+- [x] T039 [P] [US4] Create `packages/bootstrap/test/record.test.ts`: `elementState` (T010)
       distinguishes an unedited file from an edited one; a bumped `release` with an unchanged
       template reports the recorded entries as `outdated` and, on apply, rewrites them and updates
       the record (FR-022); a missing or unparsable `.domusops/generated.json` treats every
@@ -396,16 +396,16 @@ file and re-run (edit survives, reported as differing); simulate an older releas
 
 ### Implementation for User Story 4
 
-- [ ] T040 [US4] Complete `packages/bootstrap/src/baseline/record.ts` and `elements.ts` (T010,
+- [x] T040 [US4] Complete `packages/bootstrap/src/baseline/record.ts` and `elements.ts` (T010,
       T011) with the two behaviours not yet exercised by the happy-path stories above: `outdated`
       → rewrite for any skill-owned element (not only the ones touched in T028/T036), and
       `missing` → recreate for any element the user removed after a previous run (FR-022,
       restore-on-re-run for User Story 4 acceptance scenario 3).
-- [ ] T041 [US4] Finish `packages/bootstrap/src/commands/init.ts` (T022, T028, T036): run every
+- [x] T041 [US4] Finish `packages/bootstrap/src/commands/init.ts` (T022, T028, T036): run every
       one of the 12 registered elements together in the `applyOrder` of
       [cli.md](./contracts/cli.md); confirm a run with nothing to do performs zero writes
       (SC-002).
-- [ ] T042 [US4] Extend `packages/bootstrap/test/init.test.ts` (T038; sequential, same file) with
+- [x] T042 [US4] Extend `packages/bootstrap/test/init.test.ts` (T038; sequential, same file) with
       the full quickstart scenarios 3, 4, and 10 across all 12 elements: a second run on an
       unchanged directory changes nothing; an edited generated file is reported as `differs` and
       untouched while a simulated older release upgrades every unedited one; each of the three

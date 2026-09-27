@@ -1,14 +1,23 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildReference } from "./fixtures/build-reference.mjs";
-import { makeTempDir } from "./support/tmp.js";
+import { makeTempDir, withoutOnPath } from "./support/tmp.js";
 import { runInit } from "../src/commands/init.js";
 import { EXIT_OK, EXIT_PROBLEMS, EXIT_STOPPED } from "../src/exit-codes.js";
 import type { CliArgs } from "../src/cli-args.js";
 import { decrypt } from "../src/env/sops.js";
+
+const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
  * Extended by every later story (T030, T038, T042); each addition is sequential in this file,
@@ -358,3 +367,131 @@ function spawnSyncStdout(dir: string, gitArgs: string[]): string {
     encoding: "utf8",
   }).stdout.trim();
 }
+
+/** Every file under `dir`, `.git/` included, with its content hash. */
+function fileHashes(dir: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const walk = (current: string): void => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else out.set(relative(dir, full), sha256(readFileSync(full)));
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+describe("init — User Story 4 (safe to run again)", () => {
+  it("quickstart scenario 3: a second run on an unchanged directory changes nothing (SC-002)", () => {
+    const dir = fixture();
+    runInit(args(dir, { apply: true }));
+    const before = fileHashes(dir);
+    runInit(args(dir, { apply: true }));
+    expect(fileHashes(dir)).toEqual(before);
+  });
+
+  it("a missing baseline element is restored on the next run", () => {
+    const dir = fixture();
+    runInit(args(dir, { apply: true }));
+    rmSync(join(dir, "packages", "README.md"));
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      runInit(args(dir, { apply: true, json: true }));
+    } finally {
+      console.log = original;
+    }
+    const summary = JSON.parse(logs.join("")) as {
+      elements: { id: string; state: string }[];
+    };
+    expect(
+      summary.elements.find((e) => e.id === "packages-readme")?.state,
+    ).toBe("missing");
+    expect(existsSync(join(dir, "packages", "README.md"))).toBe(true);
+  });
+
+  it("quickstart scenario 4: an unedited generated file is upgraded across a release bump; an edited one is not", () => {
+    const packageJsonPath = join(PACKAGE_ROOT, "package.json");
+    const originalPackageJson = readFileSync(packageJsonPath, "utf8");
+    const withVersion = (version: string): string =>
+      originalPackageJson.replace(
+        /"version": "[^"]*"/,
+        `"version": "${version}"`,
+      );
+    const dir = fixture();
+    try {
+      writeFileSync(packageJsonPath, withVersion("0.0.1-test"));
+      runInit(args(dir, { apply: true }));
+      const hookAfterFirst = readFileSync(
+        join(dir, ".githooks", "pre-commit"),
+        "utf8",
+      );
+      expect(hookAfterFirst).toContain("0.0.1-test");
+
+      // The user edits the workflow by hand; the hook is left as generated.
+      writeFileSync(
+        join(dir, ".github", "workflows", "domusops.yml"),
+        "# hand-edited by the user, not the template\n",
+      );
+
+      writeFileSync(packageJsonPath, withVersion("0.0.2-test"));
+      const logs: string[] = [];
+      const original = console.log;
+      console.log = (msg: string) => logs.push(msg);
+      let summary: { elements: { id: string; state: string }[] };
+      try {
+        runInit(args(dir, { apply: true, json: true }));
+      } finally {
+        console.log = original;
+      }
+      summary = JSON.parse(logs.join(""));
+      expect(summary.elements.find((e) => e.id === "hook")?.state).toBe(
+        "outdated",
+      );
+      expect(
+        readFileSync(join(dir, ".githooks", "pre-commit"), "utf8"),
+      ).toContain("0.0.2-test");
+      expect(summary.elements.find((e) => e.id === "workflow")?.state).toBe(
+        "edited",
+      );
+      expect(
+        readFileSync(join(dir, ".github", "workflows", "domusops.yml"), "utf8"),
+      ).toBe("# hand-edited by the user, not the template\n");
+    } finally {
+      writeFileSync(packageJsonPath, originalPackageJson);
+    }
+  });
+
+  it("not_config_dir writes nothing", () => {
+    const { dir: emptyDir, cleanup } = makeTempDir();
+    cleanups.push(cleanup);
+    const before = fileHashes(emptyDir);
+    expect(runInit(args(emptyDir, { apply: true }))).toBe(EXIT_STOPPED);
+    expect(fileHashes(emptyDir)).toEqual(before);
+  });
+
+  it("missing_prerequisite (git absent) writes nothing", () => {
+    const dir = fixture();
+    const before = fileHashes(dir);
+    const code = withoutOnPath(["git"], () =>
+      runInit(args(dir, { apply: true })),
+    );
+    expect(code).toBe(EXIT_STOPPED);
+    expect(fileHashes(dir)).toEqual(before);
+  });
+
+  it("native_windows writes nothing", () => {
+    const dir = fixture();
+    const before = fileHashes(dir);
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, "platform", { value: "win32" });
+    try {
+      expect(runInit(args(dir, { apply: true }))).toBe(EXIT_STOPPED);
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    }
+    expect(fileHashes(dir)).toEqual(before);
+  });
+});
