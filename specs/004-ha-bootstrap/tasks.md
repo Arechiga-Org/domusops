@@ -308,13 +308,13 @@ an invalid configuration (CI fails with the validator's own message); run `valid
 
 ### Tests for User Story 3
 
-- [ ] T031 [P] [US3] Create `packages/bootstrap/test/check.test.ts`: each of the five rules of
+- [x] T031 [P] [US3] Create `packages/bootstrap/test/check.test.ts`: each of the five rules of
       research R8 (`yaml-syntax`, `plaintext-secrets`, `unencrypted-sops`, `secret-value` at the
       8-character threshold, `private-key`) blocks its staged case and a clean change does not
       (quickstart scenario 5, SC-005); no hit message contains the secret value or key material,
       only the file, line where there is one, and the rule id (data-model §4). On a fixture with 200
       staged YAML files, `check --staged` completes in under 3 s (plan, Performance Goals).
-- [ ] T032 [P] [US3] Create `packages/bootstrap/test/validate.test.ts`, with the container runtime
+- [x] T032 [P] [US3] Create `packages/bootstrap/test/validate.test.ts`, with the container runtime
       mocked via `DOMUSOPS_CONTAINER`: placeholder values are typed from each SOPS `ENC` type per
       research R7's table; a `.domusops/placeholders.yaml` override replaces a default; a
       malformed `.domusops/placeholders.yaml` is reported as a `validate` error naming the file
@@ -323,18 +323,18 @@ an invalid configuration (CI fails with the validator's own message); run `valid
 
 ### Implementation for User Story 3
 
-- [ ] T033 [P] [US3] Create `packages/bootstrap/src/env/container.ts` (depends on T005): detect
+- [x] T033 [P] [US3] Create `packages/bootstrap/src/env/container.ts` (depends on T005): detect
       `docker` then `podman` on `PATH`, or honour `DOMUSOPS_CONTAINER`; `run(image, mounts, args, opts)`
       running `<runtime> run --rm -v <mount>:/config --entrypoint python <image> -m homeassistant
 --script check_config --config /config --json` (research R9); missing runtime returns the
       `missing_prerequisite`-shaped stop for `validate` alone (FR-027), not a run-scope stop.
-- [ ] T034 [US3] Create `packages/bootstrap/src/commands/check.ts` (depends on T007, T008, T025):
+- [x] T034 [US3] Create `packages/bootstrap/src/commands/check.ts` (depends on T007, T008, T025):
       `check({ staged, all, ci })` reads either `diffCachedNames`/`showStagedBlob` or
       `lsFilesAll`/file contents (T007), applies the five rules of research R8 (`yaml-syntax` via
       T008; `unencrypted-sops` via `parseEncType`, T025, failing when a value is not `ENC[...]`),
       skips `secret-value` when `--ci` (no plaintext `secrets.yaml` exists there), and prints via
       `buildCheckResult`/`printCheckResult` (T012). Wire `check` into `cli.ts` (T013).
-- [ ] T035 [US3] Create `packages/bootstrap/src/commands/validate.ts` (depends on T010, T025,
+- [x] T035 [US3] Create `packages/bootstrap/src/commands/validate.ts` (depends on T010, T025,
       T033): copies `lsFilesAll` plus `lsFilesUntrackedNotIgnored` (T007) into a temporary
       directory; builds the placeholder `secrets.yaml` from `secrets.sops.yaml`'s keys, typed by
       `parseEncType` (T025) per research R7's table, overridden by `.domusops/placeholders.yaml`
@@ -343,7 +343,7 @@ an invalid configuration (CI fails with the validator's own message); run `valid
       `total_warnings`, `warnings`) to exit 0 or 1, grouped by component, noting that a missing
       custom integration is a warning and its section is not schema-checked (research R9); `--ci`
       also prints `::error file=…`/`::warning file=…` annotation lines.
-- [ ] T036 [US3] Register the `hook`, `hooks-path`, `workflow`, `instance-version`, and
+- [x] T036 [US3] Register the `hook`, `hooks-path`, `workflow`, `instance-version`, and
       `placeholders` element computers in `elements.ts` (T011): the hook and workflow render from
       `templates.ts` (T009) at the current package release; `hooks-path` sets `core.hooksPath` to
       `.githooks` unless it is already set elsewhere or `.git/hooks/pre-commit` exists, in which
@@ -353,14 +353,14 @@ an invalid configuration (CI fails with the validator's own message); run `valid
       available; `placeholders` is created empty with its explanatory comment when missing.
       Extend `commands/init.ts` (T022) to accept `--instance-version` (T013's argument parser)
       and pass it through.
-- [ ] T037 [US3] Create `packages/bootstrap/test/validate.container.test.ts` (depends on T035; run
+- [x] T037 [US3] Create `packages/bootstrap/test/validate.container.test.ts` (depends on T035; run
       only by the `bootstrap-validate` CI job added in T048, per T003's exclusion): quickstart
       scenarios 7 and 8 — `validate` exits 0 on the reference fixture, reporting the
       `example` custom integration as a warning (SC-004); exits 1 with the validator's own error
       text on the fixture with an injected configuration error (SC-007). The instance image is
       pinned in the test as the constant `PINNED_INSTANCE_VERSION = "2026.9.3"` and written to the
       fixture's `.domusops/instance-version`; bumping it is a deliberate one-line change.
-- [ ] T038 [US3] Extend `packages/bootstrap/test/init.test.ts` (T030; sequential, same file): the
+- [x] T038 [US3] Extend `packages/bootstrap/test/init.test.ts` (T030; sequential, same file): the
       hook file, `core.hooksPath`, the workflow, `.domusops/instance-version`, and
       `.domusops/placeholders.yaml` appear in the summary as `created`; an existing, unrelated
       `core.hooksPath` blocks only `hooks-path` with `hooks_conflict` and is left unchanged;

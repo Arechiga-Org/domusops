@@ -1,5 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildReference } from "./fixtures/build-reference.mjs";
@@ -258,3 +259,102 @@ describe("init — User Story 2 (secrets encryption)", () => {
     ).toBe(false);
   });
 });
+
+describe("init — User Story 3 (pre-commit hooks, CI, instance version)", () => {
+  function jsonSummary(
+    dir: string,
+    overrides: Partial<CliArgs> = {},
+  ): {
+    elements: { id: string; path: string; state: string; reason: string }[];
+  } {
+    const logs: string[] = [];
+    const original = console.log;
+    console.log = (msg: string) => logs.push(msg);
+    try {
+      runInit(args(dir, { apply: true, json: true, ...overrides }));
+    } finally {
+      console.log = original;
+    }
+    return JSON.parse(logs.join(""));
+  }
+
+  function stateOf(
+    summary: { elements: { id: string; state: string }[] },
+    id: string,
+  ): string | undefined {
+    return summary.elements.find((e) => e.id === id)?.state;
+  }
+
+  it("creates the hook, core.hooksPath, the workflow, the instance version, and placeholders", () => {
+    const dir = fixture();
+    const summary = jsonSummary(dir);
+    expect(
+      readFileSync(join(dir, ".githooks", "pre-commit"), "utf8"),
+    ).toContain("check --staged");
+    expect(
+      spawnSyncStdout(dir, ["config", "--local", "--get", "core.hooksPath"]),
+    ).toBe(".githooks");
+    expect(
+      readFileSync(join(dir, ".github", "workflows", "domusops.yml"), "utf8"),
+    ).toContain("check --all --ci");
+    expect(
+      readFileSync(join(dir, ".domusops", "instance-version"), "utf8").trim(),
+    ).toBe("2026.9.3");
+    expect(existsSync(join(dir, ".domusops", "placeholders.yaml"))).toBe(true);
+    for (const id of [
+      "hook",
+      "hooks-path",
+      "workflow",
+      "instance-version",
+      "placeholders",
+    ]) {
+      expect(stateOf(summary, id)).toBe("missing");
+    }
+  });
+
+  it("blocks only hooks-path, unchanged, when core.hooksPath is already set elsewhere", () => {
+    const dir = fixture({ alreadyRepo: true });
+    spawnSync(
+      "git",
+      ["config", "--local", "core.hooksPath", "some/other/place"],
+      { cwd: dir },
+    );
+    const summary = jsonSummary(dir);
+    expect(stateOf(summary, "hooks-path")).toBe("blocked");
+    expect(
+      spawnSyncStdout(dir, ["config", "--local", "--get", "core.hooksPath"]),
+    ).toBe("some/other/place");
+    // every other element still applies
+    expect(stateOf(summary, "hook")).toBe("missing");
+    expect(stateOf(summary, "workflow")).toBe("missing");
+  });
+
+  it("blocks only instance-version when neither .HA_VERSION nor --instance-version is given", () => {
+    const dir = fixture({ alreadyRepo: true });
+    // The reference fixture always writes .HA_VERSION; remove it for this scenario.
+    rmSync(join(dir, ".HA_VERSION"));
+    const summary = jsonSummary(dir);
+    expect(stateOf(summary, "instance-version")).toBe("blocked");
+    expect(existsSync(join(dir, ".domusops", "instance-version"))).toBe(false);
+    // every other element still applies
+    expect(stateOf(summary, "hook")).toBe("missing");
+    expect(stateOf(summary, "gitignore-block")).toBe("missing");
+  });
+
+  it("--instance-version overrides a missing .HA_VERSION", () => {
+    const dir = fixture({ alreadyRepo: true });
+    rmSync(join(dir, ".HA_VERSION"));
+    const summary = jsonSummary(dir, { instanceVersion: "2026.1.0" });
+    expect(stateOf(summary, "instance-version")).toBe("missing");
+    expect(
+      readFileSync(join(dir, ".domusops", "instance-version"), "utf8").trim(),
+    ).toBe("2026.1.0");
+  });
+});
+
+function spawnSyncStdout(dir: string, gitArgs: string[]): string {
+  return spawnSync("git", gitArgs, {
+    cwd: dir,
+    encoding: "utf8",
+  }).stdout.trim();
+}

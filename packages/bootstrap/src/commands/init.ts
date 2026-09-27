@@ -55,6 +55,23 @@ import {
   ENCRYPTED_FILE,
 } from "../baseline/secrets.js";
 import { resolveOrCreateKey } from "../baseline/key.js";
+import { renderHook, renderWorkflow } from "../baseline/templates.js";
+import { computeSkillFile, applySkillFile } from "../baseline/skill-file.js";
+import {
+  applyHooksPath,
+  computeHooksPath,
+  HOOKS_DIR,
+} from "../baseline/hooks-path.js";
+import {
+  applyInstanceVersion,
+  computeInstanceVersion,
+  INSTANCE_VERSION_PATH,
+} from "../baseline/instance-version.js";
+import {
+  applyPlaceholders,
+  computePlaceholders,
+  PLACEHOLDERS_PATH,
+} from "../baseline/placeholders.js";
 import {
   buildSummary,
   emptyFindings,
@@ -117,7 +134,13 @@ export function runInit(args: CliArgs): number {
   let key: KeyInfo | null = null;
 
   for (const id of APPLY_ORDER) {
-    const report = computeElement(id, dir, record, args.apply);
+    const report = computeElement(
+      id,
+      dir,
+      record,
+      args.apply,
+      args.instanceVersion,
+    );
     if (report === null) continue; // not yet implemented for this story
     elements.push(report.element);
     if (report.entry !== undefined) newEntries[id] = report.entry;
@@ -179,6 +202,7 @@ function computeElement(
   dir: string,
   record: GenerationRecord | null,
   apply: boolean,
+  instanceVersionOverride: string | undefined,
 ): ComputedElement | null {
   switch (id) {
     case "repository": {
@@ -386,6 +410,91 @@ function computeElement(
           path: ENCRYPTED_FILE,
           state: "missing",
           reason: "encrypted from secrets.yaml",
+        },
+      };
+    }
+    case "hook": {
+      const template = renderHook(packageVersion());
+      const path = join(dir, ".githooks", "pre-commit");
+      const result = apply
+        ? applySkillFile(path, template, record, id)
+        : computeSkillFile(path, template, record, id);
+      const entry =
+        apply && (result.state === "missing" || result.state === "outdated")
+          ? {
+              path: ".githooks/pre-commit",
+              sha256: sha256(template),
+              release: packageVersion(),
+            }
+          : undefined;
+      return {
+        element: {
+          id,
+          path: ".githooks/pre-commit",
+          state: result.state,
+          reason: result.reason,
+        },
+        entry,
+      };
+    }
+    case "hooks-path": {
+      const result = apply ? applyHooksPath(dir) : computeHooksPath(dir);
+      return {
+        element: {
+          id,
+          path: `${HOOKS_DIR} (core.hooksPath)`,
+          state: result.state,
+          reason: result.reason,
+        },
+        stop: result.stop,
+      };
+    }
+    case "workflow": {
+      const template = renderWorkflow(packageVersion());
+      const path = join(dir, ".github", "workflows", "domusops.yml");
+      const result = apply
+        ? applySkillFile(path, template, record, id)
+        : computeSkillFile(path, template, record, id);
+      const entry =
+        apply && (result.state === "missing" || result.state === "outdated")
+          ? {
+              path: ".github/workflows/domusops.yml",
+              sha256: sha256(template),
+              release: packageVersion(),
+            }
+          : undefined;
+      return {
+        element: {
+          id,
+          path: ".github/workflows/domusops.yml",
+          state: result.state,
+          reason: result.reason,
+        },
+        entry,
+      };
+    }
+    case "instance-version": {
+      const result = apply
+        ? applyInstanceVersion(dir, instanceVersionOverride)
+        : computeInstanceVersion(dir, instanceVersionOverride);
+      return {
+        element: {
+          id,
+          path: INSTANCE_VERSION_PATH,
+          state: result.state,
+          reason: result.reason,
+        },
+        stop: result.stop,
+      };
+    }
+    case "placeholders": {
+      const result = apply ? applyPlaceholders(dir) : computePlaceholders(dir);
+      return {
+        element: {
+          id,
+          path: PLACEHOLDERS_PATH,
+          state: result.state,
+          reason: result.reason,
         },
       };
     }
