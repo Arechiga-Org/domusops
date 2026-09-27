@@ -4,8 +4,12 @@ import {
   type TraceExtendedRecord,
   type TraceStandardDocument,
 } from "@domusops/schema";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { ALLOWED_COMMANDS } from "../src/ha/client.js";
+import { createServer } from "../src/server.js";
 import { runTrace } from "../src/tools/ha-trace.js";
 import { contextKey } from "../src/trace/context-id.js";
 import {
@@ -369,5 +373,198 @@ describe("what produced no runs (spec User Story 3, scenario 4)", () => {
     expect(nothing.doc.items).toEqual({});
     expect(nothing.doc.no_runs).toEqual({ no_match: ["light.*"] });
     expect(nothing.ha.receivedTraceParams).toEqual([]);
+  });
+});
+
+describe("detail and the window (spec User Story 4)", () => {
+  const start = "2026-03-14T00:00";
+
+  it("returns the standard level when detail is omitted", async () => {
+    const run = REFERENCE_TRACES.traces[2] as TraceExtendedRecord;
+    const omitted = await query(REFERENCE_TRACES, { run: run.run_id });
+    const explicit = await query(REFERENCE_TRACES, {
+      run: run.run_id,
+      detail: "standard",
+    });
+    expect(omitted.doc.detail).toBe("standard");
+    expect(omitted.text).toBe(explicit.text);
+  });
+
+  it("considers every automation and script without selectors, at the summary level", async () => {
+    const { doc } = await query(REFERENCE_TRACES, { detail: "summary" });
+    expect(doc.detail).toBe("summary");
+    expect(doc.counts.runs).toBe(REFERENCE_TRACES.traces.length);
+  });
+
+  it("keeps only the runs that started in the window, inclusive of both ends", async () => {
+    const starts = REFERENCE_TRACES.traces
+      .map((t) => Date.parse(t.timestamp.start.replace("+00:00", "Z")))
+      .sort((a, b) => a - b);
+    const from = starts[Math.floor(starts.length / 2)] as number;
+    const to = starts.at(-1) as number;
+    const { doc } = await query(REFERENCE_TRACES, {
+      start: new Date(from).toISOString(),
+      end: new Date(to + 1000).toISOString(),
+    });
+    const wanted = REFERENCE_TRACES.traces.filter(
+      (t) => Date.parse(t.timestamp.start.replace("+00:00", "Z")) >= from - 1,
+    );
+    expect(wanted.length).toBeLessThan(REFERENCE_TRACES.traces.length);
+    expectSame(doc, wanted);
+    expect(doc.selection.end).toBeDefined();
+  });
+
+  it("defaults the missing side of the window as ha_logbook_query does", async () => {
+    const onlyStart = await query(REFERENCE_TRACES, {
+      start,
+      detail: "summary",
+    });
+    expect(onlyStart.doc.selection.start).toBe("2026-03-14T00:00:00+01:00");
+    expect(onlyStart.doc.selection.end).toBe("2026-03-14T11:00:00+01:00");
+    const onlyEnd = await query(REFERENCE_TRACES, {
+      end: "2026-03-14T08:00",
+      detail: "summary",
+    });
+    expect(onlyEnd.doc.selection.start).toBe("2026-03-13T08:00:00+01:00");
+    const clamped = await query(REFERENCE_TRACES, {
+      end: "2999-01-01T00:00",
+      detail: "summary",
+    });
+    expect(clamped.doc.selection.end).toBe("2026-03-14T11:00:00+01:00");
+  });
+
+  it("reads an offset-less time in the instance's time zone", async () => {
+    const local = await query(REFERENCE_TRACES, {
+      start: "2026-03-14T02:00",
+      end: "2026-03-14T06:00",
+      detail: "summary",
+    });
+    const explicit = await query(REFERENCE_TRACES, {
+      start: "2026-03-14T01:00Z",
+      end: "2026-03-14T05:00Z",
+      detail: "summary",
+    });
+    expect(local.text).toBe(explicit.text);
+    expect(local.doc.selection.start).toBe("2026-03-14T02:00:00+01:00");
+  });
+
+  it("refuses a summary above the limit, with the summary wording", async () => {
+    await expect(
+      query(
+        REFERENCE_TRACES,
+        { detail: "summary" },
+        { DOMUSOPS_TRACE_MAX_BYTES: "1000" },
+      ),
+    ).rejects.toThrowError(/fewer entities or a shorter window/);
+    await expect(
+      query(
+        REFERENCE_TRACES,
+        { detail: "summary" },
+        { DOMUSOPS_TRACE_MAX_BYTES: "1000" },
+      ),
+    ).rejects.not.toThrowError(/detail=summary/);
+  });
+
+  it("returns a summary of 500 runs over 100 items in under 5 s (SC-004, second half)", async () => {
+    const started = Date.now();
+    const { doc } = await query(PERFORMANCE_TRACES, { detail: "summary" });
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(doc.counts.runs).toBe(PERFORMANCE_TRACES.traces.length);
+    expect(Object.keys(doc.items)).toHaveLength(100);
+  });
+
+  it("rejects an unrecognised detail value, listing the accepted ones, with no runs", async () => {
+    const ha = await startFakeHa({ fixture: REFERENCE_TRACES });
+    running.push(ha);
+    const server = createServer({
+      env: { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "detail-test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    let text = "";
+    let isError: boolean | undefined;
+    try {
+      const result = (await client.callTool({
+        name: "ha_trace",
+        arguments: { detail: "full" },
+      })) as { content: { text?: string }[]; isError?: boolean };
+      text = result.content[0]?.text ?? "";
+      isError = result.isError;
+    } catch (error) {
+      // The SDK may report a schema violation as a protocol error instead of a tool result.
+      text = String(error instanceof Error ? error.message : error);
+      isError = true;
+    }
+    await client.close();
+    await server.close();
+    expect(isError).toBe(true);
+    expect(text).toContain("summary");
+    expect(text).toContain("standard");
+    expect(text).not.toContain("domusops.trace/0.1");
+    expect(ha.received.some((c) => c.startsWith("trace/"))).toBe(false);
+  });
+});
+
+describe("the advertised definition matches the contract (drift guard)", () => {
+  it("has the name, title, description, schema, and annotations of ha_trace.tool.json", async () => {
+    const contract = JSON.parse(
+      readFileSync(
+        new URL(
+          "../../../specs/003-ha-trace/contracts/ha_trace.tool.json",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    ) as {
+      name: string;
+      title: string;
+      description: string;
+      inputSchema: {
+        properties: Record<
+          string,
+          {
+            type: string;
+            default?: string;
+            description?: string;
+            enum?: string[];
+          }
+        >;
+      };
+      annotations: Record<string, boolean>;
+    };
+    const server = createServer({ env: {} });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "drift-test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    const listing = await client.listTools();
+    await client.close();
+    await server.close();
+    const tool = listing.tools.find((t) => t.name === "ha_trace");
+    expect(tool).toBeDefined();
+    expect(tool?.title).toBe(contract.title);
+    expect(tool?.description).toBe(contract.description);
+    expect(tool?.annotations).toMatchObject(contract.annotations);
+    const advertised = tool?.inputSchema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(Object.keys(advertised).sort()).toEqual(
+      Object.keys(contract.inputSchema.properties).sort(),
+    );
+    for (const [name, spec] of Object.entries(
+      contract.inputSchema.properties,
+    )) {
+      expect(advertised[name]?.["type"]).toBe(spec.type);
+      expect(advertised[name]?.["description"]).toBe(spec.description);
+      if (spec.default !== undefined)
+        expect(advertised[name]?.["default"]).toBe(spec.default);
+      if (spec.enum !== undefined)
+        expect(advertised[name]?.["enum"]).toEqual(spec.enum);
+    }
   });
 });
