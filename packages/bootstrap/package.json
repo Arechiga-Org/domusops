@@ -1,0 +1,21 @@
+{
+  "name": "@domusops/bootstrap",
+  "version": "0.0.0",
+  "description": "CLI behind the ha-bootstrap skill: brings an existing Home Assistant configuration directory to a GitOps baseline",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "domusops-bootstrap": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run --root ../.. packages/bootstrap/",
+    "test:bootstrap:container": "DOMUSOPS_CONTAINER_TESTS=1 vitest run --root ../.. packages/bootstrap/test/validate.container.test.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}
