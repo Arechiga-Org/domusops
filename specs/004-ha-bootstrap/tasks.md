@@ -466,7 +466,7 @@ feature-complete
       inline secrets, custom integrations), and the wall-clock time of the preview. Never paste
       configuration or secret content, per the confidentiality rule used for the `ha_trace` live
       test.
-- [ ] T053 Open the pull request from `004-ha-bootstrap`, after the maintainer confirms, with base
+- [x] T053 Open the pull request from `004-ha-bootstrap`, after the maintainer confirms, with base
       `003-ha-trace` until PR #4 merges (then rebase onto `main`; if #4 is squashed,
       `git rebase --onto main <old base> 004-ha-bootstrap`), title
       `feat: add the ha-bootstrap skill`, with a summary of the design decisions of plan.md
