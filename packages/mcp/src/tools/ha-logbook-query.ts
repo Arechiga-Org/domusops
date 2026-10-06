@@ -43,7 +43,9 @@ export async function runLogbookQuery(
     ...(options.end === undefined ? {} : { end: options.end }),
   });
   const selectors = parseSelectors(options.entities);
-  const limit = readLogbookLimit(env);
+  // Only `standard` is subject to the size limit (spec FR-019), so `summary`, the call the
+  // `too_large` remediation suggests, never fails on a bad limit it would not use.
+  const limit = options.detail === "summary" ? Infinity : readLogbookLimit(env);
 
   const client = await HaClient.connect({
     wsUrl: config.wsUrl,

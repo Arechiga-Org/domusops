@@ -84,6 +84,17 @@ describe("time zones", () => {
     ).toBe(Date.UTC(2026, 6, 15, 15));
   });
 
+  it("accepts the extreme real offsets, +14:00 and -12:00", () => {
+    expect(
+      win({ start: "2026-07-15T10:00+14:00", end: "2026-07-15T12:00Z" })
+        .startMs,
+    ).toBe(Date.UTC(2026, 6, 14, 20));
+    expect(
+      win({ start: "2026-07-15T10:00-12:00", end: "2026-07-15T23:00Z" })
+        .startMs,
+    ).toBe(Date.UTC(2026, 6, 15, 22));
+  });
+
   it("accepts seconds and fractional seconds", () => {
     const w = win({
       start: "2026-09-25T10:00:00.250Z",
@@ -119,6 +130,12 @@ describe("invalid windows", () => {
     "2026-09-25T10:60",
     "2026-09-25 10:00",
     "2026-09-25T10:00+0200",
+    "2026-09-25T10:00+99:99",
+    "2026-09-25T10:00+05:60",
+    "2026-09-25T10:00+14:01",
+    "2026-09-25T10:00-15:00",
+    "0026-09-25T10:00",
+    "1969-12-31T23:59Z",
     "",
   ])("rejects %j at the syntax check, before any connection", (text) => {
     expect(kindOf(() => parseWindowInput({ start: text }))).toBe(

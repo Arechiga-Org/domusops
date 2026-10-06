@@ -94,10 +94,11 @@ const EMAIL =
 /**
  * Rule C2: two decimals with at least three decimals each, separated by a comma or whitespace,
  * that could be a latitude and a longitude. The lookbehind stops a match from starting in the
- * middle of a longer number (an epoch timestamp, say).
+ * middle of a longer number (an epoch timestamp, say); the lookahead stops one from ending in the
+ * middle of one (a dotted version such as 67.890.1), while a sentence's final period still ends it.
  */
 const COORDINATE_PAIR =
-  /(?<![\d.])(-?\d{1,2}\.\d{3,})(?:\s*,\s*|\s+)(-?\d{1,3}\.\d{3,})(?!\d)/g;
+  /(?<![\d.])(-?\d{1,2}\.\d{3,})(?:\s*,\s*|\s+)(-?\d{1,3}\.\d{3,})(?!\.?\d)/g;
 
 /** What the redaction of one call needs besides the rules: the token and C3's matcher. */
 interface Context {

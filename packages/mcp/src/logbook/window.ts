@@ -43,6 +43,11 @@ function parseTime(text: string, which: "start" | "end"): ParsedTime {
   const second = m[6] === undefined ? 0 : Number(m[6]);
   const millisecond =
     m[7] === undefined ? 0 : Math.floor(Number(`0.${m[7]}`) * 1000);
+  // No instance has a logbook before the Unix epoch, and `Date.UTC` reads years 0 to 99 as 1900
+  // to 1999, so a year such as 0026 (a typo, almost always) would silently become 1926.
+  if (year < 1970) {
+    throw errors.windowInvalid(`${which} "${text}" is before 1970`);
+  }
   const valid =
     month >= 1 &&
     month <= 12 &&
@@ -61,8 +66,15 @@ function parseTime(text: string, which: "start" | "end"): ParsedTime {
     if (m[8] === "Z") offsetMinutes = 0;
     else {
       const sign = m[8].startsWith("-") ? -1 : 1;
-      offsetMinutes =
-        sign * (Number(m[8].slice(1, 3)) * 60 + Number(m[8].slice(4, 6)));
+      const hours = Number(m[8].slice(1, 3));
+      const minutes = Number(m[8].slice(4, 6));
+      // Real UTC offsets run from -12:00 to +14:00; anything past ±14:00 is not one.
+      if (minutes > 59 || hours * 60 + minutes > 14 * 60) {
+        throw errors.windowInvalid(
+          `${which} "${text}" has an offset that is not a real UTC offset`,
+        );
+      }
+      offsetMinutes = sign * (hours * 60 + minutes);
     }
   }
   return {

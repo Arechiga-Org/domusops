@@ -222,12 +222,12 @@ Exempt keys (identifiers, never redacted): `entity_id`, `context_entity_id`, `co
 The error kinds of [001 data-model §9](../001-ha-snapshot/data-model.md#9-errors) apply unchanged,
 with the text prefix `ha_logbook_query failed [<kind>]:`. Added kinds:
 
-| `kind`                | Trigger                                                                                      | Next step named in the message                                                                                              |
-| --------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `window_invalid`      | Unparseable `start`/`end`; `end` not after `start`; `start` after the time of the call       | The problem and the accepted form (`2026-09-26T03:00`, with optional offset)                                                |
-| `selector_invalid`    | Empty selector, or a character other than `a-z 0-9 _ . *`                                    | The offending selector and the accepted form                                                                                |
-| `history_unavailable` | `logbook` missing from `get_config.components`, or `logbook/get_events` is `unknown_command` | Enable the `logbook` and `recorder` integrations                                                                            |
-| `too_large`           | Emitted `standard` document above the size limit                                             | Event count, emitted size, limit; use `summary`, a shorter window, or fewer entities, or raise `DOMUSOPS_LOGBOOK_MAX_BYTES` |
+| `kind`                | Trigger                                                                                                                                        | Next step named in the message                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `window_invalid`      | Unparseable `start`/`end` (including a year before 1970 or an offset past ±14:00); `end` not after `start`; `start` after the time of the call | The problem and the accepted form (`2026-09-26T03:00`, with optional offset)                                                |
+| `selector_invalid`    | Empty selector, or a character other than `a-z 0-9 _ . *`                                                                                      | The offending selector and the accepted form                                                                                |
+| `history_unavailable` | `logbook` missing from `get_config.components`, or `logbook/get_events` is `unknown_command`                                                   | Enable the `logbook` and `recorder` integrations                                                                            |
+| `too_large`           | Emitted `standard` document above the size limit                                                                                               | Event count, emitted size, limit; use `summary`, a shorter window, or fewer entities, or raise `DOMUSOPS_LOGBOOK_MAX_BYTES` |
 
 `config_invalid` also covers a `DOMUSOPS_LOGBOOK_MAX_BYTES` that is not a positive integer, naming
 that variable. `timeout` during `logbook/get_events` suggests a shorter window.

@@ -243,6 +243,11 @@ describe("C2: coordinate pairs written as text", () => {
       "1789452345.123456 1789452345.234567",
     );
   });
+
+  it("does not end in the middle of a dotted version, but still ends at a full stop", () => {
+    expect(text("time 12.345 67.890.1")).toBe("time 12.345 67.890.1");
+    expect(text("arrived at 41.3851, 2.1734.")).toBe(`arrived at ${M}.`);
+  });
 });
 
 describe("C3: the instance's own coordinates", () => {

@@ -234,6 +234,25 @@ describe("selector_invalid", () => {
     expect(run.text).toContain("Light.Hallway");
     expect(run.ha.authReceived).toBe(false);
   });
+
+  it.each([
+    ["an empty list", []],
+    [
+      "more than 100 selectors",
+      Array.from({ length: 101 }, (_, i) => `light.l${i}`),
+    ],
+  ])(
+    "rejects %s as an error result that names the bound, without opening a socket",
+    async (_, entities) => {
+      // The advertised schema carries the bounds (contract minItems and maxItems), so the SDK
+      // rejects the call before the tool runs; it still reaches the agent as a tool result.
+      const run = await logbook({ entities });
+      expect(run.result.isError).toBe(true);
+      expect(run.text).toMatch(/entities/);
+      expect(run.text).toMatch(/(>=1|<=100) items/);
+      expect(run.ha.authReceived).toBe(false);
+    },
+  );
 });
 
 describe("history_unavailable", () => {
@@ -316,6 +335,15 @@ describe("DOMUSOPS_LOGBOOK_MAX_BYTES must be a positive whole number", () => {
       expect(run.ha.authReceived).toBe(false);
     },
   );
+
+  it("does not apply to summary, which is not subject to the limit (FR-019)", async () => {
+    const run = await logbook(
+      { ...WINDOW, detail: "summary" },
+      { env: { DOMUSOPS_LOGBOOK_MAX_BYTES: "zero" } },
+    );
+    expect(run.result.isError).not.toBe(true);
+    expect(JSON.parse(run.text).detail).toBe("summary");
+  });
 });
 
 describe("detail (spec User Story 4)", () => {
