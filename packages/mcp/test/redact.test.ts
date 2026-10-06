@@ -8,6 +8,7 @@ import {
   LOGBOOK_EXEMPT_KEYS,
   redact,
   redactRows,
+  TRACE_EXEMPT_KEYS,
 } from "../src/snapshot/redact.js";
 
 const TOKEN = "configured-token-abcdef123456";
@@ -429,5 +430,96 @@ describe("redact", () => {
       "",
     );
     expect(out.states[0]?.attributes?.["n"]).toBe("abc");
+  });
+});
+
+describe("redactRows with the trace exempt keys (feature 003)", () => {
+  const HEX = "0f3c9a2b7d1e4c5f8a6b9c0d1e2f3a4b";
+  const run = (input: JsonObject): JsonObject =>
+    redactRows([input], {
+      token: TOKEN,
+      exemptKeys: TRACE_EXEMPT_KEYS,
+    })[0] as JsonObject;
+
+  it("keeps run, device, and config entry IDs and step positions", () => {
+    const out = run({
+      run_id: HEX,
+      last_step: "action/1/choose/0",
+      trace: { "action/1/choose/0": [{ path: "action/1/choose/0" }] },
+      config: {
+        triggers: [{ trigger: "device", device_id: HEX }],
+        actions: [{ data: { config_entry_id: HEX } }],
+      },
+      context: { id: HEX, parent_id: HEX, user_id: HEX },
+    });
+    expect(JSON.stringify(out)).not.toContain(M);
+  });
+
+  it("still redacts credential-named keys and secrets inside text", () => {
+    const out = run({
+      token: HEX,
+      text: "see https://example.test/hook?token=abc123def456",
+    }) as Record<string, unknown>;
+    expect(out["token"]).toBe(M);
+    expect(out["text"]).toBe(`see https://example.test/hook?token=${M}`);
+  });
+
+  describe("scanExempt", () => {
+    // In a trace, `id`, `path`, and `domain` are also names a user gives to variables.
+    const variables = {
+      changed_variables: {
+        trigger: {
+          json: { id: "alice@example.com" },
+          path: "/api?token=abc123secret",
+          x: { id: { password: "hunter2", email: "bob@example.com" } },
+        },
+      },
+    };
+    const scan = (input: JsonObject): string =>
+      JSON.stringify(
+        redactRows([input], {
+          token: TOKEN,
+          exemptKeys: TRACE_EXEMPT_KEYS,
+          scanExempt: true,
+        })[0],
+      );
+
+    it("redacts secrets in the value of an exempt key, and inside objects under one", () => {
+      const out = scan(variables);
+      for (const secret of [
+        "alice@example.com",
+        "abc123secret",
+        "hunter2",
+        "bob@example.com",
+      ])
+        expect(out).not.toContain(secret);
+      expect(out).toContain("/api?token=" + M);
+    });
+
+    it("keeps the exemption from the key-name rules, so identifiers survive", () => {
+      const out = redactRows(
+        [
+          {
+            id: HEX,
+            user_id: HEX,
+            path: "action/1/choose/0",
+            domain: "automation",
+            entity_id: "light.kitchen_main",
+            device_id: HEX,
+            config_entries: [HEX],
+          },
+        ],
+        { token: TOKEN, exemptKeys: TRACE_EXEMPT_KEYS, scanExempt: true },
+      )[0];
+      expect(JSON.stringify(out)).not.toContain(M);
+    });
+
+    it("is off by default: a plain exempt key is still skipped whole", () => {
+      const out = redactRows([variables], {
+        token: TOKEN,
+        exemptKeys: TRACE_EXEMPT_KEYS,
+      });
+      expect(JSON.stringify(out)).toContain("alice@example.com");
+    });
   });
 });

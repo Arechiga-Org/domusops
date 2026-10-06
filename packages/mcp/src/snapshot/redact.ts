@@ -7,7 +7,7 @@ import {
 const M = REDACTION_MARKER;
 
 /** Values of these keys are never redacted, at any depth (data-model §8). */
-const EXEMPT_KEYS = new Set([
+export const EXEMPT_KEYS: ReadonlySet<string> = new Set([
   "entity_id",
   "device_id",
   "area_id",
@@ -105,6 +105,8 @@ interface Context {
   token: string;
   /** Rule C3: the instance's own latitude and longitude, as one pattern; null when none apply. */
   coordinates: RegExp | null;
+  /** Exempt keys skip the key-name rules only; their values still go through the value rules. */
+  scanExempt: boolean;
 }
 
 /**
@@ -151,8 +153,11 @@ function walk(
   ctx: Context,
   exempt: ReadonlySet<string>,
 ): unknown {
-  if (key !== null) {
-    if (exempt.has(key)) return value;
+  const exemptKey = key !== null && exempt.has(key);
+  if (exemptKey && !ctx.scanExempt) return value;
+  // With `scanExempt`, an exempt key skips only the key-name rules: its value is still scanned, so
+  // a secret under a key that is also a variable name in user data does not escape.
+  if (key !== null && !exemptKey) {
     if (isCredentialName(key)) return M;
     if (COORDINATE_KEYS.has(key.toLowerCase())) return M;
     if ((key === "gps" || key === "location") && isNumericPair(value)) return M;
@@ -186,6 +191,23 @@ export const LOGBOOK_EXEMPT_KEYS: ReadonlySet<string> = new Set([
   "context_id",
 ]);
 
+/**
+ * Identifier keys of a trace record that are never redacted (data-model §7 of feature 003): every
+ * identifier `ha_snapshot` exempts (traces carry device, area, and config entry IDs in triggers,
+ * conditions, and action targets), plus the IDs and positions of runs and contexts.
+ */
+export const TRACE_EXEMPT_KEYS: ReadonlySet<string> = new Set([
+  ...EXEMPT_KEYS,
+  "run_id",
+  "item_id",
+  "domain",
+  "id",
+  "parent_id",
+  "user_id",
+  "path",
+  "last_step",
+]);
+
 export interface RedactRowsOptions {
   /** The configured access token, redacted wherever it occurs (rule V5). */
   token: string;
@@ -193,6 +215,11 @@ export interface RedactRowsOptions {
   exemptKeys: ReadonlySet<string>;
   /** The instance's own coordinates, redacted wherever they occur in text (rule C3). */
   coordinates?: { latitude: unknown; longitude: unknown };
+  /**
+   * For records that carry user data under generic key names (a trace's variables): an exempt key
+   * is exempt from the key-name rules only, and its value, objects included, is still scanned.
+   */
+  scanExempt?: boolean;
 }
 
 /**
@@ -205,6 +232,7 @@ export function redactRows<T extends JsonObject>(
 ): T[] {
   const ctx: Context = {
     token: options.token,
+    scanExempt: options.scanExempt === true,
     coordinates:
       options.coordinates === undefined
         ? null
@@ -227,6 +255,7 @@ export function redact(
 ): RawRecords {
   const ctx: Context = {
     token: configuredToken,
+    scanExempt: false,
     coordinates: coordinateMatcher([
       records.config["latitude"],
       records.config["longitude"],

@@ -5,6 +5,7 @@ import { readConfig } from "../src/ha/config.js";
 import { retrieve } from "../src/ha/retrieve.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
 import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
+import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
 import {
   FAKE_TOKEN,
   startFakeHa,
@@ -333,5 +334,102 @@ describe("logbook command (feature 002)", () => {
     );
     expect(error.kind).toBe("timeout");
     expect(error.nextStep).toContain("shorter window");
+  });
+});
+
+describe("HaClient trace commands (feature 003, FR-017)", () => {
+  const traceFake = (): Promise<FakeHa> => fake({ fixture: REFERENCE_TRACES });
+  const first = REFERENCE_TRACES
+    .traces[0] as (typeof REFERENCE_TRACES.traces)[number];
+
+  it("allows each trace command with exactly its own parameters", async () => {
+    const ha = await traceFake();
+    const client = await connect(ha);
+    const list = await client.command("trace/list", { domain: "automation" });
+    expect(Array.isArray(list)).toBe(true);
+    const contexts = await client.command("trace/contexts");
+    expect(typeof contexts).toBe("object");
+    const got = (await client.command("trace/get", {
+      domain: first.domain as "automation" | "script",
+      item_id: first.item_id,
+      run_id: first.run_id,
+    })) as { run_id: string };
+    expect(got.run_id).toBe(first.run_id);
+    expect(ha.received.filter((c) => c.startsWith("trace/"))).toEqual([
+      "trace/list",
+      "trace/contexts",
+      "trace/get",
+    ]);
+  });
+
+  it("rejects parameters on a command that takes none, before the socket", async () => {
+    const ha = await traceFake();
+    const client = await connect(ha);
+    for (const [command, params] of [
+      ["get_config", { domain: "automation" }],
+      ["trace/contexts", { domain: "automation" }],
+    ] as const) {
+      const error = await failure(() =>
+        client.command(command, params as never),
+      );
+      expect(kindOf(error)).toBe("protocol_error");
+    }
+    expect(ha.received).not.toContain("get_config");
+    expect(ha.received).not.toContain("trace/contexts");
+  });
+
+  it("rejects a key of another command, a missing key, and a bad domain", async () => {
+    const ha = await traceFake();
+    const client = await connect(ha);
+    const bad: [Parameters<HaClient["command"]>[0], unknown][] = [
+      ["trace/list", { domain: "automation", item_id: "x" }],
+      ["trace/list", { domain: "light" }],
+      ["trace/list", {}],
+      ["trace/get", { domain: "automation", item_id: "x" }],
+      [
+        "trace/get",
+        { domain: "automation", item_id: "x", run_id: "y", extra: 1 },
+      ],
+      ["logbook/get_events", { domain: "automation" }],
+    ];
+    for (const [command, params] of bad) {
+      const error = await failure(() =>
+        client.command(command, params as never),
+      );
+      expect(kindOf(error)).toBe("protocol_error");
+    }
+    expect(ha.received.filter((c) => c.startsWith("trace/"))).toEqual([]);
+  });
+
+  it("never sends a debug command", async () => {
+    const ha = await traceFake();
+    const client = await connect(ha);
+    for (const command of [
+      "trace/debug/breakpoint/set",
+      "trace/debug/continue",
+      "trace/debug/step",
+      "trace/debug/stop",
+      "trace/subscribe_breakpoints",
+    ]) {
+      const error = await failure(() => client.command(command as never));
+      expect(kindOf(error)).toBe("protocol_error");
+    }
+    expect(ha.received.filter((c) => c.startsWith("trace/"))).toEqual([]);
+  });
+
+  it("resolves several requests in flight with their own replies", async () => {
+    const ha = await traceFake();
+    const client = await connect(ha);
+    const picks = REFERENCE_TRACES.traces.slice(0, 8);
+    const got = (await Promise.all(
+      picks.map((t) =>
+        client.command("trace/get", {
+          domain: t.domain as "automation" | "script",
+          item_id: t.item_id,
+          run_id: t.run_id,
+        }),
+      ),
+    )) as { run_id: string }[];
+    expect(got.map((r) => r.run_id)).toEqual(picks.map((t) => t.run_id));
   });
 });

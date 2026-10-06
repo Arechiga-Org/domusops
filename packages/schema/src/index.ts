@@ -18,3 +18,7 @@ export * from "./logbook/ulid.js";
 export * from "./logbook/project.js";
 export * from "./logbook/expand.js";
 export * from "./logbook/json-schema.js";
+export * from "./trace/format.js";
+export * from "./trace/values.js";
+export * from "./trace/expand.js";
+export * from "./trace/json-schema.js";
