@@ -115,11 +115,14 @@ export const errors = {
     );
   },
 
-  notAdmin(): ToolError {
+  /** `snapshot` explains the filtered states a non-administrator would get; the others do not read states. */
+  notAdmin(subject: "snapshot" | "history" = "snapshot"): ToolError {
     return new ToolError(
       "not_admin",
       "The token belongs to a user without administrator privileges",
-      `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the snapshot silently incomplete`,
+      subject === "snapshot"
+        ? `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the snapshot silently incomplete`
+        : `Use a token of an administrator user. The logbook and the automation traces are administrator data, and a non-administrator user cannot read them reliably`,
     );
   },
 

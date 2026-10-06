@@ -194,11 +194,26 @@ describe("failures shared with ha_snapshot (FR-014)", () => {
         a.text.replace("ha_logbook_query failed", "ha_snapshot failed"),
       ).toBe(b.text);
     };
-    await same({ fake: { isAdmin: false } });
     await same({ fake: { haVersion: "2024.12.0" } });
     await same({ env: { DOMUSOPS_HA_TOKEN: undefined } });
     await same({ env: { DOMUSOPS_HA_TOKEN: "wrong-token-1234567890" } });
     await same({ env: { DOMUSOPS_HA_URL: "ftp://nope" } });
+  });
+});
+
+describe("not_admin", () => {
+  it("shares the kind and the cause with ha_snapshot, and says nothing about entity states", async () => {
+    const options = { fake: { isAdmin: false } };
+    const a = await logbook({}, options);
+    const b = await call("ha_snapshot", {}, options);
+    const cause =
+      "The token belongs to a user without administrator privileges";
+    expect(a.text).toContain("[not_admin]");
+    expect(a.text).toContain(cause);
+    expect(b.text).toContain(cause);
+    expect(a.text).not.toContain("snapshot");
+    expect(a.text).not.toContain("entity states");
+    expect(b.text).toContain("silently incomplete");
   });
 });
 

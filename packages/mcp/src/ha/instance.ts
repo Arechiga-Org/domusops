@@ -28,7 +28,7 @@ export async function readInstance(client: HaClient): Promise<Instance> {
   if (!isObject(user)) {
     throw errors.protocolError("the current user was not an object", haVersion);
   }
-  if (user["is_admin"] !== true) throw errors.notAdmin();
+  if (user["is_admin"] !== true) throw errors.notAdmin("history");
 
   const config = await client.command("get_config");
   if (!isObject(config)) {

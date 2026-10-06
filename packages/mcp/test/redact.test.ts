@@ -463,4 +463,63 @@ describe("redactRows with the trace exempt keys (feature 003)", () => {
     expect(out["token"]).toBe(M);
     expect(out["text"]).toBe(`see https://example.test/hook?token=${M}`);
   });
+
+  describe("scanExempt", () => {
+    // In a trace, `id`, `path`, and `domain` are also names a user gives to variables.
+    const variables = {
+      changed_variables: {
+        trigger: {
+          json: { id: "alice@example.com" },
+          path: "/api?token=abc123secret",
+          x: { id: { password: "hunter2", email: "bob@example.com" } },
+        },
+      },
+    };
+    const scan = (input: JsonObject): string =>
+      JSON.stringify(
+        redactRows([input], {
+          token: TOKEN,
+          exemptKeys: TRACE_EXEMPT_KEYS,
+          scanExempt: true,
+        })[0],
+      );
+
+    it("redacts secrets in the value of an exempt key, and inside objects under one", () => {
+      const out = scan(variables);
+      for (const secret of [
+        "alice@example.com",
+        "abc123secret",
+        "hunter2",
+        "bob@example.com",
+      ])
+        expect(out).not.toContain(secret);
+      expect(out).toContain("/api?token=" + M);
+    });
+
+    it("keeps the exemption from the key-name rules, so identifiers survive", () => {
+      const out = redactRows(
+        [
+          {
+            id: HEX,
+            user_id: HEX,
+            path: "action/1/choose/0",
+            domain: "automation",
+            entity_id: "light.kitchen_main",
+            device_id: HEX,
+            config_entries: [HEX],
+          },
+        ],
+        { token: TOKEN, exemptKeys: TRACE_EXEMPT_KEYS, scanExempt: true },
+      )[0];
+      expect(JSON.stringify(out)).not.toContain(M);
+    });
+
+    it("is off by default: a plain exempt key is still skipped whole", () => {
+      const out = redactRows([variables], {
+        token: TOKEN,
+        exemptKeys: TRACE_EXEMPT_KEYS,
+      });
+      expect(JSON.stringify(out)).toContain("alice@example.com");
+    });
+  });
 });

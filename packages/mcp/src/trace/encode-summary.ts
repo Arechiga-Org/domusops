@@ -39,10 +39,13 @@ export function encodeSummary(
       const startMicros = parseIsoMicros(record.timestamp.start) as number;
       const finish = record.timestamp.finish;
       const startMs = Math.floor(startMicros / 1000);
-      const contextId = encodeContextId(
+      // The summary column is a plain string: the `{v}` escape of the standard encoding is not part
+      // of the summary contract.
+      const encoded = encodeContextId(
         contextOf.get(record.run_id) as string,
         Math.floor(startMs / 1000) * 1000,
       );
+      const contextId = typeof encoded === "string" ? encoded : encoded.v;
       const row: unknown[] = [
         record.run_id,
         formatLocalIso(startMs, context.timeZone, base).replace("T", " "),

@@ -111,6 +111,7 @@ export async function runTrace(
     const redaction = {
       token: config.token,
       exemptKeys: TRACE_EXEMPT_KEYS,
+      scanExempt: true,
       coordinates: {
         latitude: instance.latitude,
         longitude: instance.longitude,

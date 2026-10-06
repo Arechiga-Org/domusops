@@ -166,8 +166,10 @@ describe("failures shared with the other tools (spec FR-016)", () => {
 
   it("not_admin for a user without administrator privileges, before any trace command", async () => {
     const outcome = await call("ha_trace", {}, { fake: { isAdmin: false } });
-    expectFailure(outcome, "not_admin");
+    const text = expectFailure(outcome, "not_admin");
     expect(outcome.ha.received.some((c) => c.startsWith("trace/"))).toBe(false);
+    expect(text).not.toContain("snapshot");
+    expect(text).not.toContain("entity states");
   });
 
   it("not_admin when the instance itself refuses a trace command", async () => {

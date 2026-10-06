@@ -100,7 +100,10 @@ function expandRun(
   }
   const outcome = run.outcome;
   const record: Record<string, unknown> = {
-    last_step: run.last_step ?? Object.keys(trace).at(-1) ?? null,
+    last_step:
+      run.last_step !== undefined
+        ? run.last_step
+        : (Object.keys(trace).at(-1) ?? null),
     run_id: run.run,
     state:
       outcome === undefined

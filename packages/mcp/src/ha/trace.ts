@@ -67,7 +67,8 @@ async function traceCommand(
       if (error.causeText.includes("unknown_command")) {
         throw errors.tracesUnavailable();
       }
-      if (error.causeText.includes("unauthorized")) throw errors.notAdmin();
+      if (error.causeText.includes("unauthorized"))
+        throw errors.notAdmin("history");
     }
     throw error;
   }

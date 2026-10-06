@@ -212,6 +212,22 @@ describe("expandTrace on a hand-written document (data-model §3, §5)", () => {
     expect(removed?.context.id).toBe("#5");
   });
 
+  it("keeps an explicit null last_step, and derives it only when the key is absent", () => {
+    const withLastStep = (value: string | null | undefined) => {
+      const copy = structuredClone(document) as unknown as {
+        items: Record<string, { runs: Record<string, unknown>[] }>;
+      };
+      const source = copy.items["automation.hall_night"]?.runs[0];
+      if (source === undefined) throw new Error("fixture changed");
+      delete source["last_step"];
+      if (value !== undefined) source["last_step"] = value;
+      return expandTrace(copy as unknown as TraceStandardDocument)[0];
+    };
+    expect(withLastStep(null)?.last_step).toBeNull();
+    expect(withLastStep(undefined)?.last_step).toBe("action/1");
+    expect(withLastStep("trigger/0")?.last_step).toBe("trigger/0");
+  });
+
   it("throws on a reference that does not resolve", () => {
     expect(() =>
       decodeValue("#9", null, { strings: [], values: [] }),

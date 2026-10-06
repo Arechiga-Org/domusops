@@ -6,6 +6,7 @@ import {
   type TraceSummaryDocument,
 } from "@domusops/schema";
 import { afterEach, describe, expect, it } from "vitest";
+import { encodeSummary } from "../src/trace/encode-summary.js";
 import { runTrace } from "../src/tools/ha-trace.js";
 import {
   EDGE_TRACES,
@@ -192,5 +193,48 @@ describe("summary outcomes and errors", () => {
       context: one.context.id,
     });
     expect(rowsOf(byContext.doc).length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("the context column (data-model §4)", () => {
+  const encode = (contextId: string): unknown =>
+    Object.values(
+      encodeSummary(
+        [
+          {
+            contextId,
+            record: {
+              run_id: "0f3c9a2b7d1e4c5f8a6b9c0d1e2f3a4b",
+              domain: "automation",
+              item_id: "1700000000001",
+              state: "stopped",
+              script_execution: "finished",
+              timestamp: {
+                start: "2026-03-14T10:00:00.5+00:00",
+                finish: "2026-03-14T10:00:01+00:00",
+              },
+              last_step: "action/0",
+              trigger: "time",
+            },
+          },
+        ],
+        {
+          haVersion: "2026.9.3",
+          timeZone: "UTC",
+          nowMs: Date.UTC(2026, 2, 14, 12),
+          selection: {},
+          items: {
+            keyOf: (domain, itemId) => `${domain}.${itemId}`,
+            itemIdOf: () => undefined,
+          },
+          noRuns: null,
+        },
+      ).items,
+    )[0]?.[0]?.[6];
+
+  it("is a plain string, even for an ID that looks like an encoded one", () => {
+    // The standard encoding wraps this form as { v }; the summary contract has no such escape.
+    expect(encode("12:7Q3KXW2M9ZB4Y6AR")).toBe("12:7Q3KXW2M9ZB4Y6AR");
+    expect(encode("not-a-ulid")).toBe("not-a-ulid");
   });
 });
