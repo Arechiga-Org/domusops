@@ -1,5 +1,6 @@
 import type {
   JsonObject,
+  LogbookRow,
   RawArea,
   RawConfigEntry,
   RawDevice,
@@ -24,9 +25,11 @@ export interface Fixture {
   haVersion: string;
   user: JsonObject;
   records: RawRecords;
+  /** Logbook rows served by `logbook/get_events` (feature 002); absent for snapshot fixtures. */
+  logbook?: LogbookRow[];
 }
 
-class Rng {
+export class Rng {
   private state: number;
   constructor(seed: number) {
     this.state = seed >>> 0;

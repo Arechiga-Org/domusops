@@ -1,4 +1,4 @@
-import { errors, SnapshotError } from "../errors.js";
+import { errors, ToolError } from "../errors.js";
 import { isSupported, MIN_VERSION } from "./version.js";
 
 /**
@@ -13,9 +13,25 @@ export const ALLOWED_COMMANDS = [
   "config/device_registry/list",
   "config/area_registry/list",
   "config_entries/get",
+  "logbook/get_events",
 ] as const;
 
 export type AllowedCommand = (typeof ALLOWED_COMMANDS)[number];
+
+/**
+ * The only command that takes parameters, and the only keys it may carry. Every other command is
+ * sent bare, so no caller can smuggle anything else onto the socket.
+ */
+export interface LogbookParams {
+  start_time: string;
+  end_time: string;
+  entity_ids?: string[];
+}
+const LOGBOOK_PARAM_KEYS: ReadonlySet<string> = new Set([
+  "start_time",
+  "end_time",
+  "entity_ids",
+]);
 
 export interface Timeouts {
   /** Connecting and authenticating. */
@@ -58,7 +74,7 @@ export class HaClient {
   private readonly pending = new Map<number, Pending>();
   private nextId = 1;
   private closed = false;
-  private failure: SnapshotError | null = null;
+  private failure: ToolError | null = null;
 
   private constructor(
     private readonly socket: WebSocket,
@@ -87,7 +103,7 @@ export class HaClient {
       let settled = false;
       let phase = "connecting";
       let haVersion = "unknown";
-      const fail = (error: SnapshotError): void => {
+      const fail = (error: ToolError): void => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -134,7 +150,7 @@ export class HaClient {
             }
           } catch (error) {
             fail(
-              error instanceof SnapshotError
+              error instanceof ToolError
                 ? error
                 : errors.protocolError(describe(error)),
             );
@@ -214,7 +230,7 @@ export class HaClient {
   }
 
   /** Rejects every pending command; `error` null means the connection dropped. */
-  private abort(error: SnapshotError | null): void {
+  private abort(error: ToolError | null): void {
     this.failure ??= error;
     for (const [id, pending] of this.pending) {
       clearTimeout(pending.timer);
@@ -229,8 +245,12 @@ export class HaClient {
     }
   }
 
-  /** Sends one allowlisted command and resolves with its `result`. */
-  command(type: AllowedCommand): Promise<unknown> {
+  /**
+   * Sends one allowlisted command and resolves with its `result`. `params` is accepted for
+   * `logbook/get_events` only. That command may use the whole remaining overall budget, because
+   * its duration grows with the window; every other command keeps the per-command limit.
+   */
+  command(type: AllowedCommand, params?: LogbookParams): Promise<unknown> {
     if (!isAllowed(type)) {
       return Promise.reject(
         errors.protocolError(
@@ -238,6 +258,21 @@ export class HaClient {
           this.haVersion,
         ),
       );
+    }
+    if (params !== undefined) {
+      const stray = Object.keys(params).find(
+        (key) => !LOGBOOK_PARAM_KEYS.has(key),
+      );
+      if (type !== "logbook/get_events" || stray !== undefined) {
+        return Promise.reject(
+          errors.protocolError(
+            type !== "logbook/get_events"
+              ? `command "${type}" does not take parameters`
+              : `parameter "${String(stray)}" is not allowed`,
+            this.haVersion,
+          ),
+        );
+      }
     }
     if (this.closed || this.failure !== null) {
       return Promise.reject(
@@ -247,9 +282,12 @@ export class HaClient {
     }
     const id = this.nextId++;
     const remaining = this.deadline - Date.now();
-    const budget = Math.min(this.timeouts.commandMs, remaining);
+    const logbook = type === "logbook/get_events";
+    const budget = logbook
+      ? remaining
+      : Math.min(this.timeouts.commandMs, remaining);
     return new Promise<unknown>((resolve, reject) => {
-      const overall = remaining <= this.timeouts.commandMs;
+      const overall = logbook || remaining <= this.timeouts.commandMs;
       const timer = setTimeout(
         () => {
           this.pending.delete(id);
@@ -259,6 +297,9 @@ export class HaClient {
               overall
                 ? `the ${type} retrieval (overall limit)`
                 : `the ${type} retrieval`,
+              logbook
+                ? "Use a shorter window or fewer entities, then try again"
+                : undefined,
             ),
           );
         },
@@ -266,7 +307,7 @@ export class HaClient {
       );
       this.pending.set(id, { command: type, resolve, reject, timer });
       try {
-        this.socket.send(JSON.stringify({ id, type }));
+        this.socket.send(JSON.stringify({ id, type, ...params }));
       } catch (error) {
         this.pending.delete(id);
         clearTimeout(timer);

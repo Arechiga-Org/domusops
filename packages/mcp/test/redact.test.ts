@@ -4,7 +4,11 @@ import {
   type RawRecords,
 } from "@domusops/schema";
 import { describe, expect, it } from "vitest";
-import { redact } from "../src/snapshot/redact.js";
+import {
+  LOGBOOK_EXEMPT_KEYS,
+  redact,
+  redactRows,
+} from "../src/snapshot/redact.js";
 
 const TOKEN = "configured-token-abcdef123456";
 const M = REDACTION_MARKER;
@@ -209,6 +213,109 @@ describe("C1: coordinates", () => {
     const other = attrs({ gps: [1, 2, 3], location: "Kitchen" });
     expect(other["gps"]).toEqual([1, 2, 3]);
     expect(other["location"]).toBe("Kitchen");
+  });
+});
+
+describe("C2: coordinate pairs written as text", () => {
+  const text = (value: string): unknown => attrs({ note: value })["note"];
+
+  it("redacts a pair of decimals with at least three decimals each", () => {
+    expect(text("arrived at 41.3851, 2.1734")).toBe(`arrived at ${M}`);
+    expect(text("at 41.3851 2.1734 today")).toBe(`at ${M} today`);
+    expect(text("-33.868820,151.209290")).toBe(M);
+    expect(text("(41.385064, -103.4425)")).toBe(`(${M})`);
+  });
+
+  it("leaves a pair alone when it cannot be a latitude and a longitude", () => {
+    expect(text("95.1234, 2.1734")).toBe("95.1234, 2.1734");
+    expect(text("41.3851, 181.2345")).toBe("41.3851, 181.2345");
+  });
+
+  it("leaves numbers with fewer than three decimals alone", () => {
+    expect(text("21.5, 22.0")).toBe("21.5, 22.0");
+    expect(text("temperatures 21.50 and 22.75")).toBe(
+      "temperatures 21.50 and 22.75",
+    );
+  });
+
+  it("does not start in the middle of a longer number", () => {
+    expect(text("1789452345.123456 1789452345.234567")).toBe(
+      "1789452345.123456 1789452345.234567",
+    );
+  });
+
+  it("does not end in the middle of a dotted version, but still ends at a full stop", () => {
+    expect(text("time 12.345 67.890.1")).toBe("time 12.345 67.890.1");
+    expect(text("arrived at 41.3851, 2.1734.")).toBe(`arrived at ${M}.`);
+  });
+});
+
+describe("C3: the instance's own coordinates", () => {
+  const withConfig = (
+    latitude: unknown,
+    longitude: unknown,
+    note: string,
+  ): unknown => {
+    const out = redact(
+      records({
+        config: { latitude, longitude },
+        states: [{ entity_id: "sensor.t", state: "on", attributes: { note } }],
+      }),
+      TOKEN,
+    );
+    return out.states[0]?.attributes?.["note"];
+  };
+
+  it("redacts the configured latitude and longitude wherever they occur in text", () => {
+    expect(
+      withConfig(41.385064, 2.173404, "home is 41.385064 by 2.173404"),
+    ).toBe(`home is ${M} by ${M}`);
+  });
+
+  it("redacts a signed value and its unsigned form", () => {
+    expect(withConfig(20.4746, -103.4425, "at -103.4425 or 103.4425")).toBe(
+      `at ${M} or ${M}`,
+    );
+  });
+
+  it("does not start or end in the middle of a longer number", () => {
+    // 20.4746 inside 120.4746, -1103.4425, and 20.47461 is a different number: left intact.
+    expect(withConfig(20.4746, -103.4425, "a 120.4746 b")).toBe("a 120.4746 b");
+    expect(withConfig(20.4746, -103.4425, "a -1103.4425 b")).toBe(
+      "a -1103.4425 b",
+    );
+    expect(withConfig(20.4746, -103.4425, "a 20.47461 b")).toBe("a 20.47461 b");
+    expect(withConfig(20.4746, -103.4425, "a 20.4746. b")).toBe(`a ${M}. b`);
+  });
+
+  it("skips a configured value written with fewer than three decimals", () => {
+    expect(withConfig(20.4, 3, "level 20.4 and 3")).toBe("level 20.4 and 3");
+  });
+
+  it("does nothing when the config has no coordinates", () => {
+    expect(withConfig(undefined, undefined, "level 20.4746")).toBe(
+      "level 20.4746",
+    );
+  });
+});
+
+describe("redactRows (feature 002)", () => {
+  it("applies C3 to rows through the coordinates option", () => {
+    const [row] = redactRows([{ when: 1, message: "at 41.385064 now" }], {
+      token: "",
+      exemptKeys: LOGBOOK_EXEMPT_KEYS,
+      coordinates: { latitude: 41.385064, longitude: 2.173404 },
+    });
+    expect(row?.["message"]).toBe(`at ${M} now`);
+  });
+
+  it("does not touch a row that has nothing to redact", () => {
+    const input = { when: 1, entity_id: "light.a", state: "on" };
+    const [row] = redactRows([input], {
+      token: "",
+      exemptKeys: LOGBOOK_EXEMPT_KEYS,
+    });
+    expect(row).toEqual(input);
   });
 });
 

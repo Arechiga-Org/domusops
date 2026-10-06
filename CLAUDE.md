@@ -17,5 +17,6 @@ skills/          — Claude Code skills
 specs/           — Spec Kit feature specs
 
 ## Current focus
-First feature: `ha_snapshot` (specs/001-ha-snapshot/, seeded from docs/SEED.md §5).
-Nothing else lands until it works end to end.
+`ha_snapshot` (specs/001-ha-snapshot/) is done and merged.
+Current feature: `ha_logbook_query` (specs/002-ha-logbook-query/), backlog item 1 of
+docs/SEED.md §6. Nothing else lands until it works end to end.

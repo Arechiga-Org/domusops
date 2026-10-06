@@ -47,7 +47,7 @@ function converse(
 }
 
 describe("the built server over stdio", () => {
-  it("starts with only Node and advertises exactly ha_snapshot", async () => {
+  it("starts with only Node and advertises exactly ha_snapshot and ha_logbook_query", async () => {
     if (!existsSync(cli))
       throw new Error(
         "packages/mcp/dist is missing: run `pnpm typecheck` first",
@@ -74,11 +74,16 @@ describe("the built server over stdio", () => {
       .map((l) => JSON.parse(l) as Reply)
       .find((r) => r.id === 2);
     const tools = listing?.result?.tools ?? [];
-    expect(tools.map((t) => t.name)).toEqual(["ha_snapshot"]);
-    expect(tools[0]?.annotations).toMatchObject({
-      readOnlyHint: true,
-      destructiveHint: false,
-    });
+    expect(tools.map((t) => t.name)).toEqual([
+      "ha_snapshot",
+      "ha_logbook_query",
+    ]);
+    for (const tool of tools) {
+      expect(tool.annotations).toMatchObject({
+        readOnlyHint: true,
+        destructiveHint: false,
+      });
+    }
     expect(stderr).not.toMatch(/token/i);
   });
 });

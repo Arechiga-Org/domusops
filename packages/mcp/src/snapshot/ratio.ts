@@ -1,4 +1,4 @@
-import type { RawRecords, SnapshotDocument } from "@domusops/schema";
+import type { RawRecords } from "@domusops/schema";
 
 const encoder = new TextEncoder();
 
@@ -23,10 +23,22 @@ export function measureRawBytes(records: RawRecords): number {
 }
 
 /**
+ * Size of the logbook rows a query selected, as returned by the instance: the UTF-8 length of
+ * their serialisation, measured before redaction (data-model §6 of feature 002). Discarded, never
+ * emitted.
+ */
+export function measureRowsBytes(rows: readonly unknown[]): number {
+  return byteLength(JSON.stringify(rows));
+}
+
+/**
  * Serialises `doc` minified with its real `compression_ratio`. The ratio's own digits would change
  * the size it measures, so the emitted size is taken with the ratio set to 0 (research R7).
  */
-export function finalize(doc: SnapshotDocument, rawBytes: number): string {
+export function finalize<T extends { compression_ratio: number }>(
+  doc: T,
+  rawBytes: number,
+): string {
   const emittedBytes = byteLength(
     JSON.stringify({ ...doc, compression_ratio: 0 }),
   );

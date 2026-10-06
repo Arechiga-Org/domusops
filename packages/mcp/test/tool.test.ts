@@ -34,7 +34,11 @@ async function callTool(
   args: Record<string, unknown> = {},
   fake: Partial<FakeHaOptions> = {},
   env: Record<string, string | undefined> = {},
-  timeouts: Partial<Timeouts> = { connectMs: 2000, commandMs: 2000, totalMs: 5000 },
+  timeouts: Partial<Timeouts> = {
+    connectMs: 2000,
+    commandMs: 2000,
+    totalMs: 5000,
+  },
 ): Promise<{ result: CallResult; ha: FakeHa; ms: number }> {
   const ha = await startFakeHa({ fixture, ...fake });
   cleanups.push(() => ha.close());
@@ -118,55 +122,109 @@ function expectFailure(result: CallResult, kind: string): string {
 
 describe("ha_snapshot: failures", () => {
   it("config_missing names the variable", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, {}, { DOMUSOPS_HA_TOKEN: undefined }, SHORT);
-    expect(expectFailure(result, "config_missing")).toContain("DOMUSOPS_HA_TOKEN");
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      {},
+      { DOMUSOPS_HA_TOKEN: undefined },
+      SHORT,
+    );
+    expect(expectFailure(result, "config_missing")).toContain(
+      "DOMUSOPS_HA_TOKEN",
+    );
   });
 
   it("auth_invalid does not echo the token", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, { token: "some-other-token-value" }, {}, SHORT);
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      { token: "some-other-token-value" },
+      {},
+      SHORT,
+    );
     expectFailure(result, "auth_invalid");
   });
 
   it("unreachable names the address", async () => {
     const { result, ha } = await callTool(
-      REFERENCE_500, {}, {}, { DOMUSOPS_HA_URL: "http://127.0.0.1:1" }, SHORT,
+      REFERENCE_500,
+      {},
+      {},
+      { DOMUSOPS_HA_URL: "http://127.0.0.1:1" },
+      SHORT,
     );
     expect(ha.received).toEqual([]);
     expect(expectFailure(result, "unreachable")).toContain("127.0.0.1:1");
   });
 
   it("version_unsupported states both versions", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, { haVersion: "2024.12.4" }, {}, SHORT);
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      { haVersion: "2024.12.4" },
+      {},
+      SHORT,
+    );
     const text = expectFailure(result, "version_unsupported");
     expect(text).toContain("2024.12.4");
     expect(text).toContain("2025.1.0");
   });
 
   it("not_admin explains why", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, { isAdmin: false }, {}, SHORT);
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      { isAdmin: false },
+      {},
+      SHORT,
+    );
     expect(expectFailure(result, "not_admin")).toContain("administrator");
   });
 
   it("timeout names the phase", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, { stall: "get_states" }, {}, SHORT);
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      { stall: "get_states" },
+      {},
+      SHORT,
+    );
     expect(expectFailure(result, "timeout")).toContain("get_states");
   });
 
   it("protocol_error for an unexpected response", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, { malformed: "get_config" }, {}, SHORT);
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      { malformed: "get_config" },
+      {},
+      SHORT,
+    );
     expectFailure(result, "protocol_error");
   });
 
   it("returns no partial snapshot when the last retrieval fails", async () => {
     const { result, ha } = await callTool(
-      REFERENCE_500, {}, { failCommand: { type: "config_entries/get" } }, {}, SHORT,
+      REFERENCE_500,
+      {},
+      { failCommand: { type: "config_entries/get" } },
+      {},
+      SHORT,
     );
     expect(ha.received).toContain("get_states");
-    expect(expectFailure(result, "retrieval_failed")).toContain("config_entries/get");
+    expect(expectFailure(result, "retrieval_failed")).toContain(
+      "config_entries/get",
+    );
   });
 
   it("retrieval_failed when the connection drops after some retrievals", async () => {
-    const { result } = await callTool(REFERENCE_500, {}, { dropAfter: "config_entries/get" }, {}, SHORT);
+    const { result } = await callTool(
+      REFERENCE_500,
+      {},
+      { dropAfter: "config_entries/get" },
+      {},
+      SHORT,
+    );
     expectFailure(result, "retrieval_failed");
   });
 });
@@ -192,13 +250,17 @@ describe("ha_snapshot: detail levels", () => {
     async (detail) => {
       const { result, ha } = await callTool(REFERENCE_500, { detail });
       expect(result.isError).toBeFalsy();
-      const doc = JSON.parse(result.content[0]?.text ?? "") as Record<string, unknown>;
+      const doc = JSON.parse(result.content[0]?.text ?? "") as Record<
+        string,
+        unknown
+      >;
       expect(doc["detail"]).toBe(detail);
       expect(typeof doc["compression_ratio"]).toBe("number");
       expect(doc["compression_ratio"] as number).toBeGreaterThan(1);
       if (detail === "summary") expect(doc).toHaveProperty("counts");
       else expect(doc).toHaveProperty("integrations");
-      for (const command of ha.received) expect(ALLOWED.has(command)).toBe(true);
+      for (const command of ha.received)
+        expect(ALLOWED.has(command)).toBe(true);
     },
   );
 
@@ -214,17 +276,27 @@ describe("ha_snapshot: detail levels", () => {
 
   it("rejects an unrecognised detail value, listing the accepted ones, with no snapshot", async () => {
     const outcome = await callTool(REFERENCE_500, { detail: "verbose" }).then(
-      ({ result }) => ({ text: result.content[0]?.text ?? "", isError: result.isError === true }),
+      ({ result }) => ({
+        text: result.content[0]?.text ?? "",
+        isError: result.isError === true,
+      }),
       (error: unknown) => ({ text: String(error), isError: true }),
     );
     expect(outcome.isError).toBe(true);
-    for (const level of ["summary", "standard", "full"]) expect(outcome.text).toContain(level);
+    for (const level of ["summary", "standard", "full"])
+      expect(outcome.text).toContain(level);
     expect(outcome.text).not.toContain('"format"');
   });
 
   it("ignores an unknown extra property", async () => {
-    const outcome = await callTool(REFERENCE_500, { detail: "summary", surprise: true }).then(
-      ({ result }) => ({ ok: !result.isError, detail: result.isError ? "" : parse(result).detail }),
+    const outcome = await callTool(REFERENCE_500, {
+      detail: "summary",
+      surprise: true,
+    }).then(
+      ({ result }) => ({
+        ok: !result.isError,
+        detail: result.isError ? "" : parse(result).detail,
+      }),
       () => ({ ok: false, detail: "" }),
     );
     // The SDK's schema strips unknown keys, so the call succeeds (pinned by this test).

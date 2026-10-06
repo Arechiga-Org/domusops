@@ -1,0 +1,38 @@
+{
+  "name": "ha_logbook_query",
+  "title": "Logbook history for Home Assistant",
+  "description": "Read-only history of what happened on the connected Home Assistant instance: the logbook events in a time window, in order, each with its cause (the automation, script, service call, user, or entity behind it). Returned as compact JSON in the domusops.logbook/0.1 format, with event times in the instance's local time. start and end are ISO 8601 (no offset means the instance's time zone); the default window is the last 24 hours. entities takes exact entity IDs or * patterns (light.*, *_motion); without it, every event is returned, including instance start and stop. detail=summary gives counts per entity, domain, and cause only; standard (default) lists every event and is at least 5x smaller than the raw logbook on a 24-hour reference window (asserted in CI). A standard result larger than 100000 bytes (DOMUSOPS_LOGBOOK_MAX_BYTES) is refused with the event count: use summary, a shorter window, or fewer entities. The logbook omits continuous sensors (with a unit of measurement) and history older than the instance's retention. Patterns follow the instance's logbook exclude settings; exact IDs do not. Secrets, coordinates, and e-mail addresses are always redacted. Every response reports its compression_ratio. Requires DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN (administrator user).",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "string",
+        "description": "Window start, ISO 8601 (2026-09-26T03:00 or 2026-09-26T03:00:00-06:00). Default: 24 hours before end."
+      },
+      "end": {
+        "type": "string",
+        "description": "Window end, ISO 8601. Default: now. A later time is clamped to now."
+      },
+      "entities": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "maxItems": 100,
+        "description": "Entity IDs or patterns where * matches anything (light.*, *_motion). Omit for every event."
+      },
+      "detail": {
+        "type": "string",
+        "enum": ["summary", "standard"],
+        "default": "standard",
+        "description": "summary: counts per entity, domain, and cause. standard: every event, compressed."
+      }
+    },
+    "additionalProperties": false
+  },
+  "annotations": {
+    "readOnlyHint": true,
+    "destructiveHint": false,
+    "idempotentHint": false,
+    "openWorldHint": true
+  }
+}
