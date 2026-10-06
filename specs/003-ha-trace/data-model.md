@@ -303,11 +303,17 @@ redacted): the identifier keys exempt in `ha_snapshot` (`entity_id`, `device_id`
 `config_entry_id`, `entry_id`, and the rest of its list), plus `run_id`, `item_id`, `domain`,
 `id`, `parent_id`, `user_id`, `path`, `last_step` ([research R11](./research.md#r11-redaction)).
 
+In a trace, an exempt key skips only the key-name rules (K1 and the coordinate keys): its value, and
+any object or array under it, still goes through the value rules (V1 to V6, C2, C3). Traces carry
+user data under generic names (`id`, `path`, `domain` are also variable names), so a secret under
+one of them must not escape. In `ha_snapshot` and `ha_logbook_query` an exempt value is left whole.
+
 ## 8. Errors
 
 The kinds of [002 data-model §8](../002-ha-logbook-query/data-model.md#8-errors) apply, with the
 prefix `ha_trace failed [<kind>]:`. `window_invalid` and `selector_invalid` are unchanged.
-`history_unavailable` is not used. Added or changed:
+`history_unavailable` is not used. `not_admin` keeps its kind and cause, but its next step does not
+refer to the snapshot (`ha_snapshot`'s own text is unchanged). Added or changed:
 
 | `kind`               | Trigger                                                                                                   | Next step named in the message                                                                                                                                                                        |
 | -------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
