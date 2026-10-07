@@ -125,6 +125,36 @@ describe("encryptWithRoundtrip / decryptToPlaintext (FR-012, FR-013)", () => {
     expect(decrypt(dir, "secrets.sops.yaml").trim()).toBe("{}");
   });
 
+  it("leaves the previous secrets.sops.yaml untouched when the round trip cannot decrypt", () => {
+    saveEnv();
+    const recipient = makeThrowawayAgeKey();
+    const stranger = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = stranger.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [recipient.publicKey]);
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-6\n");
+    writeFileSync(join(dir, "secrets.sops.yaml"), "previous: kept\n");
+
+    const result = encryptWithRoundtrip(dir);
+    expect(result.ok).toBe(false);
+    expect(readFileSync(join(dir, "secrets.sops.yaml"), "utf8")).toBe(
+      "previous: kept\n",
+    );
+  });
+
+  it("removes a new secrets.sops.yaml that failed the round trip, when there was none before", () => {
+    saveEnv();
+    const recipient = makeThrowawayAgeKey();
+    const stranger = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = stranger.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [recipient.publicKey]);
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-7\n");
+
+    expect(encryptWithRoundtrip(dir).ok).toBe(false);
+    expect(existsSync(join(dir, "secrets.sops.yaml"))).toBe(false);
+  });
+
   it("decrypt writes secrets.yaml at mode 0600", () => {
     saveEnv();
     const { keyFile, publicKey } = makeThrowawayAgeKey();
@@ -223,6 +253,26 @@ describe("secrets add-key / remove-key (spec FR-028)", () => {
 
     const code = runSecrets("remove-key", [key2.publicKey], args(dir));
     expect(code).toBe(EXIT_OK);
+    expect(readRecipients(dir)).toEqual([key1.publicKey]);
+  });
+
+  it("add-key rolls .sops.yaml back when the keys cannot be re-wrapped", () => {
+    saveEnv();
+    const key1 = makeThrowawayAgeKey();
+    const key2 = makeThrowawayAgeKey();
+    const stranger = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [key1.publicKey]);
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-8\n");
+    encryptWithRoundtrip(dir);
+    const before = readFileSync(join(dir, ".sops.yaml"), "utf8");
+
+    // The caller's key is not a recipient, so `sops updatekeys` cannot unwrap the data key.
+    process.env["SOPS_AGE_KEY_FILE"] = stranger.keyFile;
+    const code = runSecrets("add-key", [key2.publicKey], args(dir));
+    expect(code).toBe(EXIT_PROBLEMS);
+    expect(readFileSync(join(dir, ".sops.yaml"), "utf8")).toBe(before);
     expect(readRecipients(dir)).toEqual([key1.publicKey]);
   });
 });

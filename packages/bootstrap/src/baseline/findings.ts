@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { run } from "../env/exec.js";
 import { isEncryptedValue } from "../env/sops.js";
-import { isMap, isScalar, parse } from "../yaml/ha-yaml.js";
+import { isMap, isScalar, isSeq, parse } from "../yaml/ha-yaml.js";
 
 /** Filesystem and repository findings the run summary reports alongside the baseline elements. */
 
@@ -121,6 +121,10 @@ function scanFile(
   if (errors.length > 0) return;
   const rel = relative(root, path);
   const visit = (node: unknown): void => {
+    if (isSeq(node)) {
+      for (const item of node.items) visit(item);
+      return;
+    }
     if (!isMap(node)) return;
     for (const item of node.items) {
       if (

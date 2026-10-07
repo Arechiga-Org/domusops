@@ -4,7 +4,7 @@ import { runCheck } from "./commands/check.js";
 import { runValidate } from "./commands/validate.js";
 import { runSecrets } from "./commands/secrets.js";
 import type { CliArgs } from "./cli-args.js";
-import { packageVersion } from "./cli-support.js";
+import { isEntryPoint, packageVersion } from "./cli-support.js";
 
 export type { CliArgs } from "./cli-args.js";
 export {
@@ -19,7 +19,7 @@ export {
   isConfigDir,
   notConfigDirStop,
 } from "./cli-support.js";
-import { EXIT_OK, EXIT_USAGE } from "./exit-codes.js";
+import { EXIT_OK, EXIT_PROBLEMS, EXIT_USAGE } from "./exit-codes.js";
 
 function parseFlags(argv: readonly string[]): {
   positional: string[];
@@ -111,9 +111,13 @@ export function main(argv: readonly string[]): number {
   }
 }
 
-const isMain =
-  process.argv[1] !== undefined &&
-  import.meta.url === new URL(process.argv[1], "file:").href;
-if (isMain) {
-  process.exit(main(process.argv.slice(2)));
+if (isEntryPoint(process.argv[1], import.meta.url)) {
+  let code: number;
+  try {
+    code = main(process.argv.slice(2));
+  } catch (error) {
+    console.error(`Error: ${error instanceof Error ? error.message : error}`);
+    code = EXIT_PROBLEMS;
+  }
+  process.exit(code);
 }

@@ -1,6 +1,7 @@
 import {
   isMap,
   isScalar,
+  isSeq,
   parseDocument,
   type Document,
   type Pair,
@@ -113,4 +114,4 @@ export function indentAt(text: string, offset: number): string {
   return match?.[0] ?? "";
 }
 
-export { isMap, isScalar };
+export { isMap, isScalar, isSeq };

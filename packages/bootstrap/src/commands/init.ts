@@ -89,7 +89,7 @@ import type { RunStop } from "../env/platform.js";
  * stories (T028, T036, T041) extend this same function with the rest of the twelve elements.
  */
 export function runInit(args: CliArgs): number {
-  const stop = runScopeGuard(["git"]);
+  const stop = runScopeGuard(["git", "sops", "age"]);
   if (stop !== null) {
     printSummary(
       buildSummary(
@@ -142,12 +142,19 @@ export function runInit(args: CliArgs): number {
       args.instanceVersion,
     );
     if (report === null) continue; // not yet implemented for this story
-    elements.push(report.element);
+    elements.push(
+      report.element.state === "blocked" && report.stop !== undefined
+        ? {
+            ...report.element,
+            reason: `${report.stop.reason}: ${report.stop.message}`,
+          }
+        : report.element,
+    );
     if (report.entry !== undefined) newEntries[id] = report.entry;
     else if (report.removeEntry === true) delete newEntries[id];
     if (report.key !== undefined) key = report.key;
-    // An element-scope stop (data-model §1.2) is already carried by its own `state: "blocked"`
-    // and `reason`; only a run-scope stop occupies the summary's top-level `stop` field.
+    // An element-scope stop (data-model §1.2) is carried by its own `state: "blocked"` and a
+    // `reason` that starts with the stop code; only a run-scope stop fills the top-level `stop`.
   }
 
   const findings: Findings = {
@@ -282,6 +289,17 @@ function computeElement(
     case "sops-config": {
       const existingRecipients = readRecipients(dir);
       if (!apply) {
+        if (existingRecipients.length === 0 && checkExposure(dir)) {
+          return {
+            element: {
+              id,
+              path: SOPS_CONFIG_FILE,
+              state: "blocked",
+              reason: "secrets.yaml is tracked or in its history",
+            },
+            stop: secretsExposedStop(),
+          };
+        }
         const result = computeSopsConfig(dir, existingRecipients, record);
         return {
           element: {
@@ -358,7 +376,7 @@ function computeElement(
           },
         };
       }
-      if (!apply) {
+      if (!apply && !checkExposure(dir)) {
         return {
           element: {
             id,
@@ -417,7 +435,7 @@ function computeElement(
       const template = renderHook(packageVersion());
       const path = join(dir, ".githooks", "pre-commit");
       const result = apply
-        ? applySkillFile(path, template, record, id)
+        ? applySkillFile(path, template, record, id, { executable: true })
         : computeSkillFile(path, template, record, id);
       const entry =
         apply && (result.state === "missing" || result.state === "outdated")

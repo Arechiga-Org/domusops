@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildReference } from "./fixtures/build-reference.mjs";
@@ -76,6 +76,20 @@ describe("gitignore-block (research R4)", () => {
     expect(hits).toContain("secrets.yaml");
     // FR-007: the tool never untracks the file itself.
     expect(existsSync(join(dir, "secrets.yaml"))).toBe(true);
+  });
+
+  it("does not report tracked custom_components/ files, which the block leaves out", () => {
+    const dir = fixture({ customComponentsTracked: true });
+    const hits = findTrackedExcludedPaths(dir);
+    expect(hits.filter((p) => p.startsWith("custom_components/"))).toEqual([]);
+  });
+
+  it("matches directory patterns at any depth, as git will", () => {
+    const dir = fixture();
+    mkdirSync(join(dir, "packages", "deps"), { recursive: true });
+    writeFileSync(join(dir, "packages", "deps", "x.yaml"), "a: 1\n");
+    spawnSync("git", ["add", "-f", "packages/deps/x.yaml"], { cwd: dir });
+    expect(findTrackedExcludedPaths(dir)).toContain("packages/deps/x.yaml");
   });
 
   it("does not untrack anything itself", () => {

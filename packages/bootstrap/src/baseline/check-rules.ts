@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isMap, isScalar, parse } from "../yaml/ha-yaml.js";
+import { isMap, isScalar, isSeq, parse } from "../yaml/ha-yaml.js";
 import { isEncryptedValue } from "../env/sops.js";
 import type { CheckHit } from "../report/summary.js";
 
@@ -52,8 +52,8 @@ function walkScalars(
     }
     return;
   }
-  if (Array.isArray(node)) {
-    for (const item of node) walkScalars(item, null, visit);
+  if (isSeq(node)) {
+    for (const item of node.items) walkScalars(item, null, visit);
     return;
   }
   if (isScalar(node) && typeof node.value === "string") visit(node.value);
@@ -73,8 +73,8 @@ function walkAllScalars(
     }
     return;
   }
-  if (Array.isArray(node)) {
-    for (const item of node) walkAllScalars(item, null, visit);
+  if (isSeq(node)) {
+    for (const item of node.items) walkAllScalars(item, null, visit);
     return;
   }
   if (isScalar(node)) visit(node.value);

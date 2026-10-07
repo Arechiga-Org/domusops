@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { CliArgs } from "../cli-args.js";
 import {
   EXIT_OK,
@@ -90,6 +92,25 @@ function updateSopsRecordEntry(dir: string): void {
   });
 }
 
+/**
+ * Writes the new recipient list and re-wraps `secrets.sops.yaml` for it. When sops fails, the
+ * previous `.sops.yaml` is put back, so the configuration and the encrypted file stay in step;
+ * returns the failure message, or `null` on success.
+ */
+function rewrapKeys(dir: string, recipients: readonly string[]): string | null {
+  const configPath = join(dir, SOPS_CONFIG_FILE);
+  const previous = existsSync(configPath) ? readFileSync(configPath) : null;
+  writeSopsConfig(dir, recipients);
+  try {
+    updateKeys(dir, "secrets.sops.yaml");
+  } catch (error) {
+    if (previous === null) rmSync(configPath, { force: true });
+    else writeFileSync(configPath, previous);
+    return `${error instanceof Error ? error.message : "sops failed"}. ${SOPS_CONFIG_FILE} was left as it was.`;
+  }
+  return null;
+}
+
 function runAddKey(key: string | undefined, args: CliArgs): number {
   if (key === undefined || !isValidPublicKey(key)) {
     console.error(
@@ -102,8 +123,11 @@ function runAddKey(key: string | undefined, args: CliArgs): number {
     console.log("That key is already a recipient; nothing to do.");
     return EXIT_OK;
   }
-  writeSopsConfig(args.dir, [...recipients, key]);
-  updateKeys(args.dir, "secrets.sops.yaml");
+  const failed = rewrapKeys(args.dir, [...recipients, key]);
+  if (failed !== null) {
+    console.error(failed);
+    return EXIT_PROBLEMS;
+  }
   updateSopsRecordEntry(args.dir);
   console.log(
     "Key added. secrets.sops.yaml re-encrypted for the new recipient list.",
@@ -130,11 +154,19 @@ function runRemoveKey(key: string | undefined, args: CliArgs): number {
     );
     return EXIT_PROBLEMS;
   }
-  writeSopsConfig(args.dir, remaining);
-  updateKeys(args.dir, "secrets.sops.yaml");
+  const failed = rewrapKeys(args.dir, remaining);
+  if (failed !== null) {
+    console.error(failed);
+    return EXIT_PROBLEMS;
+  }
   updateSopsRecordEntry(args.dir);
   console.log(
     "Key removed. secrets.sops.yaml re-encrypted for the remaining recipients.",
+  );
+  console.log(
+    "The removed key can still decrypt every earlier version of the file in git history, and " +
+      "the values themselves did not change. If that person should no longer know these " +
+      "secrets, rotate the secrets themselves.",
   );
   return EXIT_OK;
 }

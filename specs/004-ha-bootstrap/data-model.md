@@ -47,16 +47,17 @@ reports the verb it would use, prefixed `would`.
 A stop reason blocks one element (element scope) or the whole run (run scope). Run-scope stops
 happen before any write (FR-004).
 
-| Reason                 | Scope   | Cause                                                                                                            |
-| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------------------- |
-| `native_windows`       | run     | `process.platform === "win32"` (FR-030)                                                                          |
-| `missing_prerequisite` | run     | `git`, `sops`, or `age-keygen` not found; `details` lists each with install lines per OS                         |
-| `not_config_dir`       | run     | No `configuration.yaml` in the target directory                                                                  |
-| `version_unknown`      | element | No `.domusops/instance-version`, no `.HA_VERSION`, no `--instance-version` (R11); blocks `instance-version` only |
-| `secrets_exposed`      | element | `secrets.yaml` tracked or in history (FR-014); blocks `encrypted-secrets` and `sops-config`                      |
-| `packages_elsewhere`   | element | `homeassistant:` is an include or a flow mapping (R5)                                                            |
-| `hooks_conflict`       | element | `core.hooksPath` set elsewhere, or `.git/hooks/pre-commit` exists (R2)                                           |
-| `roundtrip_mismatch`   | element | Decrypted content differs from `secrets.yaml` (FR-012); the new file is removed                                  |
+| Reason                 | Scope   | Cause                                                                                                              |
+| ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `native_windows`       | run     | `process.platform === "win32"` (FR-030)                                                                            |
+| `missing_prerequisite` | run     | `git`, `sops`, or `age-keygen` not found; `details` lists each with install lines per OS                           |
+| `not_config_dir`       | run     | No `configuration.yaml` in the target directory                                                                    |
+| `version_unknown`      | element | No `.domusops/instance-version`, no `.HA_VERSION`, no `--instance-version` (R11); blocks `instance-version` only   |
+| `secrets_exposed`      | element | `secrets.yaml` tracked or in history (FR-014); blocks `encrypted-secrets` and `sops-config`                        |
+| `packages_elsewhere`   | element | `homeassistant:` is an include or a flow mapping (R5)                                                              |
+| `hooks_conflict`       | element | `core.hooksPath` set elsewhere, or `.git/hooks/pre-commit` exists (R2)                                             |
+| `roundtrip_mismatch`   | element | Decrypted content differs from `secrets.yaml` (FR-012); the new file is discarded, the previous one kept           |
+| `sops_failed`          | element | `sops` failed while encrypting, decrypting, or re-wrapping keys; `secrets.sops.yaml` and `.sops.yaml` are restored |
 
 ## 2. Generation record
 

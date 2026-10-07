@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -54,4 +54,17 @@ export function notConfigDirStop(): RunStop {
       "No configuration.yaml was found in this directory. Point --dir at your Home Assistant " +
       "configuration directory.",
   };
+}
+
+/** True when the module at `moduleUrl` is the process entry `entry`, also through a bin symlink. */
+export function isEntryPoint(
+  entry: string | undefined,
+  moduleUrl: string,
+): boolean {
+  if (entry === undefined) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(moduleUrl));
+  } catch {
+    return false;
+  }
 }

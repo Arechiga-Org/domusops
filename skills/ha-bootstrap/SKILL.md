@@ -63,17 +63,19 @@ instance version the workflow validates against.
 
 ## After the baseline is in place
 
-- Editing secrets: `domusops-bootstrap secrets decrypt` (add `--force` to overwrite local edits
+- Editing secrets: `npx --yes @domusops/bootstrap@~0.0 secrets decrypt` (add `--force` to overwrite local edits
   that differ) to get a plaintext `secrets.yaml`, edit it, then
-  `domusops-bootstrap secrets encrypt` to put it back. Never suggest committing the plaintext
+  `npx --yes @domusops/bootstrap@~0.0 secrets encrypt` to put it back. Never suggest committing the plaintext
   file; the pre-commit hook blocks that on its own regardless.
 - Adding a second machine that should be able to decrypt secrets (typically the instance's own
   host): generate an age key there, then run
-  `domusops-bootstrap secrets add-key <its public key>` from the repository. `remove-key` works
-  the same way and refuses to remove the last recipient.
+  `npx --yes @domusops/bootstrap@~0.0 secrets add-key <its public key>` from the repository. `remove-key` works
+  the same way and refuses to remove the last recipient; tell the user that the removed key can
+  still read every earlier version of the file in git history, so the secrets themselves must be
+  rotated if that person should no longer know them.
 - Checking the current state again without changing anything: re-run the preview (step 1). A
   second run with nothing to do reports every element `"current"` and changes no file.
-- Validating the full configuration locally (needs Docker or Podman): `domusops-bootstrap
+- Validating the full configuration locally (needs Docker or Podman): `npx --yes @domusops/bootstrap@~0.0
 validate`. The same check runs in the generated GitHub Actions workflow on every push.
 
 ## Constraints this skill respects

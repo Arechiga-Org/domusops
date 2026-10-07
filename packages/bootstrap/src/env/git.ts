@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { run } from "./exec.js";
 
 /**
@@ -72,9 +75,19 @@ export function lsFilesTracked(
   return hits;
 }
 
-/** Staged file paths (`git diff --cached --name-only`), for `check --staged` (research R8). */
+/**
+ * Staged file paths that still exist after the commit (`git diff --cached --name-only`, deletions
+ * left out), for `check --staged` (research R8): removing a file is never a finding, and it is how
+ * a committed `secrets.yaml` gets untracked.
+ */
 export function diffCachedNames(dir: string): string[] {
-  const result = git(dir, ["diff", "--cached", "--name-only", "-z"]);
+  const result = git(dir, [
+    "diff",
+    "--cached",
+    "--name-only",
+    "--diff-filter=d",
+    "-z",
+  ]);
   return splitNul(result.stdout);
 }
 
@@ -114,4 +127,27 @@ export function setLocalConfig(dir: string, key: string, value: string): void {
 
 function splitNul(text: string): string[] {
   return text.split("\0").filter((entry) => entry.length > 0);
+}
+
+/**
+ * Tracked files that the given `.gitignore`-syntax rules would exclude (`git ls-files -ci
+ * --exclude-from`, research R4): git's own matcher, so depth, anchoring, and wildcards behave
+ * exactly as they will once the block is in `.gitignore`.
+ */
+export function lsFilesTrackedExcluded(dir: string, rules: string): string[] {
+  const scratch = mkdtempSync(join(tmpdir(), "domusops-ignore-"));
+  try {
+    const file = join(scratch, "rules");
+    writeFileSync(file, rules);
+    const result = git(dir, [
+      "ls-files",
+      "-z",
+      "--cached",
+      "--ignored",
+      `--exclude-from=${file}`,
+    ]);
+    return splitNul(result.stdout);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }

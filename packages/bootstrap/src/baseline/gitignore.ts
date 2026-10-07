@@ -1,13 +1,9 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { lsFilesTracked } from "../env/git.js";
+import { lsFilesTracked, lsFilesTrackedExcluded } from "../env/git.js";
 import type { ElementState } from "./elements.js";
 import { elementState, type GenerationRecord } from "./record.js";
-import {
-  GITIGNORE_ENTRIES,
-  gitignoreBlockBounds,
-  renderGitignoreBlock,
-} from "./templates.js";
+import { gitignoreBlockBounds, renderGitignoreBlock } from "./templates.js";
 
 /**
  * `gitignore-block` (data-model §1): the marked block in `.gitignore` (research R4). Skill-owned:
@@ -107,12 +103,7 @@ export function applyGitignoreBlock(
   return gitignoreStep(dir, record, true);
 }
 
-/** Which exclusion-block patterns already match a currently tracked file (spec FR-007). */
+/** Tracked files the exclusion block, as it will be written, would exclude (spec FR-007). */
 export function findTrackedExcludedPaths(dir: string): string[] {
-  const hits = lsFilesTracked(dir, GITIGNORE_ENTRIES);
-  const paths = new Set<string>();
-  for (const matches of hits.values()) {
-    for (const path of matches) paths.add(path);
-  }
-  return [...paths].sort();
+  return lsFilesTrackedExcluded(dir, currentGitignoreTemplate(dir)).sort();
 }

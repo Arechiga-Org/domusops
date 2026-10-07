@@ -58,33 +58,51 @@ export interface EncryptResult {
 /**
  * Encrypts `secrets.yaml` into `secrets.sops.yaml` (or an empty mapping when no plaintext file
  * exists, spec edge case), then decrypts the result back to memory and compares it with the
- * original: a mismatch deletes the new file and returns `roundtrip_mismatch` (FR-012).
+ * original (FR-012). A mismatch returns `roundtrip_mismatch` and a sops failure `sops_failed`;
+ * either way the previous encrypted file is restored, or the new one removed.
  */
 export function encryptWithRoundtrip(dir: string): EncryptResult {
   const plainPath = join(dir, SECRETS_FILE);
   const encPath = join(dir, ENCRYPTED_FILE);
   const hadPlainFile = existsSync(plainPath);
   const original = hadPlainFile ? readFileSync(plainPath, "utf8") : "{}\n";
+  const previous = existsSync(encPath) ? readFileSync(encPath) : null;
+  const restore = (): void => {
+    if (previous === null) rmSync(encPath, { force: true });
+    else writeFileSync(encPath, previous);
+  };
 
   if (!hadPlainFile) {
     writeFileSync(plainPath, original, { mode: 0o600 });
   }
+  let roundTripped: string;
   try {
     encrypt(dir, SECRETS_FILE, ENCRYPTED_FILE);
+    roundTripped = decrypt(dir, ENCRYPTED_FILE);
+  } catch (error) {
+    restore();
+    return {
+      ok: false,
+      stop: {
+        reason: "sops_failed",
+        message:
+          (error instanceof Error ? error.message : "sops failed") +
+          ". secrets.sops.yaml was left as it was.",
+      },
+    };
   } finally {
     if (!hadPlainFile) unlinkSync(plainPath);
   }
 
-  const roundTripped = decrypt(dir, ENCRYPTED_FILE);
   if (normalize(roundTripped) !== normalize(original)) {
-    rmSync(encPath, { force: true });
+    restore();
     return {
       ok: false,
       stop: {
         reason: "roundtrip_mismatch",
         message:
           "The freshly encrypted secrets.sops.yaml did not decrypt back to the original " +
-          "secrets.yaml. The encrypted file was removed; nothing else was changed.",
+          "secrets.yaml. The new encrypted file was discarded; nothing else was changed.",
       },
     };
   }

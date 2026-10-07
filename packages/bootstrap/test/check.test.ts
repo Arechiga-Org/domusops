@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { makeTempDir, makeThrowawayAgeKey } from "./support/tmp.js";
@@ -177,5 +177,51 @@ describe("check (research R8)", () => {
     );
     expect(code).toBe(EXIT_PROBLEMS);
     expect(output).toContain("plaintext-secrets");
+  });
+});
+
+describe("check — lists and deleted files", () => {
+  it("secret-value sees a secrets.yaml value that is a list item", () => {
+    const dir = repo();
+    writeFileSync(
+      join(dir, "secrets.yaml"),
+      "wifi_passwords:\n  - listed-value-12345\n",
+    );
+    stage(dir, "notes.yaml", "reminder: listed-value-12345\n");
+    const { code, output } = runAndCapture(args(dir));
+    expect(code).toBe(EXIT_PROBLEMS);
+    expect(output).toContain("secret-value");
+    expect(output).not.toContain("listed-value-12345");
+  });
+
+  it("unencrypted-sops blocks a plain value inside a list", () => {
+    const dir = repo();
+    stage(
+      dir,
+      "secrets.sops.yaml",
+      "tokens:\n  - plain-list-value\nsops:\n  version: 3\n",
+    );
+    const { code, output } = runAndCapture(args(dir));
+    expect(code).toBe(EXIT_PROBLEMS);
+    expect(output).toContain("unencrypted-sops");
+  });
+
+  it("--all skips a tracked file that was deleted from the working tree", () => {
+    const dir = repo();
+    stage(dir, "configuration.yaml", "a: 1\n");
+    stage(dir, "gone.yaml", "b: 2\n");
+    spawnSync("git", ["commit", "--quiet", "-m", "init"], { cwd: dir });
+    rmSync(join(dir, "gone.yaml"));
+    const { code } = runAndCapture(args(dir, { staged: false, all: true }));
+    expect(code).toBe(EXIT_OK);
+  });
+
+  it("--staged ignores a file whose deletion is staged", () => {
+    const dir = repo();
+    stage(dir, "gone.yaml", "b: 2\n");
+    spawnSync("git", ["commit", "--quiet", "-m", "init"], { cwd: dir });
+    spawnSync("git", ["rm", "--quiet", "gone.yaml"], { cwd: dir });
+    const { code } = runAndCapture(args(dir));
+    expect(code).toBe(EXIT_OK);
   });
 });

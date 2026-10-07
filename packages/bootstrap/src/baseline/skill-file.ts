@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import type { ElementState } from "./elements.js";
 import {
@@ -51,11 +57,14 @@ export function applySkillFile(
   currentTemplate: string,
   record: GenerationRecord | null,
   elementId: string,
+  options: { executable?: boolean } = {},
 ): SkillFileResult {
   const result = computeSkillFile(path, currentTemplate, record, elementId);
   if (result.state === "missing" || result.state === "outdated") {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, currentTemplate, "utf8");
+    // Git runs a hook only when it is executable.
+    if (options.executable === true) chmodSync(path, 0o755);
   }
   return result;
 }

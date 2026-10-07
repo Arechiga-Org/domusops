@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CliArgs } from "../cli-args.js";
 import {
@@ -41,6 +41,9 @@ export function runCheck(args: CliArgs): number {
   const hits: CheckHit[] = [];
 
   for (const path of paths) {
+    // `--all` lists tracked paths, which include files deleted from the working tree but not yet
+    // from the index: there is nothing to check in those.
+    if (!args.staged && !existsSync(join(args.dir, path))) continue;
     const content = args.staged
       ? showStagedBlob(args.dir, path)
       : readFile(join(args.dir, path));

@@ -5,6 +5,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
@@ -247,6 +248,15 @@ describe("init — User Story 2 (secrets encryption)", () => {
     expect(sopsConfig?.state).toBe("blocked");
   });
 
+  it("blocks sops-config in a preview too when secrets.yaml is tracked", () => {
+    const dir = fixture({ alreadyRepo: true, secretsTracked: true });
+    const summary = jsonSummary(dir, { apply: false });
+    expect(summary.elements.find((e) => e.id === "sops-config")?.state).toBe(
+      "blocked",
+    );
+    expect(existsSync(join(dir, ".sops.yaml"))).toBe(false);
+  });
+
   it("reports inline secrets without their values (FR-015)", () => {
     const dir = fixture();
     const summary = jsonSummary(dir);
@@ -319,6 +329,13 @@ describe("init — User Story 3 (pre-commit hooks, CI, instance version)", () =>
     ]) {
       expect(stateOf(summary, id)).toBe("missing");
     }
+  });
+
+  it("writes the pre-commit hook as an executable file", () => {
+    const dir = fixture();
+    jsonSummary(dir);
+    const mode = statSync(join(dir, ".githooks", "pre-commit")).mode & 0o777;
+    expect(mode).toBe(0o755);
   });
 
   it("blocks only hooks-path, unchanged, when core.hooksPath is already set elsewhere", () => {
@@ -476,6 +493,16 @@ describe("init — User Story 4 (safe to run again)", () => {
     const dir = fixture();
     const before = fileHashes(dir);
     const code = withoutOnPath(["git"], () =>
+      runInit(args(dir, { apply: true })),
+    );
+    expect(code).toBe(EXIT_STOPPED);
+    expect(fileHashes(dir)).toEqual(before);
+  });
+
+  it("missing_prerequisite (sops absent) writes nothing", () => {
+    const dir = fixture();
+    const before = fileHashes(dir);
+    const code = withoutOnPath(["sops"], () =>
       runInit(args(dir, { apply: true })),
     );
     expect(code).toBe(EXIT_STOPPED);

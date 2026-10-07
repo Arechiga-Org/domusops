@@ -61,9 +61,17 @@ npx --yes @domusops/bootstrap check --staged
 
 After encrypting `secrets.yaml`, decrypting the result back did not reproduce the original
 content exactly. This should not happen; if it does, the newly written `secrets.sops.yaml` is
-removed automatically and nothing else changes. Ask the user to check for anything unusual in
+discarded automatically (a previous one is put back) and nothing else changes. Ask the user to check for anything unusual in
 `secrets.yaml` (embedded control characters, mixed line endings) and try again; if it persists,
 this is worth reporting as a bug.
+
+## `sops_failed` (element-scope: `encrypted-secrets`, or any `secrets` subcommand)
+
+`sops` itself returned an error while encrypting, decrypting, or re-wrapping the keys of
+`secrets.sops.yaml`. The usual cause is that none of the user's age keys is a recipient of the
+file (`SOPS_AGE_KEY_FILE` points at the wrong key). The previous `secrets.sops.yaml` and
+`.sops.yaml` are restored, so nothing is half-changed. Ask the user to point `SOPS_AGE_KEY_FILE`
+at a key that is listed in `.sops.yaml` and run the command again.
 
 ## A key was just created
 
