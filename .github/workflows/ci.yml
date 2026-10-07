@@ -14,10 +14,59 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # packages/bootstrap's tests need real sops and age binaries (pinned to the versions
+      # research verified against), not mocks.
+      - name: Install sops and age
+        run: |
+          curl -sSL -o /usr/local/bin/sops \
+            https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64
+          chmod +x /usr/local/bin/sops
+          curl -sSL https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz \
+            | tar xz -C /tmp
+          sudo mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+
+  # ha-bootstrap's own package.json script (packages/bootstrap/package.json) runs the same suite
+  # again on macOS, per research R14: git's own hooks and SOPS/age behave the same, but the
+  # skill's install instructions and default key paths differ by OS, and this is what proves it.
+  bootstrap-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: brew install sops age
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @domusops/bootstrap test
+
+  # The container-based validate test (research R9) is excluded from the default `pnpm test`
+  # (vitest.config.ts) since it needs Docker and a network pull of the pinned instance image;
+  # ubuntu-latest has Docker preinstalled.
+  bootstrap-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install sops and age
+        run: |
+          curl -sSL -o /usr/local/bin/sops \
+            https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64
+          chmod +x /usr/local/bin/sops
+          curl -sSL https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz \
+            | tar xz -C /tmp
+          sudo mv /tmp/age/age /tmp/age/age-keygen /usr/local/bin/
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @domusops/bootstrap run test:bootstrap:container
 
   # Constitution §8: the supported-version matrix is proven here, not
   # hand-written in the README. Activated once @domusops/sandbox exists
