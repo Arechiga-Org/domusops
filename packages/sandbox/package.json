@@ -1,19 +1,27 @@
 {
   "name": "@domusops/sandbox",
   "version": "0.0.0",
-  "description": "Ephemeral Home Assistant test harness with virtual devices and scenario assertions",
+  "description": "Ephemeral test harness for Home Assistant: throwaway instances, virtual devices, time control",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "domusops-sandbox": "./dist/cli.js"
+  },
   "files": [
-    "dist"
+    "dist",
+    "companion"
   ],
   "scripts": {
     "build": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run --root ../.. packages/sandbox/",
+    "test:container": "DOMUSOPS_CONTAINER_TESTS=1 vitest run --root ../.. packages/sandbox/test"
   },
   "dependencies": {
-    "@domusops/schema": "workspace:*"
+    "tar": "^7.4.3"
   }
 }
