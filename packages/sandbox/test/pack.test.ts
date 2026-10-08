@@ -8,6 +8,7 @@ import {
   rmSync,
   statSync,
   symlinkSync,
+  truncateSync,
   writeFileSync,
   lstatSync,
   readlinkSync,
@@ -15,7 +16,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { packConfig } from "../src/config/pack.js";
+import { MAX_CONFIG_BYTES, packConfig } from "../src/config/pack.js";
 import { SandboxError } from "../src/errors.js";
 import { readArchive } from "./support/archive.js";
 
@@ -268,6 +269,77 @@ describe("packing a configuration directory", () => {
     );
   });
 
+  it("loads a configuration.yaml that is a link inside the directory", async () => {
+    const root = scratch();
+    write(root, "main/real.yaml", "default_config:\n");
+    symlinkSync("main/real.yaml", join(root, "configuration.yaml"));
+    const { archive } = await packConfig({ dir: root });
+    const entry = (await readArchive(archive)).get("config/configuration.yaml");
+    expect(entry?.type).toBe("File");
+    expect(entry?.content).toContain("default_config:");
+    expect(entry?.content).toContain("domusops_sandbox:");
+  });
+
+  it("does not add the companion line twice", async () => {
+    const root = scratch();
+    write(root, "configuration.yaml", "default_config:\n\ndomusops_sandbox:\n");
+    const { archive } = await packConfig({ dir: root });
+    const content = (await readArchive(archive)).get("config/configuration.yaml")
+      ?.content;
+    expect(content?.match(/domusops_sandbox:/g)).toHaveLength(1);
+  });
+
+  it("leaves out media, tool caches and rotated logs", async () => {
+    const root = scratch();
+    write(root, "configuration.yaml", "default_config:\n");
+    write(root, "media/clip.mp4", "x");
+    write(root, ".cache/a", "x");
+    write(root, ".mypy_cache/a", "x");
+    write(root, "home-assistant.log.1", "x");
+    write(root, "home-assistant.log.old", "x");
+    const { archive, summary } = await packConfig({ dir: root });
+    const entries = await readArchive(archive);
+    for (const name of [
+      "media/clip.mp4",
+      ".cache/a",
+      ".mypy_cache/a",
+      "home-assistant.log.1",
+      "home-assistant.log.old",
+    ]) {
+      expect(entries.has(`config/${name}`)).toBe(false);
+    }
+    expect(summary?.excluded).toEqual(
+      expect.arrayContaining(["media/", ".cache/", ".mypy_cache/", "*.log*"]),
+    );
+  });
+
+  it("skips a link whose target is not carried over, and a link that is itself excluded", async () => {
+    const root = scratch();
+    write(root, "configuration.yaml", "default_config:\n");
+    write(root, "secrets.yaml", "key: real-value-123\n");
+    write(root, ".storage/auth", "{}");
+    symlinkSync("secrets.yaml", join(root, "alias-secrets.yaml"));
+    symlinkSync(".storage", join(root, "alias-storage"));
+    symlinkSync("secrets.yaml", join(root, "media"));
+    const { archive, summary } = await packConfig({ dir: root });
+    const entries = await readArchive(archive);
+    expect(entries.has("config/alias-secrets.yaml")).toBe(false);
+    expect(entries.has("config/alias-storage")).toBe(false);
+    expect(entries.has("config/media")).toBe(false);
+    expect(summary?.skippedLinks).toEqual(["alias-secrets.yaml", "alias-storage"]);
+    expect(summary?.excluded).toContain("media/");
+  });
+
+  it("reports the values of a caller secrets file for redaction", async () => {
+    const root = scratch();
+    write(root, "configuration.yaml", "api: !secret api_key\n");
+    const holder = scratch();
+    write(holder, "own.yaml", 'api_key: "test-value-9"\nother: plain-value # c\n');
+    const file = join(holder, "own.yaml");
+    const result = await packConfig({ dir: root, secretsFile: file });
+    expect(result.secretValues).toEqual(["test-value-9", "plain-value"]);
+  });
+
   it("does not let the source replace the companion", async () => {
     const root = scratch();
     write(root, "configuration.yaml", "default_config:\n");
@@ -313,10 +385,22 @@ describe("a directory that cannot be used", () => {
     expect(await codeOf(packConfig({ dir: root }))).toBe("config_dir_invalid");
   });
 
-  it("is rejected when configuration.yaml is a link", async () => {
+  it("is rejected when configuration.yaml is a link that leaves the directory", async () => {
+    const outside = scratch();
+    write(outside, "real.yaml", "default_config:\n");
     const root = scratch();
-    write(root, "real.yaml", "default_config:\n");
-    symlinkSync("real.yaml", join(root, "configuration.yaml"));
+    symlinkSync(join(outside, "real.yaml"), join(root, "configuration.yaml"));
+    expect(await codeOf(packConfig({ dir: root }))).toBe("config_dir_invalid");
+  });
+
+  it("is rejected when it holds more than the size limit", async () => {
+    const root = scratch();
+    write(root, "configuration.yaml", "default_config:\n");
+    // A sparse file: it reports the size without taking the space.
+    truncateSync(
+      (writeFileSync(join(root, "big.bin"), ""), join(root, "big.bin")),
+      MAX_CONFIG_BYTES + 1,
+    );
     expect(await codeOf(packConfig({ dir: root }))).toBe("config_dir_invalid");
   });
 

@@ -71,6 +71,7 @@ describe("pulling an image", () => {
     const result = await createRuntime({ pullTimeoutMs: 300 }).pull("image:1");
     expect(result.status).toBe(TIMED_OUT);
     expect(result.stderr).toContain("timed out");
+    expect(result.stderr).not.toMatch(/\S(?=timed out)/);
     expect(Date.now() - started).toBeLessThan(10_000);
   });
 

@@ -106,10 +106,15 @@ confirm in CI: previous stable and beta.
 
 - reads only; never writes to the source (FR-006, SC-003);
 - excludes runtime and private files by default: `.storage/`, `.cloud/`, `deps/`, `tts/`,
-  `backups/`, `__pycache__/`, `.git/`, `home-assistant_v2.db*`, `*.log*`, `.HA_VERSION`,
-  `secrets.yaml`, `secrets.sops.yaml`, and the age key file names (FR-007, FR-008);
-- stores symbolic links as links when their target resolves inside the source, and skips (and
-  reports) any that resolve outside it; never follows them (FR-007);
+  `backups/`, `media/`, `__pycache__/`, `.git/`, `node_modules/`, `.venv/`, `.cache/` and the
+  mypy, ruff and pytest caches, `home-assistant_v2.db*`, `*.log*` (rotated logs included),
+  `.HA_VERSION`, `secrets.yaml`, `secrets.sops.yaml`, and the age key file names (FR-007,
+  FR-008);
+- stores symbolic links as links when their target resolves inside the source and is itself
+  carried over, and skips (and reports) any that resolve outside it or into something left out;
+  never follows them (FR-007). A `configuration.yaml` that is such a link is stored as a regular
+  file;
+- refuses a source that holds more than 256 MiB of files: a configuration directory is text;
 - appends the sandbox's own files: `custom_components/virtual/` (R7),
   `custom_components/domusops_sandbox/` (R6), the virtual device file, and the generated
   `secrets.yaml` (R8). It appends a `domusops_sandbox:` line to the copied

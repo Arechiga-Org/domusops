@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { SandboxError } from "../src/errors.js";
 import { SandboxHandle } from "../src/instance/handle.js";
@@ -94,6 +97,27 @@ describe("a start that fails", () => {
     );
     expect((error as SandboxError).message).toBe("boom");
     expect(runtime.containers.size).toBe(0);
+  });
+});
+
+describe("a start with a secrets file", () => {
+  it("keeps the file's values out of the error", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domusops-start-"));
+    try {
+      writeFileSync(join(dir, "configuration.yaml"), "api: !secret api_key\n");
+      writeFileSync(join(dir, "own.yaml"), "api_key: super-secret-value-1\n");
+      const runtime = new FlakyRuntime();
+      runtime.startError = new Error("failed with super-secret-value-1 in it");
+      const error = (await failureOf(
+        startSandboxWith(runtime, {
+          ...START,
+          config: { dir, secretsFile: join(dir, "own.yaml") },
+        }),
+      )) as SandboxError;
+      expect(error.message).not.toContain("super-secret-value-1");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

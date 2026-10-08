@@ -246,6 +246,7 @@ async function launch(
       containerId,
       deadline: Date.now() + valid.readinessTimeoutSeconds * 1000,
       tail,
+      secrets: packed.secretValues,
     };
 
     progress("onboarding");
@@ -307,6 +308,6 @@ async function launch(
       // the container when this process ends; the deadline and the reaper cover the rest.
     }
     if (removed) release_guard();
-    throw asSandboxError(error, [token]);
+    throw asSandboxError(error, [token, ...packed.secretValues]);
   }
 }

@@ -195,6 +195,9 @@ async function runStart(
   if (values["secrets-file"] !== undefined && values.config === undefined) {
     throw new UsageError("--secrets-file only goes with --config.");
   }
+  if (values.config === "" || values["secrets-file"] === "") {
+    throw new UsageError("--config and --secrets-file need a path.");
+  }
   if (values.config !== undefined) {
     options.config = { dir: resolvePath(values.config) };
     if (values["secrets-file"] !== undefined) {

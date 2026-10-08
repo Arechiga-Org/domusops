@@ -7,6 +7,7 @@ import {
   buildSecrets,
   placeholderValue,
   referencedSecrets,
+  secretValues,
   sopsTypes,
 } from "../src/config/secrets.js";
 import { readArchive } from "./support/archive.js";
@@ -177,5 +178,15 @@ describe("secrets in a packed directory", () => {
     for (const entry of entries.values()) {
       expect(entry.content).not.toContain("REAL-VALUE-12345");
     }
+  });
+});
+
+describe("secretValues", () => {
+  it("reads top-level values without quotes or comments", () => {
+    expect(
+      secretValues(
+        "# header\nkey: abc\nquoted: 'x y'\ndq: \"z\"\nempty:\n  nested: skip\nkey2: abc # note\n",
+      ),
+    ).toEqual(["abc", "x y", "z"]);
   });
 });

@@ -515,6 +515,17 @@ describe("start --config", () => {
     expect(h.started).toEqual([]);
   });
 
+  it("rejects an empty --config or --secrets-file", async () => {
+    for (const args of [
+      ["start", "--config", "", "--", "true"],
+      ["start", "--config", "ha", "--secrets-file", "", "--", "true"],
+    ]) {
+      const h = harness();
+      expect(await main(args, h.deps)).toBe(2);
+      expect(h.started).toEqual([]);
+    }
+  });
+
   it("says what was loaded, on stderr, before running the command", async () => {
     const h = harness();
     Object.assign(h.deps, withConfig(h));

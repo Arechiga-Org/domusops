@@ -62,6 +62,19 @@ export function placeholderValue(
   }
 }
 
+/** The values of a flat secrets file's top-level entries, so they can be kept out of error text. */
+export function secretValues(text: string): string[] {
+  const values: string[] = [];
+  for (const line of text.split("\n")) {
+    const match = /^[^\s#][^:]*:\s+(.+?)\s*$/.exec(withoutComment(line));
+    const raw = match?.[1];
+    if (raw === undefined) continue;
+    const value = raw.replace(/^(['"])(.*)\1$/, "$2");
+    if (value !== "" && !values.includes(value)) values.push(value);
+  }
+  return values;
+}
+
 function yamlKey(key: string): string {
   return BARE_KEY.test(key) ? key : JSON.stringify(key);
 }

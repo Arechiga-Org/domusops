@@ -159,7 +159,7 @@ function runCommand(
         status: timedOut ? TIMED_OUT : (code ?? 1),
         stdout: Buffer.concat(out).toString("utf8"),
         stderr: timedOut
-          ? `${stderr}timed out after ${String(Math.round((timeoutMs ?? 0) / 1000))} s`.trim()
+          ? `${stderr}${stderr === "" || stderr.endsWith("\n") ? "" : "\n"}timed out after ${String(Math.round((timeoutMs ?? 0) / 1000))} s`
           : stderr,
       });
     });

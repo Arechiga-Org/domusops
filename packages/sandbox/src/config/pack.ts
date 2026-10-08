@@ -5,12 +5,12 @@ import {
   realpathSync,
   statSync,
 } from "node:fs";
-import { isAbsolute, join, posix, relative } from "node:path";
+import { isAbsolute, join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Header, Pack, ReadEntry } from "tar";
 import { SandboxError } from "../errors.js";
 import type { ConfigSummary } from "../types.js";
-import { buildSecrets, referencedSecrets } from "./secrets.js";
+import { buildSecrets, referencedSecrets, secretValues } from "./secrets.js";
 
 /** Where the instance's configuration lives inside the container. */
 export const CONFIG_ROOT = "config";
@@ -134,6 +134,8 @@ export interface PackResult {
   archive: Buffer;
   /** What was loaded; `null` for the baseline configuration. */
   summary: ConfigSummary | null;
+  /** Values from a caller-named secrets file, to keep out of any error text. */
+  secretValues: string[];
 }
 
 const ROOT_DIRECTORIES = new Set([
@@ -142,8 +144,20 @@ const ROOT_DIRECTORIES = new Set([
   "deps",
   "tts",
   "backups",
+  "media",
 ]);
-const ANY_DIRECTORIES = new Set(["__pycache__", ".git"]);
+const ANY_DIRECTORIES = new Set([
+  "__pycache__",
+  ".git",
+  "node_modules",
+  ".venv",
+  ".cache",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".pytest_cache",
+]);
+/** A configuration directory is text; a tree larger than this is carrying something else. */
+export const MAX_CONFIG_BYTES = 256 * 1024 * 1024;
 const SECRET_FILES = new Set(["secrets.yaml", "secrets.sops.yaml"]);
 const AGE_KEY_FILES = new Set(["keys.txt", "age.key", "age-key.txt"]);
 const COMPANION_PATH = `custom_components/${COMPANION_DOMAIN}`;
@@ -164,7 +178,7 @@ function excludedBy(
   if (AGE_KEY_FILES.has(name) || name.endsWith(".agekey")) {
     return "age key files";
   }
-  if (/\.log(\.[^/]*)?$/.test(name)) return "*.log*";
+  if (/\.log(\.(\d+|old|fault))?$/.test(name)) return "*.log*";
   if (atRoot && name.startsWith("home-assistant_v2.db")) {
     return "home-assistant_v2.db*";
   }
@@ -178,7 +192,10 @@ function invalid(message: string): SandboxError {
 
 function inside(root: string, target: string): boolean {
   const path = relative(root, target);
-  return path === "" || (!path.startsWith("..") && !isAbsolute(path));
+  return (
+    path === "" ||
+    (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path))
+  );
 }
 
 function readUtf8(path: string, what: string): string {
@@ -192,7 +209,10 @@ function readUtf8(path: string, what: string): string {
 }
 
 /** Opens `source` read-only and adds what belongs in the instance to `builder`. */
-function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
+function addSource(
+  builder: TarBuilder,
+  source: ConfigSource,
+): { summary: ConfigSummary; secretValues: string[] } {
   let root: string;
   try {
     root = realpathSync(source.dir);
@@ -202,9 +222,12 @@ function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
   }
   let configuration: string;
   try {
-    const entry = lstatSync(join(root, "configuration.yaml"));
-    if (!entry.isFile()) throw new Error("not a regular file");
-    configuration = readFileSync(join(root, "configuration.yaml"), "utf8");
+    // A link is fine when it stays inside the directory: the instance gets a regular file.
+    const resolved = realpathSync(join(root, "configuration.yaml"));
+    if (!inside(root, resolved) || !statSync(resolved).isFile()) {
+      throw new Error("not a regular file inside the directory");
+    }
+    configuration = readFileSync(resolved, "utf8");
   } catch {
     throw invalid(
       `${source.dir} has no configuration.yaml: it is not a Home Assistant configuration directory.`,
@@ -225,6 +248,7 @@ function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
   const skippedLinks: string[] = [];
   const referenced: string[] = [];
   let files = 0;
+  let bytes = 0;
   let userVirtualIntegration = false;
 
   const note = (text: string): void => {
@@ -239,9 +263,19 @@ function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
       const relativePath = prefix === "" ? name : `${prefix}/${name}`;
       const target = posix.join(CONFIG_ROOT, relativePath);
       const entry = lstatSync(full);
-      const pattern = excludedBy(name, relativePath, entry.isDirectory());
+      const pattern = excludedBy(
+        name,
+        relativePath,
+        entry.isDirectory() || entry.isSymbolicLink(),
+      );
       if (pattern !== null) {
         excluded.add(pattern);
+        continue;
+      }
+      if (relativePath === "configuration.yaml") {
+        files += 1;
+        note(configuration);
+        builder.addFile(target, withCompanion(configuration));
         continue;
       }
       if (entry.isSymbolicLink()) {
@@ -251,7 +285,11 @@ function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
         } catch {
           // dangling: reported below
         }
-        if (resolved === null || !inside(root, resolved)) {
+        if (
+          resolved === null ||
+          !inside(root, resolved) ||
+          leadsIntoExcluded(relative(root, resolved))
+        ) {
           skippedLinks.push(relativePath);
         } else {
           const link = relative(directory, resolved).split("\\").join("/");
@@ -265,10 +303,11 @@ function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
         walk(full, relativePath);
       } else if (entry.isFile()) {
         files += 1;
-        if (relativePath === "configuration.yaml") {
-          note(configuration);
-          builder.addFile(target, withCompanion(configuration));
-          continue;
+        bytes += entry.size;
+        if (bytes > MAX_CONFIG_BYTES) {
+          throw invalid(
+            `${source.dir} holds more than ${String(MAX_CONFIG_BYTES / 1024 / 1024)} MiB of files (passing ${relativePath}): a configuration directory is text, so keep media and caches out of it.`,
+          );
         }
         const data = readFileSync(full);
         if (/\.ya?ml$/.test(name)) note(data.toString("utf8"));
@@ -295,14 +334,29 @@ function addSource(builder: TarBuilder, source: ConfigSource): ConfigSummary {
   }
 
   return {
-    source: root,
-    files,
-    excluded: [...excluded].sort(),
-    skippedLinks: skippedLinks.sort(),
-    secrets: secrets.kind,
-    placeholderKeys: secrets.placeholderKeys,
-    userVirtualIntegration,
+    summary: {
+      source: root,
+      files,
+      excluded: [...excluded].sort(),
+      skippedLinks: skippedLinks.sort(),
+      secrets: secrets.kind,
+      placeholderKeys: secrets.placeholderKeys,
+      userVirtualIntegration,
+    },
+    secretValues: callerSecrets === undefined ? [] : secretValues(callerSecrets),
   };
+}
+
+/** True when a path inside the source passes through something that is not carried over. */
+function leadsIntoExcluded(relativePath: string): boolean {
+  const parts = relativePath.split(sep);
+  return parts.some((part, index) => {
+    const path = parts.slice(0, index + 1).join("/");
+    return (
+      excludedBy(part, path, true) !== null ||
+      excludedBy(part, path, false) !== null
+    );
+  });
 }
 
 function existsAsFile(path: string): boolean {
@@ -315,6 +369,9 @@ function existsAsFile(path: string): boolean {
 
 /** The caller's `configuration.yaml` with the line that loads the companion. */
 function withCompanion(configuration: string): string {
+  if (new RegExp(`^${COMPANION_DOMAIN}:`, "m").test(configuration)) {
+    return configuration;
+  }
   const separator = configuration.endsWith("\n") ? "" : "\n";
   return `${configuration}${separator}\n${COMPANION_DOMAIN}:\n`;
 }
@@ -326,6 +383,7 @@ function withCompanion(configuration: string): string {
 export async function packConfig(source?: ConfigSource): Promise<PackResult> {
   const builder = new TarBuilder();
   let summary: ConfigSummary | null = null;
+  let values: string[] = [];
   if (source === undefined) {
     builder.addDirectory(CONFIG_ROOT);
     builder.addFile(
@@ -334,7 +392,7 @@ export async function packConfig(source?: ConfigSource): Promise<PackResult> {
     );
   } else {
     try {
-      summary = addSource(builder, source);
+      ({ summary, secretValues: values } = addSource(builder, source));
     } catch (error) {
       if (error instanceof SandboxError) throw error;
       throw invalid(
@@ -343,5 +401,5 @@ export async function packConfig(source?: ConfigSource): Promise<PackResult> {
     }
   }
   addCompanion(builder);
-  return { archive: await builder.finish(), summary };
+  return { archive: await builder.finish(), summary, secretValues: values };
 }
