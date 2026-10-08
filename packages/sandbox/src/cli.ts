@@ -14,7 +14,7 @@ import {
 } from "./index.js";
 import type { SandboxListing } from "./instance/list.js";
 import type { Removal } from "./runtime/reaper.js";
-import type { StartOptions } from "./instance/start.js";
+import { validateOptions, type StartOptions } from "./instance/start.js";
 import { resolveChannel } from "./release/resolve.js";
 import {
   isChannel,
@@ -162,15 +162,15 @@ async function runStart(
     options.readinessTimeoutSeconds = parseNumber("readiness-timeout", timeout);
   }
 
-  let sandbox: Sandbox;
   try {
-    sandbox = await deps.start(options);
+    validateOptions(options);
   } catch (error) {
     if (error instanceof TypeError || error instanceof RangeError) {
       throw new UsageError(error.message);
     }
     throw error;
   }
+  const sandbox = await deps.start(options);
   for (const removal of sandbox.reaped) {
     deps.err(`removed ${removal.id}: ${removal.reason}\n`);
   }

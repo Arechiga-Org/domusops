@@ -11,9 +11,7 @@
   },
   "files": [
     "dist",
-    "companion",
-    "fixtures",
-    "schema"
+    "companion"
   ],
   "scripts": {
     "build": "tsc -b",
@@ -21,8 +19,6 @@
     "test:container": "DOMUSOPS_CONTAINER_TESTS=1 vitest run --root ../.. packages/sandbox/test"
   },
   "dependencies": {
-    "@domusops/mcp": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.0",
     "tar": "^7.4.3"
   }
 }

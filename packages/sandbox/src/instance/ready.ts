@@ -1,7 +1,7 @@
 import { SandboxError } from "../errors.js";
 import { getJson, postJson } from "../ha/rest.js";
 import { HaSocket } from "../ha/ws.js";
-import type { Runtime } from "../runtime/docker.js";
+import type { LogTail, Runtime } from "../runtime/docker.js";
 
 export const DEFAULT_READINESS_SECONDS = 150;
 export const LOG_LINES = 50;
@@ -18,6 +18,8 @@ export interface ReadyContext {
   /** Epoch milliseconds after which the start has failed. */
   deadline: number;
   secrets?: readonly string[];
+  /** Output captured while the container ran; used when `docker logs` can no longer reach it. */
+  tail?: LogTail;
 }
 
 async function notReady(
@@ -27,13 +29,12 @@ async function notReady(
   let logs: string[] = [];
   try {
     const text = await context.runtime.logs(context.containerId, LOG_LINES);
-    logs = text
-      .split("\n")
-      .filter((line) => line !== "")
-      .slice(-LOG_LINES);
+    logs = text.split("\n").filter((line) => line !== "");
   } catch {
-    // The container may already be gone; the reason stands on its own.
+    // The container is gone: `--rm` removed it together with its logs.
   }
+  if (logs.length === 0) logs = context.tail?.lines() ?? [];
+  logs = logs.slice(-LOG_LINES);
   return new SandboxError("not_ready", reason, {
     logs,
     secrets: context.secrets ?? [],

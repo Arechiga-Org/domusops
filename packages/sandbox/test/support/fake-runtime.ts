@@ -3,6 +3,7 @@ import type {
   ContainerInfo,
   CreateSpec,
   ExecResult,
+  LogTail,
   Runtime,
   RuntimeName,
 } from "../../src/runtime/docker.js";
@@ -23,6 +24,10 @@ export class FakeRuntime implements Runtime {
   available = true;
   pullFails = false;
   execResults: ExecResult[] = [];
+  /** Lines a followed container produced; `followLogs` hands back a tail over them. */
+  followedLines: string[] = [];
+  /** When set, `logs` fails, as it does once `--rm` has removed the container. */
+  logsFail = false;
   private counter = 0;
   private nextPort = 49000;
 
@@ -115,7 +120,18 @@ export class FakeRuntime implements Runtime {
 
   async logs(containerId: string, tail: number): Promise<string> {
     this.calls.push(`logs ${containerId} ${tail}`);
+    if (this.logsFail) throw new Error("No such container");
     return "";
+  }
+
+  followLogs(containerId: string, keep: number): LogTail {
+    this.calls.push(`followLogs ${containerId} ${keep}`);
+    return {
+      lines: () => this.followedLines.slice(-keep),
+      stop: () => {
+        this.calls.push(`stopFollow ${containerId}`);
+      },
+    };
   }
 
   async list(): Promise<ContainerInfo[]> {

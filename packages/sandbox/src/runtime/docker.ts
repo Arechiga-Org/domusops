@@ -47,6 +47,14 @@ export class RuntimeCommandError extends Error {
   }
 }
 
+/** The most recent output of a container, kept for as long as the container is followed. */
+export interface LogTail {
+  /** The last lines seen, oldest first. */
+  lines(): string[];
+  /** Stops following. Idempotent; the lines stay readable. */
+  stop(): void;
+}
+
 /** The container runtime, as far as the sandbox needs it. The only implementation that spawns. */
 export interface Runtime {
   readonly name: RuntimeName;
@@ -65,7 +73,13 @@ export interface Runtime {
     argv: string[],
     options?: { input?: string },
   ): Promise<ExecResult>;
+  /** Throws when the container no longer exists. */
   logs(containerId: string, tail: number): Promise<string>;
+  /**
+   * Follows the container's output from now on. A container started with `--rm` takes its logs
+   * with it when it exits, so this is the only way to keep them for a start that failed.
+   */
+  followLogs(containerId: string, keep: number): LogTail;
   /** Containers carrying the sandbox marker label, and only those. */
   list(): Promise<ContainerInfo[]>;
   inspect(containerId: string): Promise<ContainerInfo | null>;
@@ -261,7 +275,38 @@ export function createRuntime(): Runtime {
 
     async logs(containerId, tail) {
       const result = await run(["logs", "--tail", String(tail), containerId]);
+      if (result.status !== 0) {
+        throw new RuntimeCommandError(`${program} logs`, result);
+      }
       return result.stdout + result.stderr;
+    },
+
+    followLogs(containerId, keep) {
+      const kept: string[] = [];
+      let partial = "";
+      const child = spawn(
+        program,
+        ["logs", "--follow", "--tail", String(keep), containerId],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      const take = (chunk: Buffer): void => {
+        const parts = (partial + chunk.toString("utf8")).split("\n");
+        partial = parts.pop() ?? "";
+        for (const line of parts) {
+          if (line !== "") kept.push(line);
+        }
+        if (kept.length > keep) kept.splice(0, kept.length - keep);
+      };
+      child.stdout.on("data", take);
+      child.stderr.on("data", take);
+      // Best effort: a missing log tail must never fail a start.
+      child.on("error", () => undefined);
+      return {
+        lines: () => (partial === "" ? [...kept] : [...kept, partial]),
+        stop: () => {
+          child.kill();
+        },
+      };
     },
 
     async list() {

@@ -8,7 +8,7 @@ import {
   type Channel,
   type ResolvedRelease,
 } from "../release/versions.js";
-import { IMAGE_PREFIX, type Runtime } from "../runtime/docker.js";
+import { IMAGE_PREFIX, type LogTail, type Runtime } from "../runtime/docker.js";
 import { guardContainer } from "../runtime/guard.js";
 import { reap } from "../runtime/reaper.js";
 import {
@@ -24,6 +24,7 @@ import { HaSocket } from "../ha/ws.js";
 import { onboard, storeToken } from "./onboard.js";
 import {
   DEFAULT_READINESS_SECONDS,
+  LOG_LINES,
   waitForHttp,
   waitForRunning,
 } from "./ready.js";
@@ -98,6 +99,19 @@ export function validateOptions(options: StartOptions): ValidOptions {
   };
 }
 
+/** Anything that is not already a typed error is reported as a failed start, with its message. */
+function asSandboxError(
+  error: unknown,
+  secrets: readonly string[] = [],
+): SandboxError {
+  if (error instanceof SandboxError) return error;
+  return new SandboxError(
+    "not_ready",
+    error instanceof Error ? error.message : String(error),
+    { secrets },
+  );
+}
+
 export async function startSandboxWith(
   runtime: Runtime,
   options: StartOptions = {},
@@ -105,7 +119,11 @@ export async function startSandboxWith(
 ): Promise<Sandbox> {
   const valid = validateOptions(options);
   const progress = (state: LifecycleState, note?: string): void => {
-    options.onProgress?.(state, note);
+    try {
+      options.onProgress?.(state, note);
+    } catch {
+      // A reporting callback must not be able to break the lifecycle or its cleanup.
+    }
   };
 
   await runtime.ensureAvailable();
@@ -136,7 +154,9 @@ export async function startSandboxWith(
   }
 
   // Whatever earlier runs left behind goes before a new instance is added to the machine.
-  const reaped = await reap(runtime);
+  const reaped = await reap(runtime).catch((error: unknown) => {
+    throw asSandboxError(error);
+  });
 
   const id = newSandboxId();
   const deadline = new Date(
@@ -152,28 +172,34 @@ export async function startSandboxWith(
   };
 
   progress("creating");
-  const containerId = await runtime.create({
-    name: containerName(id),
-    image,
-    labels: buildLabels(labels),
-    env: {
-      DOMUSOPS_SANDBOX_ID: id,
-      DOMUSOPS_SANDBOX_MODE: valid.mode,
-      DOMUSOPS_SANDBOX_DEADLINE: deadline,
-    },
-    publish: ["127.0.0.1::8123"],
-    entrypoint: "python",
-    command: ["-m", "homeassistant", "--config", "/config"],
-  });
+  const containerId = await runtime
+    .create({
+      name: containerName(id),
+      image,
+      labels: buildLabels(labels),
+      env: {
+        DOMUSOPS_SANDBOX_ID: id,
+        DOMUSOPS_SANDBOX_MODE: valid.mode,
+        DOMUSOPS_SANDBOX_DEADLINE: deadline,
+      },
+      publish: ["127.0.0.1::8123"],
+      entrypoint: "python",
+      command: ["-m", "homeassistant", "--config", "/config"],
+    })
+    .catch((error: unknown) => {
+      throw asSandboxError(error);
+    });
   const release_guard = guardContainer(runtime, containerId);
 
   let token = "";
   let owner: HaSocket | null = null;
+  let tail: LogTail | null = null;
   try {
     await runtime.copyIn(containerId, await packConfig());
 
     progress("starting");
     await runtime.start(containerId);
+    tail = runtime.followLogs(containerId, LOG_LINES);
     const port = await runtime.hostPort(containerId, 8123);
     const baseUrl = `http://127.0.0.1:${port}`;
     const wsUrl = `ws://127.0.0.1:${port}/api/websocket`;
@@ -181,6 +207,7 @@ export async function startSandboxWith(
       runtime,
       containerId,
       deadline: Date.now() + valid.readinessTimeoutSeconds * 1000,
+      tail,
     };
 
     progress("onboarding");
@@ -190,6 +217,7 @@ export async function startSandboxWith(
 
     progress("validating");
     await waitForRunning(baseUrl, wsUrl, token, context);
+    tail.stop();
 
     const onRelease: (() => void | Promise<void>)[] = [];
     if (valid.mode === "tied") {
@@ -205,9 +233,8 @@ export async function startSandboxWith(
         }
       });
     }
-    if (valid.mode === "tied") onRelease.push(release_guard);
     // A background instance outlives this process: only its deadline and `stop` end it.
-    else release_guard();
+    if (valid.mode === "background") release_guard();
 
     const handle = new SandboxHandle({
       id,
@@ -221,22 +248,23 @@ export async function startSandboxWith(
       runtime,
       reaped,
       onRelease,
+      ...(valid.mode === "tied" ? { releaseGuard: release_guard } : {}),
     });
     progress("ready");
     return handle;
   } catch (error) {
-    progress("failed");
+    tail?.stop();
     owner?.close();
+    let removed = false;
     try {
       await runtime.remove(containerId);
-    } finally {
-      release_guard();
+      removed = true;
+    } catch {
+      // The start error is the one the caller needs. The exit guard stays armed and removes
+      // the container when this process ends; the deadline and the reaper cover the rest.
     }
-    if (error instanceof SandboxError || token === "") throw error;
-    throw new SandboxError(
-      "not_ready",
-      error instanceof Error ? error.message : String(error),
-      { secrets: [token] },
-    );
+    if (removed) release_guard();
+    progress("failed");
+    throw asSandboxError(error, [token]);
   }
 }

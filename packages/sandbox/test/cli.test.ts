@@ -119,15 +119,26 @@ describe("usage errors", () => {
     expect(h.started).toEqual([]);
   });
 
-  it("maps a library TypeError to a usage error", async () => {
-    const h = harness({
-      start: async () => {
-        throw new TypeError("bad release");
-      },
-    });
+  it("validates the options before starting anything", async () => {
+    const h = harness();
     expect(await main(["start", "--release", "x", "--", "true"], h.deps)).toBe(
       2,
     );
+    expect(
+      await main(["start", "--max-lifetime", "0", "--", "true"], h.deps),
+    ).toBe(2);
+    expect(h.started).toEqual([]);
+  });
+
+  it("does not report a runtime TypeError as a usage error", async () => {
+    const h = harness({
+      start: async () => {
+        throw new TypeError("Cannot read properties of undefined");
+      },
+    });
+    expect(await main(["start", "--", "true"], h.deps)).toBe(1);
+    expect(h.err.join("")).toContain("Cannot read properties of undefined");
+    expect(h.err.join("")).not.toContain("Usage");
   });
 });
 

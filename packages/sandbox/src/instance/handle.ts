@@ -48,6 +48,8 @@ export interface HandleInit {
   reaped?: readonly Removal[];
   /** Run once, in order, when this process lets go of the instance: detach or stop. */
   onRelease?: (() => void | Promise<void>)[];
+  /** Called once the container is removed, never before: until then the exit guard stays armed. */
+  releaseGuard?: () => void;
 }
 
 export class SandboxHandle implements Sandbox {
@@ -63,6 +65,7 @@ export class SandboxHandle implements Sandbox {
   readonly #containerId: string;
   readonly #runtime: Runtime;
   readonly #onRelease: (() => void | Promise<void>)[];
+  readonly #releaseGuard: (() => void) | undefined;
   #stopping: Promise<void> | null = null;
   #detached: Promise<void> | null = null;
 
@@ -79,6 +82,7 @@ export class SandboxHandle implements Sandbox {
     this.#runtime = init.runtime;
     this.reaped = init.reaped ?? [];
     this.#onRelease = init.onRelease ?? [];
+    this.#releaseGuard = init.releaseGuard;
   }
 
   connection(): Connection {
@@ -101,7 +105,12 @@ export class SandboxHandle implements Sandbox {
     this.#stopping ??= (async () => {
       await this.runReleaseHooks();
       await this.#runtime.remove(this.#containerId);
-    })();
+      this.#releaseGuard?.();
+    })().catch((error: unknown) => {
+      // A failed removal can be retried, and the exit guard keeps covering the container.
+      this.#stopping = null;
+      throw error;
+    });
     return this.#stopping;
   }
 
