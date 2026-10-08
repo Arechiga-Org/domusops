@@ -123,9 +123,10 @@ export async function waitForRunning(
           within(guarded, 30_000),
         );
         if (config.recovery_mode === true || config.safe_mode === true) {
+          await failIfInvalid(baseUrl, token, guarded, secrets);
           throw await notReady(
             guarded,
-            "The instance started in recovery or safe mode: its configuration has errors.",
+            "The instance started in recovery or safe mode, although its configuration passes the check.",
           );
         }
         if (config.state === "RUNNING") break;
@@ -156,6 +157,20 @@ export async function waitForRunning(
     socket?.close();
   }
 
+  await failIfInvalid(baseUrl, token, guarded, secrets);
+}
+
+/**
+ * Runs the instance's own `check_config`; an invalid result ends the start as `config_invalid`.
+ * An instance in recovery mode answers it too, which is how a broken configuration is told
+ * apart from any other reason for that mode.
+ */
+async function failIfInvalid(
+  baseUrl: string,
+  token: string,
+  context: ReadyContext,
+  secrets: readonly string[],
+): Promise<void> {
   let check: CheckConfig;
   try {
     check = (await postJson(
@@ -163,11 +178,11 @@ export async function waitForRunning(
       "/api/config/core/check_config",
       {},
       // An instance that reached RUNNING at the last moment still gets a fair chance to answer.
-      { token, timeoutMs: Math.max(15_000, within(guarded, 60_000)) },
+      { token, timeoutMs: Math.max(15_000, within(context, 60_000)) },
     )) as CheckConfig;
   } catch (error) {
     throw await notReady(
-      guarded,
+      context,
       `The configuration check did not complete before the readiness limit: ${
         error instanceof Error ? error.message : String(error)
       }`,

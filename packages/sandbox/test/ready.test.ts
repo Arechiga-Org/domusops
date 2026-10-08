@@ -164,6 +164,50 @@ describe("waitForRunning", () => {
   });
 });
 
+describe("an instance in recovery or safe mode", () => {
+  function inMode(flag: "recovery_mode" | "safe_mode") {
+    const command = vi.fn(async () => ({ state: "NOT_RUNNING", [flag]: true }));
+    return { command, close: vi.fn() } as unknown as HaSocket;
+  }
+  const wait = () =>
+    waitForRunning(
+      "http://127.0.0.1:1",
+      "ws://127.0.0.1:1/api/websocket",
+      TOKEN,
+      context(Date.now() + 60_000),
+    );
+
+  it.each(["recovery_mode", "safe_mode"] as const)(
+    "is reported as config_invalid when %s and the check finds errors",
+    async (flag) => {
+      vi.spyOn(HaSocket, "connect").mockResolvedValue(inMode(flag));
+      postJson.mockResolvedValue({
+        result: "invalid",
+        errors: "Invalid config for [light]",
+      });
+      const error = await failureOf(wait());
+      expect(error.code).toBe("config_invalid");
+      expect(error.message).toContain("Invalid config for [light]");
+    },
+  );
+
+  it("stays not_ready when the check finds nothing wrong", async () => {
+    vi.spyOn(HaSocket, "connect").mockResolvedValue(inMode("recovery_mode"));
+    postJson.mockResolvedValue({ result: "valid" });
+    const error = await failureOf(wait());
+    expect(error.code).toBe("not_ready");
+    expect(error.message).toContain("recovery or safe mode");
+  });
+
+  it("stays not_ready when the check cannot be made", async () => {
+    vi.spyOn(HaSocket, "connect").mockResolvedValue(inMode("safe_mode"));
+    postJson.mockRejectedValue(new Error("connection refused"));
+    const error = await failureOf(wait());
+    expect(error.code).toBe("not_ready");
+    expect(error.message).toContain("connection refused");
+  });
+});
+
 describe("withLogs", () => {
   it("adds the instance output to a failed step", async () => {
     const base = context(Date.now() + 60_000);

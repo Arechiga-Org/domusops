@@ -1,6 +1,6 @@
 import { hostname } from "node:os";
 import { SandboxError } from "../errors.js";
-import { packConfig } from "../config/pack.js";
+import { packConfig, type ConfigSource } from "../config/pack.js";
 import { exactRelease, resolveChannel } from "../release/resolve.js";
 import {
   RELEASE_RE,
@@ -39,6 +39,8 @@ export interface StartOptions {
   channel?: Channel;
   release?: string;
   mode?: SandboxMode;
+  /** A configuration directory to run; it is only read. Default: an empty configuration. */
+  config?: ConfigSource;
   maxLifetimeMinutes?: number;
   readinessTimeoutSeconds?: number;
   onProgress?: (state: LifecycleState, note?: string) => void;
@@ -52,6 +54,7 @@ export interface StartInternals {
 interface ValidOptions {
   request: { channel: Channel } | { release: string };
   mode: SandboxMode;
+  config: ConfigSource | undefined;
   maxLifetimeMinutes: number;
   readinessTimeoutSeconds: number;
 }
@@ -74,6 +77,18 @@ export function validateOptions(options: StartOptions): ValidOptions {
   const mode = options.mode ?? "tied";
   if (mode !== "tied" && mode !== "background") {
     throw new TypeError('`mode` must be "tied" or "background".');
+  }
+  const config = options.config;
+  if (config !== undefined) {
+    if (typeof config.dir !== "string" || config.dir === "") {
+      throw new TypeError("`config.dir` must be a directory path.");
+    }
+    if (
+      config.secretsFile !== undefined &&
+      (typeof config.secretsFile !== "string" || config.secretsFile === "")
+    ) {
+      throw new TypeError("`config.secretsFile` must be a file path.");
+    }
   }
   const maxLifetimeMinutes =
     options.maxLifetimeMinutes ?? DEFAULT_MAX_LIFETIME_MINUTES;
@@ -98,6 +113,7 @@ export function validateOptions(options: StartOptions): ValidOptions {
         ? { release: options.release }
         : { channel: options.channel ?? "stable" },
     mode,
+    config,
     maxLifetimeMinutes,
     readinessTimeoutSeconds,
   };
@@ -146,6 +162,9 @@ async function launch(
   progress: Progress,
   internals: StartInternals,
 ): Promise<Sandbox> {
+  // The directory is read before anything is pulled or created, so a bad one costs nothing.
+  const packed = await packConfig(valid.config);
+
   await runtime.ensureAvailable();
 
   progress("resolving");
@@ -214,7 +233,7 @@ async function launch(
   let owner: HaSocket | null = null;
   let tail: LogTail | null = null;
   try {
-    await runtime.copyIn(containerId, await packConfig());
+    await runtime.copyIn(containerId, packed.archive);
 
     progress("starting");
     await runtime.start(containerId);
@@ -267,7 +286,7 @@ async function launch(
       deadline,
       port,
       token,
-      config: null,
+      config: packed.summary,
       runtime,
       reaped,
       onRelease,

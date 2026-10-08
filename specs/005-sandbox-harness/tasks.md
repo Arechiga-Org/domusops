@@ -106,15 +106,15 @@ description: "Task list for the @domusops/sandbox ephemeral harness (part 1 of 2
 
 **Independent Test**: byte-identity check of the source directory before and after (quickstart 4; SC-003).
 
-- [ ] T036 [P] [US3] `packages/sandbox/test/pack.test.ts`: excludes `.storage/`, `.cloud/`, `deps/`, `tts/`, `backups/`, `__pycache__/`, `.git/`, `home-assistant_v2.db*`, `*.log*`, `.HA_VERSION`, `secrets.yaml`, `secrets.sops.yaml` and age key files; links resolving outside the source are skipped and reported; the source tree is byte-identical after packing it 20 times in a row (SC-003); nothing is ever written to `config.dir`; appends `custom_components/domusops_sandbox/`, a generated `secrets.yaml` and the `domusops_sandbox:` line in `configuration.yaml`
-- [ ] T037 [P] [US3] `packages/sandbox/test/secrets.test.ts`: typed placeholders `domusops-placeholder-<key>`, or `0`/`0.0`/`false` from `ENC[…,type:…]` markers (R8); a caller-named plaintext secrets file wins; the generated file never contains values from a real `secrets.yaml`
-- [ ] T038 [US3] `packages/sandbox/src/config/secrets.ts`: collect `!secret` references from the YAML files and produce the generated `secrets.yaml` (placeholders or the `--secrets-file` content)
-- [ ] T039 [US3] Extend `packages/sandbox/src/config/pack.ts` to accept `config.dir` with the exclusion list and the symlink rule above; return a `ConfigSummary` (fields in data-model.md: excluded patterns, skipped links, `secrets: placeholders|file`); invalid directory → `config_dir_invalid`; `start.ts` sets the handle's `config` to that summary
-- [ ] T040 [US3] Config validation in `start.ts`: after boot run `check_config`; failures end with `config_invalid`, the validation errors, and the container removed
-- [ ] T041 [US3] `packages/sandbox/fixtures/reference-config/configuration.yaml` and `packages/sandbox/fixtures/reference-config/packages/smoke.yaml` (an automation at 03:00 that turns on a light from the virtual device `Hall`; no real-instance content, nothing copied from a real repository) Also add `fixtures` to `files` in `packages/sandbox/package.json`.
-- [ ] T042 [US3] Add `--config <dir>` and `--secrets-file <file>` to `cli.ts` and print the `ConfigSummary` on start
-- [ ] T043 [US3] Container test `packages/sandbox/test/config.container.test.ts`: reference config loads and the source checksum is unchanged; a `!secret` reference without a plaintext file boots with placeholders; an invalid `configuration.yaml` ends with `config_invalid` and no container left
-- [ ] T044 [US3] Add `.changeset/sandbox-config.md` (`@domusops/sandbox` minor: `--config`, `--secrets-file`, configuration loading)
+- [X] T036 [P] [US3] `packages/sandbox/test/pack.test.ts`: excludes `.storage/`, `.cloud/`, `deps/`, `tts/`, `backups/`, `__pycache__/`, `.git/`, `home-assistant_v2.db*`, `*.log*`, `.HA_VERSION`, `secrets.yaml`, `secrets.sops.yaml` and age key files; links resolving outside the source are skipped and reported; the source tree is byte-identical after packing it 20 times in a row (SC-003); nothing is ever written to `config.dir`; appends `custom_components/domusops_sandbox/`, a generated `secrets.yaml` and the `domusops_sandbox:` line in `configuration.yaml`
+- [X] T037 [P] [US3] `packages/sandbox/test/secrets.test.ts`: typed placeholders `domusops-placeholder-<key>`, or `0`/`0.0`/`false` from `ENC[…,type:…]` markers (R8); a caller-named plaintext secrets file wins; the generated file never contains values from a real `secrets.yaml`
+- [X] T038 [US3] `packages/sandbox/src/config/secrets.ts`: collect `!secret` references from the YAML files and produce the generated `secrets.yaml` (placeholders or the `--secrets-file` content)
+- [X] T039 [US3] Extend `packages/sandbox/src/config/pack.ts` to accept `config.dir` with the exclusion list and the symlink rule above; return a `ConfigSummary` (fields in data-model.md: excluded patterns, skipped links, `secrets: placeholders|file`); invalid directory → `config_dir_invalid`; `start.ts` sets the handle's `config` to that summary
+- [X] T040 [US3] Config validation in `start.ts`: after boot run `check_config`; failures end with `config_invalid`, the validation errors, and the container removed
+- [X] T041 [US3] `packages/sandbox/fixtures/reference-config/configuration.yaml` and `packages/sandbox/fixtures/reference-config/packages/smoke.yaml` (an automation at 03:00 that turns on a light from the virtual device `Hall`; no real-instance content, nothing copied from a real repository) Also add `fixtures` to `files` in `packages/sandbox/package.json`.
+- [X] T042 [US3] Add `--config <dir>` and `--secrets-file <file>` to `cli.ts` and print the `ConfigSummary` on start
+- [X] T043 [US3] Container test `packages/sandbox/test/config.container.test.ts`: reference config loads and the source checksum is unchanged; a `!secret` reference without a plaintext file boots with placeholders; an invalid `configuration.yaml` ends with `config_invalid` and no container left
+- [X] T044 [US3] Add `.changeset/sandbox-config.md` (`@domusops/sandbox` minor: `--config`, `--secrets-file`, configuration loading)
 
 **Checkpoint**: US3 works with US1 alone.
 
@@ -177,7 +177,7 @@ description: "Task list for the @domusops/sandbox ephemeral harness (part 1 of 2
 
 ## Phase 9: Polish & cross-cutting
 
-- [ ] T071 [P] Update `CLAUDE.md` "Current focus": `ha_snapshot`, `ha_logbook_query`, `ha_trace` and `ha-bootstrap` are merged; the current feature is `@domusops/sandbox` part 1
+- [X] T071 [P] Update `CLAUDE.md` "Current focus": `ha_snapshot`, `ha_logbook_query`, `ha_trace` and `ha-bootstrap` are merged; the current feature is `@domusops/sandbox` part 1
 - [ ] T072 [P] Complete `packages/sandbox/README.md`: library and CLI usage, the supported-versions pointer, the security notes (never a real instance, token never printed except by `env`), trademark-safe wording
 - [ ] T073 Run the quickstart scenarios 1–10 from `specs/005-sandbox-harness/quickstart.md` and record any deviation in `specs/005-sandbox-harness/research.md`; run the concurrency case with `DOMUSOPS_SANDBOX_PAIRS=10` (SC-008) and record the measured SC-001 and SC-004 times
 - [ ] T074 Run `pnpm lint && pnpm typecheck && pnpm test` and `pnpm --filter @domusops/sandbox run test:container` (not `DOMUSOPS_CONTAINER_TESTS=1 pnpm test`, which also runs `bootstrap`'s container test and needs `sops` and `age`); every file in the diff is English (§1); no hand edit in the README block

@@ -22,7 +22,9 @@ async function entriesOf(archive: Buffer): Promise<Map<string, string>> {
 
 describe("packConfig", () => {
   it("builds the baseline configuration and the companion in memory", async () => {
-    const entries = await entriesOf(await packConfig());
+    const packed = await packConfig();
+    expect(packed.summary).toBeNull();
+    const entries = await entriesOf(packed.archive);
     expect(entries.get("config/configuration.yaml")).toContain(
       "default_config:",
     );

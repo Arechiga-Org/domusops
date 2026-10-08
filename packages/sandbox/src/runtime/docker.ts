@@ -111,10 +111,17 @@ export function detectRuntime(): RuntimeName | null {
   return null;
 }
 
+/** Exit status reported for a command that was stopped because it ran out of time. */
+export const TIMED_OUT = 124;
+
+/** A registry pull that makes no end is a failed start, not an endless one. */
+export const DEFAULT_PULL_TIMEOUT_MS = 600_000;
+
 function runCommand(
   program: string,
   args: string[],
   input?: Buffer | string,
+  timeoutMs?: number,
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(program, args, {
@@ -122,9 +129,18 @@ function runCommand(
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
+    let timedOut = false;
+    const timer =
+      timeoutMs === undefined
+        ? null
+        : setTimeout(() => {
+            timedOut = true;
+            child.kill("SIGKILL");
+          }, timeoutMs);
     child.stdout.on("data", (chunk: Buffer) => out.push(chunk));
     child.stderr.on("data", (chunk: Buffer) => err.push(chunk));
     child.on("error", (error: NodeJS.ErrnoException) => {
+      if (timer !== null) clearTimeout(timer);
       if (error.code === "ENOENT") {
         reject(
           new SandboxError(
@@ -137,10 +153,14 @@ function runCommand(
       }
     });
     child.on("close", (code) => {
+      if (timer !== null) clearTimeout(timer);
+      const stderr = Buffer.concat(err).toString("utf8");
       resolve({
-        status: code ?? 1,
+        status: timedOut ? TIMED_OUT : (code ?? 1),
         stdout: Buffer.concat(out).toString("utf8"),
-        stderr: Buffer.concat(err).toString("utf8"),
+        stderr: timedOut
+          ? `${stderr}timed out after ${String(Math.round((timeoutMs ?? 0) / 1000))} s`.trim()
+          : stderr,
       });
     });
     // The child may exit before reading all input; that surfaces as its exit status.
@@ -165,7 +185,10 @@ function toInfo(raw: InspectJson): ContainerInfo {
   };
 }
 
-export function createRuntime(): Runtime {
+export function createRuntime(
+  options: { pullTimeoutMs?: number } = {},
+): Runtime {
+  const pullTimeoutMs = options.pullTimeoutMs ?? DEFAULT_PULL_TIMEOUT_MS;
   const name = detectRuntime();
   const program: RuntimeName = name ?? "docker";
 
@@ -218,7 +241,7 @@ export function createRuntime(): Runtime {
     },
 
     pull(image) {
-      return run(["pull", "--quiet", image]);
+      return runCommand(program, ["pull", "--quiet", image], undefined, pullTimeoutMs);
     },
 
     async create(spec) {

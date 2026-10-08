@@ -5,6 +5,7 @@ import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { SandboxError } from "./errors.js";
+import { resolve as resolvePath } from "node:path";
 import type { Sandbox } from "./instance/handle.js";
 import {
   attachSandbox,
@@ -14,6 +15,7 @@ import {
   stopSandbox,
 } from "./index.js";
 import type { SandboxListing } from "./instance/list.js";
+import type { ConfigSummary } from "./types.js";
 import {
   ownerMayBeAlive,
   processAlive,
@@ -58,8 +60,8 @@ class UsageError extends Error {}
 
 const USAGE = `Usage:
   domusops-sandbox resolve <stable|previous-stable|beta> [--json]
-  domusops-sandbox start [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--json] -- <command> [args...]
-  domusops-sandbox start --background [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--json]
+  domusops-sandbox start [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--config <dir> [--secrets-file <file>]] [--json] -- <command> [args...]
+  domusops-sandbox start --background [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--config <dir> [--secrets-file <file>]] [--json]
   domusops-sandbox env <id>
   domusops-sandbox list [--json]
   domusops-sandbox stop <id>... | --all [--force]
@@ -117,6 +119,34 @@ async function runResolve(own: string[], deps: CliDeps): Promise<number> {
   }
 }
 
+/** What was loaded from the configuration directory, as plain lines; empty without one. */
+function describeConfig(config: ConfigSummary | null): string {
+  if (config === null) return "";
+  const secrets =
+    config.secrets === "placeholders"
+      ? `placeholders for ${String(config.placeholderKeys.length)} keys`
+      : config.secrets === "caller-file"
+        ? "the file you named"
+        : "none referenced";
+  const lines = [
+    `config ${config.source}: ${String(config.files)} files, secrets: ${secrets}`,
+  ];
+  if (config.excluded.length > 0) {
+    lines.push(`config left out: ${config.excluded.join(", ")}`);
+  }
+  if (config.skippedLinks.length > 0) {
+    lines.push(
+      `config skipped links that leave the directory: ${config.skippedLinks.join(", ")}`,
+    );
+  }
+  if (config.userVirtualIntegration) {
+    lines.push(
+      "config ships its own custom_components/virtual: that copy is used",
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 async function runStart(
   own: string[],
   command: string[] | null,
@@ -129,6 +159,8 @@ async function runStart(
       release: { type: "string" },
       "readiness-timeout": { type: "string" },
       "max-lifetime": { type: "string" },
+      config: { type: "string" },
+      "secrets-file": { type: "string" },
       background: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
@@ -160,6 +192,15 @@ async function runStart(
     options.channel = values.channel;
   }
   if (values.release !== undefined) options.release = values.release;
+  if (values["secrets-file"] !== undefined && values.config === undefined) {
+    throw new UsageError("--secrets-file only goes with --config.");
+  }
+  if (values.config !== undefined) {
+    options.config = { dir: resolvePath(values.config) };
+    if (values["secrets-file"] !== undefined) {
+      options.config.secretsFile = resolvePath(values["secrets-file"]);
+    }
+  }
   const lifetime = values["max-lifetime"];
   if (lifetime !== undefined) {
     options.maxLifetimeMinutes = parseNumber("max-lifetime", lifetime);
@@ -187,14 +228,16 @@ async function runStart(
     deps.out(
       values.json
         ? `${JSON.stringify(sandbox)}\n`
-        : `id ${sandbox.id}\nrelease ${sandbox.release.release}\nurl ${sandbox.url}\ndeadline ${sandbox.deadline}\n`,
+        : `id ${sandbox.id}\nrelease ${sandbox.release.release}\nurl ${sandbox.url}\ndeadline ${sandbox.deadline}\n${describeConfig(sandbox.config)}`,
     );
     return EXIT_OK;
   }
   try {
-    if (values.json) {
-      deps.err(`${JSON.stringify(sandbox)}\n`);
-    }
+    deps.err(
+      values.json
+        ? `${JSON.stringify(sandbox)}\n`
+        : describeConfig(sandbox.config),
+    );
     // The CLI never reads DOMUSOPS_HA_* from its own environment; the child gets this instance's.
     const env: NodeJS.ProcessEnv = { ...deps.env, ...sandbox.mcpEnv() };
     const [program, ...args] = command as string[];

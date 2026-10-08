@@ -2,7 +2,11 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRuntime, RuntimeCommandError } from "../src/runtime/docker.js";
+import {
+  createRuntime,
+  RuntimeCommandError,
+  TIMED_OUT,
+} from "../src/runtime/docker.js";
 
 const directories: string[] = [];
 
@@ -15,6 +19,17 @@ function docker(status: number, stderr: string): void {
     program,
     `#!/bin/sh\necho "${stderr}" >&2\nexit ${String(status)}\n`,
   );
+  chmodSync(program, 0o755);
+  vi.stubEnv("PATH", `${directory}:${process.env["PATH"] ?? ""}`);
+  vi.stubEnv("DOMUSOPS_CONTAINER", "docker");
+}
+
+/** A `docker` on PATH that never answers. */
+function hangingDocker(): void {
+  const directory = mkdtempSync(join(tmpdir(), "domusops-docker-"));
+  directories.push(directory);
+  const program = join(directory, "docker");
+  writeFileSync(program, "#!/bin/sh\nexec sleep 60\n");
   chmodSync(program, 0o755);
   vi.stubEnv("PATH", `${directory}:${process.env["PATH"] ?? ""}`);
   vi.stubEnv("DOMUSOPS_CONTAINER", "docker");
@@ -46,5 +61,23 @@ describe("removing a container", () => {
     await expect(createRuntime().remove("abc")).rejects.toBeInstanceOf(
       RuntimeCommandError,
     );
+  });
+});
+
+describe("pulling an image", () => {
+  it("gives up when the registry never answers", async () => {
+    hangingDocker();
+    const started = Date.now();
+    const result = await createRuntime({ pullTimeoutMs: 300 }).pull("image:1");
+    expect(result.status).toBe(TIMED_OUT);
+    expect(result.stderr).toContain("timed out");
+    expect(Date.now() - started).toBeLessThan(10_000);
+  });
+
+  it("reports the exit status of a pull that finishes", async () => {
+    docker(1, "manifest unknown");
+    const result = await createRuntime().pull("image:1");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("manifest unknown");
   });
 });

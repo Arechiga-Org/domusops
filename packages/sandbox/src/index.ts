@@ -14,6 +14,7 @@ export { resolveChannel } from "./release/resolve.js";
 export type { Channel, ResolvedRelease } from "./release/versions.js";
 export type { Sandbox, Connection, McpEnv } from "./instance/handle.js";
 export type { StartOptions } from "./instance/start.js";
+export type { ConfigSource } from "./config/pack.js";
 export type { SandboxListing } from "./instance/list.js";
 export type { Removal, ReapReason } from "./runtime/reaper.js";
 export type { ConfigSummary, LifecycleState, SandboxMode } from "./types.js";

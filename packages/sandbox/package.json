@@ -14,7 +14,8 @@
   },
   "files": [
     "dist",
-    "companion"
+    "companion",
+    "fixtures"
   ],
   "scripts": {
     "build": "tsc -b",
