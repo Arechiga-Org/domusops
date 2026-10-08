@@ -143,7 +143,12 @@ export class FakeRuntime implements Runtime {
 
   async inspect(containerId: string): Promise<ContainerInfo | null> {
     this.calls.push(`inspect ${containerId}`);
-    return this.containers.get(containerId) ?? null;
+    // Like the real runtime, a container is found by id or by name.
+    return (
+      this.containers.get(containerId) ??
+      [...this.containers.values()].find((c) => c.name === containerId) ??
+      null
+    );
   }
 
   async remove(containerId: string): Promise<void> {

@@ -112,20 +112,36 @@ function asSandboxError(
   );
 }
 
+type Progress = (state: LifecycleState, note?: string) => void;
+
 export async function startSandboxWith(
   runtime: Runtime,
   options: StartOptions = {},
   internals: StartInternals = {},
 ): Promise<Sandbox> {
   const valid = validateOptions(options);
-  const progress = (state: LifecycleState, note?: string): void => {
+  const progress: Progress = (state, note) => {
     try {
       options.onProgress?.(state, note);
     } catch {
       // A reporting callback must not be able to break the lifecycle or its cleanup.
     }
   };
+  try {
+    return await launch(runtime, valid, progress, internals);
+  } catch (error) {
+    progress("failed");
+    throw asSandboxError(error);
+  }
+}
 
+/** Fails with whatever went wrong; once a container exists it is removed first. */
+async function launch(
+  runtime: Runtime,
+  valid: ValidOptions,
+  progress: Progress,
+  internals: StartInternals,
+): Promise<Sandbox> {
   await runtime.ensureAvailable();
 
   progress("resolving");
@@ -248,6 +264,7 @@ export async function startSandboxWith(
       runtime,
       reaped,
       onRelease,
+      onProgress: progress,
       ...(valid.mode === "tied" ? { releaseGuard: release_guard } : {}),
     });
     progress("ready");
@@ -264,7 +281,6 @@ export async function startSandboxWith(
       // the container when this process ends; the deadline and the reaper cover the rest.
     }
     if (removed) release_guard();
-    progress("failed");
     throw asSandboxError(error, [token]);
   }
 }

@@ -15,7 +15,7 @@ startSandbox(options: {
   mode?: "tied" | "background";                       // default "tied"
   maxLifetimeMinutes?: number;                        // default 120; 1..1440
   readinessTimeoutSeconds?: number;                   // default 150
-  onProgress?: (state: LifecycleState) => void;
+  onProgress?: (state: LifecycleState) => void;       // also `stopping` and `gone` on stop; `failed` for any failed start
 }): Promise<Sandbox>
 // throws runtime_missing, channel_unresolved, no_beta_in_progress, image_unavailable,
 // not_ready, config_dir_invalid, config_invalid, virtual_unavailable, unsupported_device_kind

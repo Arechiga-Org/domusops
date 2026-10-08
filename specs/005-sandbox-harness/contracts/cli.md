@@ -9,7 +9,7 @@ by default; `--json` prints one JSON document on stdout. Progress goes to stderr
 | `start --background [opts]`                            | `startSandbox` (background) | Id, release, URL, deadline. Never the token                                                                            |
 | `env <id>`                                             | `attachSandbox` + `mcpEnv`  | `DOMUSOPS_HA_URL=…` and `DOMUSOPS_HA_TOKEN=…` lines, for `eval` or a `.env` file; the only command that prints a token |
 | `list`                                                 | `listSandboxes`             | Id, mode, release, URL, deadline, owner                                                                                |
-| `stop <id>…` / `stop --all`                            | `stopSandbox`               | Ids stopped                                                                                                            |
+| `stop <id>…` / `stop --all [--force]`                  | `stopSandbox`               | Ids stopped. `--all` keeps tied instances whose owner may still be running, and says so; `--force` stops those too     |
 | `cleanup`                                              | `cleanup`                   | Ids removed and why                                                                                                    |
 | `smoke [--channel c \| --release r] [--result <file>]` | `runSmoke`                  | Step table; writes the result JSON to `<file>`                                                                         |
 | `resolve <channel>`                                    | `resolveChannel`            | The concrete release, or "no beta in progress"                                                                         |

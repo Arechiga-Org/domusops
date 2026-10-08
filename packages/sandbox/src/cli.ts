@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
+import { hostname } from "node:os";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { SandboxError } from "./errors.js";
@@ -13,7 +14,11 @@ import {
   stopSandbox,
 } from "./index.js";
 import type { SandboxListing } from "./instance/list.js";
-import type { Removal } from "./runtime/reaper.js";
+import {
+  ownerMayBeAlive,
+  processAlive,
+  type Removal,
+} from "./runtime/reaper.js";
 import { validateOptions, type StartOptions } from "./instance/start.js";
 import { resolveChannel } from "./release/resolve.js";
 import {
@@ -38,6 +43,8 @@ export interface CliDeps {
   resolve(channel: Channel): Promise<ResolvedRelease>;
   attach(id: string): Promise<Sandbox>;
   list(): Promise<SandboxListing[]>;
+  /** True for a tied instance whose owner may still be using it. */
+  held(listing: SandboxListing): boolean;
   stop(id: string): Promise<void>;
   cleanup(): Promise<{ removed: Removal[] }>;
   /** Runs the command with the given environment; resolves to its exit code. */
@@ -55,7 +62,7 @@ const USAGE = `Usage:
   domusops-sandbox start --background [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--json]
   domusops-sandbox env <id>
   domusops-sandbox list [--json]
-  domusops-sandbox stop <id>... | --all
+  domusops-sandbox stop <id>... | --all [--force]
   domusops-sandbox cleanup [--json]
 `;
 
@@ -189,10 +196,7 @@ async function runStart(
       deps.err(`${JSON.stringify(sandbox)}\n`);
     }
     // The CLI never reads DOMUSOPS_HA_* from its own environment; the child gets this instance's.
-    const env: NodeJS.ProcessEnv = { ...deps.env };
-    delete env["DOMUSOPS_HA_URL"];
-    delete env["DOMUSOPS_HA_TOKEN"];
-    Object.assign(env, sandbox.mcpEnv());
+    const env: NodeJS.ProcessEnv = { ...deps.env, ...sandbox.mcpEnv() };
     const [program, ...args] = command as string[];
     return await deps.run([program as string, ...args], env);
   } finally {
@@ -244,16 +248,33 @@ async function runList(own: string[], deps: CliDeps): Promise<number> {
 async function runStop(own: string[], deps: CliDeps): Promise<number> {
   const { values, positionals } = parseArgs({
     args: own,
-    options: { all: { type: "boolean", default: false } },
+    options: {
+      all: { type: "boolean", default: false },
+      force: { type: "boolean", default: false },
+    },
     allowPositionals: true,
     strict: true,
   });
   if (values.all === positionals.length > 0) {
     throw new UsageError("stop takes instance ids, or --all, not both.");
   }
-  const ids = values.all
-    ? (await deps.list()).map((listing) => listing.id)
-    : positionals;
+  if (values.force && !values.all) {
+    throw new UsageError("--force only goes with --all.");
+  }
+  let ids = positionals;
+  if (values.all) {
+    // Another process is using a tied instance while its owner lives: only --force takes it.
+    ids = [];
+    for (const listing of await deps.list()) {
+      if (!values.force && deps.held(listing) && listing.owner !== null) {
+        deps.err(
+          `kept ${listing.id}: tied to ${listing.owner.host}:${String(listing.owner.pid)}, which may still be running (--force stops it anyway)\n`,
+        );
+      } else {
+        ids.push(listing.id);
+      }
+    }
+  }
   let failed = false;
   for (const id of ids) {
     try {
@@ -360,6 +381,7 @@ if (isEntryPoint(process.argv[1])) {
     resolve: (channel) => resolveChannel(channel),
     attach: attachSandbox,
     list: listSandboxes,
+    held: (listing) => ownerMayBeAlive(listing, hostname(), processAlive),
     stop: stopSandbox,
     cleanup,
     run: runCommand,

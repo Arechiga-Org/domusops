@@ -1,6 +1,6 @@
 import { SandboxError } from "../errors.js";
 import { getJson, postJson } from "../ha/rest.js";
-import { HaSocket } from "../ha/ws.js";
+import { HaSocket, WsAuthError } from "../ha/ws.js";
 import type { LogTail, Runtime } from "../runtime/docker.js";
 
 export const DEFAULT_READINESS_SECONDS = 150;
@@ -10,6 +10,11 @@ const POLL_MS = 2_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** `ms`, cut down to the time left before the readiness limit, and never zero. */
+function within(context: ReadyContext, ms: number): number {
+  return Math.max(1, Math.min(ms, context.deadline - Date.now()));
 }
 
 export interface ReadyContext {
@@ -53,7 +58,9 @@ export async function waitForHttp(
 ): Promise<void> {
   for (;;) {
     try {
-      await getJson(baseUrl, "/api/onboarding", { timeoutMs: 5_000 });
+      await getJson(baseUrl, "/api/onboarding", {
+        timeoutMs: within(context, 5_000),
+      });
       return;
     } catch {
       // not up yet
@@ -98,8 +105,13 @@ export async function waitForRunning(
   try {
     for (;;) {
       try {
-        socket ??= await HaSocket.connect(wsUrl, token);
-        const config = await socket.command<CoreConfig>({ type: "get_config" });
+        socket ??= await HaSocket.connect(wsUrl, token, {
+          connectTimeoutMs: within(guarded, 10_000),
+        });
+        const config = await socket.command<CoreConfig>(
+          { type: "get_config" },
+          within(guarded, 30_000),
+        );
         if (config.recovery_mode === true || config.safe_mode === true) {
           throw await notReady(
             guarded,
@@ -109,6 +121,13 @@ export async function waitForRunning(
         if (config.state === "RUNNING") break;
       } catch (error) {
         if (error instanceof SandboxError) throw error;
+        if (error instanceof WsAuthError) {
+          // The token was just issued: waiting longer will not make the instance accept it.
+          throw await notReady(
+            guarded,
+            "The instance rejected the access token it had just issued.",
+          );
+        }
         socket?.close();
         socket = null;
       }
@@ -127,12 +146,22 @@ export async function waitForRunning(
     socket?.close();
   }
 
-  const check = (await postJson(
-    baseUrl,
-    "/api/config/core/check_config",
-    {},
-    { token, timeoutMs: 60_000 },
-  )) as CheckConfig;
+  let check: CheckConfig;
+  try {
+    check = (await postJson(
+      baseUrl,
+      "/api/config/core/check_config",
+      {},
+      { token, timeoutMs: within(guarded, 60_000) },
+    )) as CheckConfig;
+  } catch (error) {
+    throw await notReady(
+      guarded,
+      `The configuration check did not complete before the readiness limit: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
   if (check.result !== "valid") {
     const errors =
       typeof check.errors === "string" ? check.errors : "no details given";

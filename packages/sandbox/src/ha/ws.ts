@@ -16,6 +16,14 @@ export class WsConnectionError extends Error {
   }
 }
 
+/** The instance refused the access token: retrying with the same token cannot help. */
+export class WsAuthError extends WsConnectionError {
+  constructor(message: string) {
+    super(message);
+    this.name = "WsAuthError";
+  }
+}
+
 interface Pending {
   command: string;
   resolve: (value: unknown) => void;
@@ -73,7 +81,7 @@ export class HaSocket {
         );
         return;
       }
-      const fail = (message: string): void => {
+      const fail = (message: string, auth = false): void => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
@@ -82,7 +90,9 @@ export class HaSocket {
         } catch {
           // already unusable
         }
-        reject(new WsConnectionError(message));
+        reject(
+          auth ? new WsAuthError(message) : new WsConnectionError(message),
+        );
       };
       const timer = setTimeout(
         () => fail(`Timed out connecting to ${url}.`),
@@ -110,7 +120,7 @@ export class HaSocket {
           clearTimeout(timer);
           resolve(new HaSocket(socket, commandTimeoutMs));
         } else if (message.type === "auth_invalid") {
-          fail("The instance rejected the access token.");
+          fail("The instance rejected the access token.", true);
         } else {
           fail(
             `Unexpected "${String(message.type)}" message during authentication.`,

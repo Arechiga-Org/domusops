@@ -26,6 +26,20 @@ export function processAlive(pid: number): boolean {
   }
 }
 
+/**
+ * True for a tied instance whose owner may still be using it: alive on this host, or on another
+ * host, where nothing can be checked.
+ */
+export function ownerMayBeAlive(
+  instance: Pick<SandboxLabels, "mode" | "owner">,
+  host: string,
+  isAlive: (pid: number) => boolean,
+): boolean {
+  const { mode, owner } = instance;
+  if (mode !== "tied" || owner === null) return false;
+  return owner.host !== host || isAlive(owner.pid);
+}
+
 /** The data-model decision table, for one labelled container. Null means keep. */
 export function decide(
   labels: SandboxLabels,
@@ -37,8 +51,7 @@ export function decide(
   if (
     labels.mode === "tied" &&
     labels.owner !== null &&
-    labels.owner.host === host &&
-    !isAlive(labels.owner.pid)
+    !ownerMayBeAlive(labels, host, isAlive)
   ) {
     return "owner process gone";
   }

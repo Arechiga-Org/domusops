@@ -77,6 +77,7 @@ function harness(
     },
     attach: async () => fakeSandbox(h.stopped, "background"),
     list: async () => h.listings,
+    held: () => false,
     stop: async (id) => {
       if (id === "foreign000000") {
         throw new SandboxError("not_a_sandbox", `"${id}" is not a sandbox.`);
@@ -394,14 +395,56 @@ describe("stop", () => {
     expect(h.err.join("")).toContain("not_a_sandbox");
   });
 
-  it.each([[["stop"]], [["stop", "--all", "aaaaaaaaaaaa"]]])(
-    "exits 2 for %j",
-    async (argv) => {
+  describe("--all and tied instances", () => {
+    const tied = (id: string): SandboxListing => ({
+      ...listing(id),
+      mode: "tied",
+      owner: { host: "build-1", pid: 4242 },
+    });
+
+    it("keeps a tied instance whose owner may still be running", async () => {
+      const h = harness({
+        held: (l) => l.mode === "tied",
+      });
+      h.listings.push(listing("aaaaaaaaaaaa"), tied("bbbbbbbbbbbb"));
+      expect(await main(["stop", "--all"], h.deps)).toBe(0);
+      expect(h.stoppedIds).toEqual(["aaaaaaaaaaaa"]);
+      expect(h.err.join("")).toContain(
+        "kept bbbbbbbbbbbb: tied to build-1:4242",
+      );
+    });
+
+    it("stops a tied instance whose owner is gone", async () => {
       const h = harness();
-      expect(await main(argv, h.deps)).toBe(2);
-      expect(h.stoppedIds).toEqual([]);
-    },
-  );
+      h.listings.push(tied("bbbbbbbbbbbb"));
+      expect(await main(["stop", "--all"], h.deps)).toBe(0);
+      expect(h.stoppedIds).toEqual(["bbbbbbbbbbbb"]);
+    });
+
+    it("stops everything with --force", async () => {
+      const h = harness({ held: () => true });
+      h.listings.push(listing("aaaaaaaaaaaa"), tied("bbbbbbbbbbbb"));
+      expect(await main(["stop", "--all", "--force"], h.deps)).toBe(0);
+      expect(h.stoppedIds).toEqual(["aaaaaaaaaaaa", "bbbbbbbbbbbb"]);
+    });
+
+    it("stops a named tied instance without --force", async () => {
+      const h = harness({ held: () => true });
+      h.listings.push(tied("bbbbbbbbbbbb"));
+      expect(await main(["stop", "bbbbbbbbbbbb"], h.deps)).toBe(0);
+      expect(h.stoppedIds).toEqual(["bbbbbbbbbbbb"]);
+    });
+  });
+
+  it.each([
+    [["stop"]],
+    [["stop", "--all", "aaaaaaaaaaaa"]],
+    [["stop", "--force", "aaaaaaaaaaaa"]],
+  ])("exits 2 for %j", async (argv) => {
+    const h = harness();
+    expect(await main(argv, h.deps)).toBe(2);
+    expect(h.stoppedIds).toEqual([]);
+  });
 });
 
 describe("cleanup", () => {

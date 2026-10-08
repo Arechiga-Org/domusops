@@ -3,7 +3,7 @@ import { SandboxError } from "../errors.js";
 import type { ResolvedRelease } from "../release/versions.js";
 import type { Runtime } from "../runtime/docker.js";
 import type { Removal } from "../runtime/reaper.js";
-import type { ConfigSummary, SandboxMode } from "../types.js";
+import type { ConfigSummary, LifecycleState, SandboxMode } from "../types.js";
 
 export interface Connection {
   url: string;
@@ -50,6 +50,8 @@ export interface HandleInit {
   onRelease?: (() => void | Promise<void>)[];
   /** Called once the container is removed, never before: until then the exit guard stays armed. */
   releaseGuard?: () => void;
+  /** Told `stopping` and `gone` as the instance is removed. */
+  onProgress?: (state: LifecycleState) => void;
 }
 
 export class SandboxHandle implements Sandbox {
@@ -66,6 +68,7 @@ export class SandboxHandle implements Sandbox {
   readonly #runtime: Runtime;
   readonly #onRelease: (() => void | Promise<void>)[];
   readonly #releaseGuard: (() => void) | undefined;
+  readonly #onProgress: ((state: LifecycleState) => void) | undefined;
   #stopping: Promise<void> | null = null;
   #detached: Promise<void> | null = null;
 
@@ -83,6 +86,7 @@ export class SandboxHandle implements Sandbox {
     this.reaped = init.reaped ?? [];
     this.#onRelease = init.onRelease ?? [];
     this.#releaseGuard = init.releaseGuard;
+    this.#onProgress = init.onProgress;
   }
 
   connection(): Connection {
@@ -103,9 +107,11 @@ export class SandboxHandle implements Sandbox {
 
   stop(): Promise<void> {
     this.#stopping ??= (async () => {
+      this.#onProgress?.("stopping");
       await this.runReleaseHooks();
       await this.#runtime.remove(this.#containerId);
       this.#releaseGuard?.();
+      this.#onProgress?.("gone");
     })().catch((error: unknown) => {
       // A failed removal can be retried, and the exit guard keeps covering the container.
       this.#stopping = null;

@@ -14,15 +14,14 @@ interface Found {
   running: boolean;
 }
 
-/** A sandbox container by id, from labels. Null when there is none. */
+/** A sandbox container by id, through its deterministic name. Null when there is none. */
 async function find(runtime: Runtime, id: string): Promise<Found | null> {
-  for (const container of await runtime.list()) {
-    const labels = parseLabels(container.labels);
-    if (labels !== null && labels.id === id) {
-      return { containerId: container.id, labels, running: container.running };
-    }
-  }
-  return null;
+  if (!ID_RE.test(id)) return null;
+  const info = await runtime.inspect(containerName(id));
+  if (info === null) return null;
+  const labels = parseLabels(info.labels);
+  if (labels === null || labels.id !== id) return null;
+  return { containerId: info.id, labels, running: info.running };
 }
 
 function notASandbox(id: string): SandboxError {

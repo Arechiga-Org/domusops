@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { reap } from "../src/runtime/reaper.js";
+import { ownerMayBeAlive, reap } from "../src/runtime/reaper.js";
 import { buildLabels, type SandboxLabels } from "../src/runtime/labels.js";
 import { FakeRuntime } from "./support/fake-runtime.js";
 
@@ -98,5 +98,36 @@ describe("reap", () => {
     };
     const removed = await reap(runtime, options());
     expect(removed.map((r) => r.containerId)).toEqual([second]);
+  });
+});
+
+describe("ownerMayBeAlive", () => {
+  const owner = { host: HOST, pid: 4242 };
+  const alive = (pid: number) => pid === 4242;
+
+  it("is true for a tied instance whose owner lives on this host", () => {
+    expect(ownerMayBeAlive({ mode: "tied", owner }, HOST, alive)).toBe(true);
+  });
+
+  it("is false once that owner is gone", () => {
+    expect(ownerMayBeAlive({ mode: "tied", owner }, HOST, () => false)).toBe(
+      false,
+    );
+  });
+
+  it("is true for an owner on another host, which cannot be checked", () => {
+    expect(
+      ownerMayBeAlive(
+        { mode: "tied", owner: { host: "elsewhere", pid: 1 } },
+        HOST,
+        () => false,
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for a background instance", () => {
+    expect(
+      ownerMayBeAlive({ mode: "background", owner: null }, HOST, alive),
+    ).toBe(false);
   });
 });

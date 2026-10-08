@@ -97,6 +97,37 @@ describe("a start that fails", () => {
   });
 });
 
+describe("progress", () => {
+  it("reports failed when the start fails before a container exists", async () => {
+    const runtime = new FlakyRuntime();
+    runtime.pullFails = true;
+    const states: string[] = [];
+    const error = await failureOf(
+      startSandboxWith(runtime, {
+        ...START,
+        onProgress: (state) => void states.push(state),
+      }),
+    );
+    expect((error as SandboxError).code).toBe("image_unavailable");
+    expect(states).toEqual(["resolving", "pulling", "failed"]);
+    expect(runtime.calls.some((c) => c.startsWith("create"))).toBe(false);
+  });
+
+  it("reports failed exactly once when the start fails after the container exists", async () => {
+    const runtime = new FlakyRuntime();
+    runtime.startError = new Error("boom");
+    const states: string[] = [];
+    await failureOf(
+      startSandboxWith(runtime, {
+        ...START,
+        onProgress: (state) => void states.push(state),
+      }),
+    );
+    expect(states.filter((state) => state === "failed")).toHaveLength(1);
+    expect(states.at(-1)).toBe("failed");
+  });
+});
+
 describe("not_ready logs", () => {
   it("come from the followed output once the container is gone", async () => {
     const runtime = new FlakyRuntime();
@@ -117,7 +148,11 @@ describe("not_ready logs", () => {
 });
 
 describe("stopping a sandbox", () => {
-  function handle(runtime: FlakyRuntime, events: string[]): SandboxHandle {
+  function handle(
+    runtime: FlakyRuntime,
+    events: string[],
+    states: string[] = [],
+  ): SandboxHandle {
     const containerId = runtime.addSandbox("domusops-sandbox-0123456789ab", {});
     return new SandboxHandle({
       id: "0123456789ab",
@@ -131,6 +166,7 @@ describe("stopping a sandbox", () => {
       runtime,
       onRelease: [() => void events.push("hooks")],
       releaseGuard: () => void events.push("guard released"),
+      onProgress: (state) => void states.push(state),
     });
   }
 
@@ -153,5 +189,20 @@ describe("stopping a sandbox", () => {
     await sandbox.stop();
     expect(events).toEqual(["hooks", "guard released"]);
     expect(runtime.containers.size).toBe(0);
+  });
+
+  it("reports stopping, then gone once the container is removed", async () => {
+    const runtime = new FlakyRuntime();
+    const states: string[] = [];
+    await handle(runtime, [], states).stop();
+    expect(states).toEqual(["stopping", "gone"]);
+  });
+
+  it("does not report gone while the container is still there", async () => {
+    const runtime = new FlakyRuntime();
+    runtime.removeFailures = 1;
+    const states: string[] = [];
+    await expect(handle(runtime, [], states).stop()).rejects.toThrow();
+    expect(states).toEqual(["stopping"]);
   });
 });
