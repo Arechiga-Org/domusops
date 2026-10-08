@@ -28,8 +28,16 @@ _LOGGER = logging.getLogger(__name__)
 
 # Seconds an owner connection may stay closed (without `detach`) before the instance stops.
 OWNER_GRACE_SECONDS = 15
-# Seconds a tied instance waits for its owner's first `attach`.
-FIRST_ATTACH_SECONDS = 300
+# Seconds a tied instance waits for its owner's first `attach`; the host sets it from its own
+# readiness limit, since the owner can only attach once the host has finished waiting.
+DEFAULT_FIRST_ATTACH_SECONDS = 300
+
+
+def _first_attach_seconds() -> float:
+    try:
+        return max(1.0, float(os.environ["DOMUSOPS_SANDBOX_ATTACH_SECONDS"]))
+    except (KeyError, ValueError):
+        return float(DEFAULT_FIRST_ATTACH_SECONDS)
 
 
 class _Lifetime:
@@ -64,7 +72,7 @@ class _Lifetime:
             _LOGGER.error("DOMUSOPS_SANDBOX_DEADLINE is not a timestamp; no deadline set")
         if self.mode == "tied":
             self._first_attach_timer = self.hass.loop.call_later(
-                FIRST_ATTACH_SECONDS, self.stop, "no owner attached"
+                _first_attach_seconds(), self.stop, "no owner attached"
             )
 
     @callback

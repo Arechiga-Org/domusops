@@ -342,7 +342,11 @@ export function createRuntime(): Runtime {
 
     async remove(containerId) {
       const result = await run(["container", "rm", "--force", containerId]);
-      if (result.status !== 0 && !/no such container/i.test(result.stderr)) {
+      // Gone, or already on its way out (`--rm` after the instance exited): either way the goal is met.
+      if (
+        result.status !== 0 &&
+        !/no such container|already in progress/i.test(result.stderr)
+      ) {
         throw new RuntimeCommandError(`${program} container rm`, result);
       }
     },

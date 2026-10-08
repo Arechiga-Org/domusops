@@ -18,7 +18,6 @@ export class TarBuilder {
   private readonly pack = new Pack({ portable: true });
   private readonly chunks: Buffer[] = [];
   private readonly finished: Promise<void>;
-  private readonly seen = new Set<string>();
 
   constructor() {
     this.pack.on("data", (chunk: Buffer) => this.chunks.push(chunk));
@@ -26,10 +25,6 @@ export class TarBuilder {
       this.pack.on("end", resolve);
       this.pack.on("error", reject);
     });
-  }
-
-  has(path: string): boolean {
-    return this.seen.has(path);
   }
 
   addDirectory(path: string, mode = 0o755): void {
@@ -43,23 +38,6 @@ export class TarBuilder {
       mode,
       "File",
     );
-  }
-
-  addSymlink(path: string, target: string): void {
-    const header = new Header({
-      path,
-      mode: 0o777,
-      size: 0,
-      type: "SymbolicLink",
-      linkpath: target,
-      mtime: new Date(0),
-      uid: 0,
-      gid: 0,
-    });
-    const entry = new ReadEntry(header);
-    entry.end();
-    this.pack.add(entry);
-    this.seen.add(path);
   }
 
   async finish(): Promise<Buffer> {
@@ -86,7 +64,6 @@ export class TarBuilder {
     const entry = new ReadEntry(header);
     entry.end(data);
     this.pack.add(entry);
-    this.seen.add(path);
   }
 }
 

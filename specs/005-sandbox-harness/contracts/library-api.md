@@ -69,8 +69,9 @@ interface Sandbox {
 
 Guarantees:
 
-- No function accepts a URL or a token. Every call on a handle first checks the container still
-  carries the handle's id label and that the companion's `info` answers the same id (FR-019).
+- No function accepts a URL or a token. A handle is created only after the container carries the
+  expected id label and the companion's `info` answered the same id (FR-019); `attachSandbox`
+  repeats both checks. Calls on a handle that has been stopped fail with `instance_gone`.
 - `setState` then `getState` returns exactly what was set (FR-012).
 - In tied mode the handle registers exit handlers (`exit`, `SIGINT`, `SIGTERM`) that stop the
   instance synchronously, and holds the owner WebSocket connection (research R6).

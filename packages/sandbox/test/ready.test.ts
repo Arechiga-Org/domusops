@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SandboxError } from "../src/errors.js";
 import { HaSocket, WsAuthError, WsConnectionError } from "../src/ha/ws.js";
-import { waitForRunning } from "../src/instance/ready.js";
+import { waitForRunning, withLogs } from "../src/instance/ready.js";
 import { FakeRuntime } from "./support/fake-runtime.js";
 
 const postJson = vi.hoisted(() => vi.fn());
@@ -94,9 +94,22 @@ describe("waitForRunning", () => {
     const connectTimeout = connect.mock.calls[0]?.[2]?.connectTimeoutMs ?? 1e9;
     expect(connectTimeout).toBeLessThanOrEqual(5_000);
     expect(commandTimeouts[0]).toBeLessThanOrEqual(5_000);
+  });
+
+  it("gives the configuration check a fair chance even when the limit has nearly passed", async () => {
+    vi.spyOn(HaSocket, "connect").mockResolvedValue(running());
+    postJson.mockResolvedValue({ result: "valid" });
+
+    await waitForRunning(
+      "http://127.0.0.1:1",
+      "ws://127.0.0.1:1/api/websocket",
+      TOKEN,
+      context(Date.now() + 200),
+    );
+
     const checkTimeout = (postJson.mock.calls[0]?.[3] as { timeoutMs: number })
       .timeoutMs;
-    expect(checkTimeout).toBeLessThanOrEqual(5_000);
+    expect(checkTimeout).toBe(15_000);
   });
 
   it("keeps the usual limits when there is plenty of time", async () => {
@@ -148,5 +161,27 @@ describe("waitForRunning", () => {
       ),
     );
     expect(error.code).toBe("config_invalid");
+  });
+});
+
+describe("withLogs", () => {
+  it("adds the instance output to a failed step", async () => {
+    const base = context(Date.now() + 60_000);
+    const tail = {
+      lines: () => ["line a", "line b"],
+      stop: () => undefined,
+    };
+    const error = await withLogs(
+      { ...base, tail },
+      new SandboxError("not_ready", "Onboarding the instance failed: boom"),
+    );
+    expect(error.code).toBe("not_ready");
+    expect(error.message).toContain("boom");
+    expect(error.logs).toEqual(["line a", "line b"]);
+  });
+
+  it("leaves other typed errors as they are", async () => {
+    const original = new SandboxError("config_invalid", "bad");
+    expect(await withLogs(context(Date.now()), original)).toBe(original);
   });
 });

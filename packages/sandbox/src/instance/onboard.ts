@@ -27,23 +27,39 @@ function field(value: unknown, name: string, step: string): string {
  * Finishes onboarding over the instance's own HTTP API, the one its web frontend uses, then asks
  * the WebSocket API for a long-lived access token. The user's password is random and discarded.
  */
-export async function onboard(baseUrl: string, wsUrl: string): Promise<string> {
+export async function onboard(
+  baseUrl: string,
+  wsUrl: string,
+  deadline: number,
+): Promise<string> {
   const password = randomBytes(24).toString("hex");
+  // Each exchange gets what is left of the readiness limit, but never less than a few seconds.
+  const budget = (): number => Math.max(5_000, deadline - Date.now());
   try {
-    const created = (await postJson(baseUrl, "/api/onboarding/users", {
-      client_id: ONBOARDING_CLIENT_ID,
-      name: "Sandbox",
-      username: "sandbox",
-      password,
-      language: "en",
-    })) as AuthCodeResponse;
+    const created = (await postJson(
+      baseUrl,
+      "/api/onboarding/users",
+      {
+        client_id: ONBOARDING_CLIENT_ID,
+        name: "Sandbox",
+        username: "sandbox",
+        password,
+        language: "en",
+      },
+      { timeoutMs: budget() },
+    )) as AuthCodeResponse;
     const code = field(created.auth_code, "an auth_code", "onboarding/users");
 
-    const session = (await postForm(baseUrl, "/auth/token", {
-      grant_type: "authorization_code",
-      code,
-      client_id: ONBOARDING_CLIENT_ID,
-    })) as TokenResponse;
+    const session = (await postForm(
+      baseUrl,
+      "/auth/token",
+      {
+        grant_type: "authorization_code",
+        code,
+        client_id: ONBOARDING_CLIENT_ID,
+      },
+      { timeoutMs: budget() },
+    )) as TokenResponse;
     const accessToken = field(
       session.access_token,
       "an access_token",
@@ -55,7 +71,7 @@ export async function onboard(baseUrl: string, wsUrl: string): Promise<string> {
         baseUrl,
         `/api/onboarding/${step}`,
         {},
-        { token: accessToken },
+        { token: accessToken, timeoutMs: budget() },
       );
     }
     await postJson(
@@ -65,16 +81,21 @@ export async function onboard(baseUrl: string, wsUrl: string): Promise<string> {
         client_id: ONBOARDING_CLIENT_ID,
         redirect_uri: `${ONBOARDING_CLIENT_ID}?auth_callback=1`,
       },
-      { token: accessToken },
+      { token: accessToken, timeoutMs: budget() },
     );
 
-    const socket = await HaSocket.connect(wsUrl, accessToken);
+    const socket = await HaSocket.connect(wsUrl, accessToken, {
+      connectTimeoutMs: budget(),
+    });
     try {
-      const longLived = await socket.command<unknown>({
-        type: "auth/long_lived_access_token",
-        client_name: TOKEN_CLIENT_NAME,
-        lifespan: 1,
-      });
+      const longLived = await socket.command<unknown>(
+        {
+          type: "auth/long_lived_access_token",
+          client_name: TOKEN_CLIENT_NAME,
+          lifespan: 1,
+        },
+        budget(),
+      );
       return field(longLived, "a token", "auth/long_lived_access_token");
     } finally {
       socket.close();

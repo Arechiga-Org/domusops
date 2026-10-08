@@ -46,6 +46,16 @@ async function notReady(
   });
 }
 
+/** A failed step reported as `not_ready`, with the output the instance produced meanwhile. */
+export async function withLogs(
+  context: ReadyContext,
+  error: unknown,
+): Promise<SandboxError> {
+  if (error instanceof SandboxError && error.code !== "not_ready") return error;
+  const reason = error instanceof Error ? error.message : String(error);
+  return notReady(context, reason);
+}
+
 async function containerGone(context: ReadyContext): Promise<boolean> {
   const info = await context.runtime.inspect(context.containerId);
   return info === null || !info.running;
@@ -152,7 +162,8 @@ export async function waitForRunning(
       baseUrl,
       "/api/config/core/check_config",
       {},
-      { token, timeoutMs: within(guarded, 60_000) },
+      // An instance that reached RUNNING at the last moment still gets a fair chance to answer.
+      { token, timeoutMs: Math.max(15_000, within(guarded, 60_000)) },
     )) as CheckConfig;
   } catch (error) {
     throw await notReady(

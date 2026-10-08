@@ -97,6 +97,31 @@ describe("a start that fails", () => {
   });
 });
 
+describe("the image", () => {
+  it("is used from the local copy without asking the registry", async () => {
+    const runtime = new FlakyRuntime();
+    runtime.images.add("ghcr.io/home-assistant/home-assistant:2026.9.3");
+    runtime.pullFails = true;
+    runtime.startError = new Error("boom");
+    const states: string[] = [];
+    await failureOf(
+      startSandboxWith(runtime, {
+        ...START,
+        onProgress: (state) => void states.push(state),
+      }),
+    );
+    expect(runtime.calls.some((c) => c.startsWith("pull "))).toBe(false);
+    expect(states).not.toContain("pulling");
+  });
+
+  it("is pulled when no copy is present", async () => {
+    const runtime = new FlakyRuntime();
+    runtime.startError = new Error("boom");
+    await failureOf(startSandboxWith(runtime, START));
+    expect(runtime.calls.some((c) => c.startsWith("pull "))).toBe(true);
+  });
+});
+
 describe("progress", () => {
   it("reports failed when the start fails before a container exists", async () => {
     const runtime = new FlakyRuntime();

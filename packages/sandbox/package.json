@@ -6,6 +6,9 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "domusops-sandbox": "./dist/cli.js"
   },

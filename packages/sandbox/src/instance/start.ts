@@ -27,9 +27,13 @@ import {
   LOG_LINES,
   waitForHttp,
   waitForRunning,
+  withLogs,
 } from "./ready.js";
 
 export const DEFAULT_MAX_LIFETIME_MINUTES = 120;
+
+/** Time the owner gets to attach after the readiness limit: with the default limit, 300 s. */
+const ATTACH_MARGIN_SECONDS = 150;
 
 export interface StartOptions {
   channel?: Channel;
@@ -150,16 +154,12 @@ async function launch(
       ? exactRelease(valid.request.release)
       : await (internals.resolve ?? resolveChannel)(valid.request.channel);
 
-  progress("pulling");
+  // A release tag never changes, so a copy already present is used without asking the registry.
   const image = `${IMAGE_PREFIX}:${release.release}`;
-  const pulled = await runtime.pull(image);
-  if (pulled.status !== 0) {
-    if (await runtime.imageExists(image)) {
-      progress(
-        "pulling",
-        `Could not pull ${image}; using the copy already present.`,
-      );
-    } else {
+  if (!(await runtime.imageExists(image))) {
+    progress("pulling");
+    const pulled = await runtime.pull(image);
+    if (pulled.status !== 0) {
       throw new SandboxError(
         "image_unavailable",
         `The image ${image} could not be pulled and is not present locally: ${
@@ -197,6 +197,9 @@ async function launch(
         DOMUSOPS_SANDBOX_ID: id,
         DOMUSOPS_SANDBOX_MODE: valid.mode,
         DOMUSOPS_SANDBOX_DEADLINE: deadline,
+        DOMUSOPS_SANDBOX_ATTACH_SECONDS: String(
+          Math.ceil(valid.readinessTimeoutSeconds) + ATTACH_MARGIN_SECONDS,
+        ),
       },
       publish: ["127.0.0.1::8123"],
       entrypoint: "python",
@@ -228,8 +231,12 @@ async function launch(
 
     progress("onboarding");
     await waitForHttp(baseUrl, context);
-    token = await onboard(baseUrl, wsUrl);
-    await storeToken(runtime, containerId, token);
+    try {
+      token = await onboard(baseUrl, wsUrl, context.deadline);
+      await storeToken(runtime, containerId, token);
+    } catch (error) {
+      throw await withLogs(context, error);
+    }
 
     progress("validating");
     await waitForRunning(baseUrl, wsUrl, token, context);

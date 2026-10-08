@@ -1,0 +1,50 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createRuntime, RuntimeCommandError } from "../src/runtime/docker.js";
+
+const directories: string[] = [];
+
+/** A `docker` on PATH that answers every call with the given exit code and message. */
+function docker(status: number, stderr: string): void {
+  const directory = mkdtempSync(join(tmpdir(), "domusops-docker-"));
+  directories.push(directory);
+  const program = join(directory, "docker");
+  writeFileSync(
+    program,
+    `#!/bin/sh\necho "${stderr}" >&2\nexit ${String(status)}\n`,
+  );
+  chmodSync(program, 0o755);
+  vi.stubEnv("PATH", `${directory}:${process.env["PATH"] ?? ""}`);
+  vi.stubEnv("DOMUSOPS_CONTAINER", "docker");
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  for (const directory of directories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+describe("removing a container", () => {
+  it("succeeds when it is already gone", async () => {
+    docker(1, "Error: No such container: abc");
+    await expect(createRuntime().remove("abc")).resolves.toBeUndefined();
+  });
+
+  it("succeeds when its removal is already in progress", async () => {
+    docker(
+      1,
+      "Error response from daemon: removal of container abc is already in progress",
+    );
+    await expect(createRuntime().remove("abc")).resolves.toBeUndefined();
+  });
+
+  it("still fails for any other error", async () => {
+    docker(1, "Error response from daemon: permission denied");
+    await expect(createRuntime().remove("abc")).rejects.toBeInstanceOf(
+      RuntimeCommandError,
+    );
+  });
+});

@@ -1,7 +1,8 @@
 # Contract: CLI (`domusops-sandbox`)
 
 A thin layer over the [library API](./library-api.md) (FR-032): parse, call, format. Human output
-by default; `--json` prints one JSON document on stdout. Progress goes to stderr.
+by default; `--json` prints one JSON document on stdout. Progress goes to stderr. The exception is
+`start -- <command>`, where stdout belongs to `<command>`: its `--json` document goes to stderr.
 
 | Command                                                | Library call                | Output                                                                                                                 |
 | ------------------------------------------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
