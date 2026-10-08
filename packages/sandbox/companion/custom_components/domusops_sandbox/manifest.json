@@ -1,0 +1,11 @@
+{
+  "domain": "domusops_sandbox",
+  "name": "DomusOps sandbox",
+  "version": "0.1.0",
+  "documentation": "https://github.com/Arechiga-Org/domusops",
+  "dependencies": ["http", "api", "websocket_api", "onboarding", "auth", "config"],
+  "codeowners": [],
+  "requirements": [],
+  "iot_class": "local_push",
+  "integration_type": "service"
+}
