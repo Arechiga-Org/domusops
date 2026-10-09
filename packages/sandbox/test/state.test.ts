@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { SandboxHandle } from "../src/instance/handle.js";
 import type { Runtime } from "../src/runtime/docker.js";
@@ -51,7 +52,7 @@ async function handleOver(
     mode: "tied",
     deadline: "2031-01-01T00:00:00Z",
     port: (server?.address() as AddressInfo).port,
-    token: "t",
+    token: "secret-token-123",
     config: null,
     runtime: {} as Runtime,
   });
@@ -86,5 +87,29 @@ describe("setState", () => {
       method: "POST",
       body: { state: "1", attributes: {} },
     });
+  });
+});
+
+describe("the connection", () => {
+  it("hands the existing tools exactly the URL and the token", async () => {
+    const { handle } = await handleOver({});
+    const port = (server?.address() as AddressInfo).port;
+    expect(handle.mcpEnv()).toEqual({
+      DOMUSOPS_HA_URL: `http://127.0.0.1:${String(port)}`,
+      DOMUSOPS_HA_TOKEN: "secret-token-123",
+    });
+    expect(handle.connection()).toEqual({
+      url: `http://127.0.0.1:${String(port)}`,
+      wsUrl: `ws://127.0.0.1:${String(port)}/api/websocket`,
+      token: "secret-token-123",
+    });
+  });
+
+  it("keeps the token out of everything but those two calls", async () => {
+    const { handle } = await handleOver({});
+    const secret = "secret-token-123";
+    expect(JSON.stringify(handle)).not.toContain(secret);
+    expect(inspect(handle)).not.toContain(secret);
+    expect(String(handle)).not.toContain(secret);
   });
 });
