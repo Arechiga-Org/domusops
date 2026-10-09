@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { SandboxError } from "./errors.js";
 import { resolve as resolvePath } from "node:path";
-import type { VirtualDeviceSpec } from "./devices/spec.js";
+import type { VirtualDevice, VirtualDeviceSpec } from "./devices/spec.js";
 import type { Sandbox } from "./instance/handle.js";
 import {
   attachSandbox,
@@ -148,6 +148,15 @@ function describeConfig(config: ConfigSummary | null): string {
   return `${lines.join("\n")}\n`;
 }
 
+/** The devices the instance holds, one line each: kind, name and the entity id to use. */
+function describeDevices(devices: readonly VirtualDevice[]): string {
+  return devices
+    .map(
+      (device) => `device ${device.kind} "${device.name}" ${device.entityId}\n`,
+    )
+    .join("");
+}
+
 function parseDevice(text: string): VirtualDeviceSpec {
   const parts = text.split(":");
   const [kind, name, deviceClass] = parts;
@@ -158,7 +167,7 @@ function parseDevice(text: string): VirtualDeviceSpec {
     name === undefined
   ) {
     throw new UsageError(
-      `--device "${text}" must look like <kind>:<name> or <kind>:<name>:<class>.`,
+      `--device "${text}" must look like <kind>:<name> or <kind>:<name>:<class>. A name cannot contain ":"; use the library's \`devices\` option for that.`,
     );
   }
   const spec = { kind, name } as VirtualDeviceSpec;
@@ -259,7 +268,7 @@ async function runStart(
     deps.out(
       values.json
         ? `${JSON.stringify(sandbox)}\n`
-        : `id ${sandbox.id}\nrelease ${sandbox.release.release}\nurl ${sandbox.url}\ndeadline ${sandbox.deadline}\n${describeConfig(sandbox.config)}`,
+        : `id ${sandbox.id}\nrelease ${sandbox.release.release}\nurl ${sandbox.url}\ndeadline ${sandbox.deadline}\n${describeConfig(sandbox.config)}${describeDevices(sandbox.devices)}`,
     );
     return EXIT_OK;
   }
@@ -267,7 +276,7 @@ async function runStart(
     deps.err(
       values.json
         ? `${JSON.stringify(sandbox)}\n`
-        : describeConfig(sandbox.config),
+        : `${describeConfig(sandbox.config)}${describeDevices(sandbox.devices)}`,
     );
     // The CLI never reads DOMUSOPS_HA_* from its own environment; the child gets this instance's.
     const env: NodeJS.ProcessEnv = { ...deps.env, ...sandbox.mcpEnv() };

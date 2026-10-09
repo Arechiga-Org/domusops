@@ -39,6 +39,28 @@ export interface SandboxTime {
 
 const ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const SERVICE_PART = /^[a-z0-9_]+$/;
+/** ISO 8601 date and time, with an optional offset; what the instance's own parser reads. */
+const ISO_INSTANT =
+  /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})?$/;
+
+/** True for an ISO 8601 date and time the instance can read; a date alone or free text is not. */
+export function isInstant(value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    !ISO_INSTANT.test(value) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    return false;
+  }
+  // Date.parse rolls a day that does not exist (February 31) over into the next month.
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ];
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDate() === day;
+}
+
 export const MAX_ADVANCE_SECONDS = 7 * 24 * 3600;
 const TIME_COMMAND_TIMEOUT_MS = 90_000;
 
@@ -140,7 +162,7 @@ export class SandboxHandle implements Sandbox {
     this.#devices = [...(init.devices ?? [])];
     this.time = {
       freeze: async (at) => {
-        if (typeof at !== "string" || Number.isNaN(Date.parse(at))) {
+        if (!isInstant(at)) {
           throw new TypeError("`at` must be an ISO 8601 date and time.");
         }
         await this.companion("time/freeze", { at });
@@ -305,6 +327,7 @@ export class SandboxHandle implements Sandbox {
       mode: this.mode,
       deadline: this.deadline,
       url: this.url,
+      devices: this.#devices,
     };
   }
 

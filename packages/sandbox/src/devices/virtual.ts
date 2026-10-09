@@ -59,11 +59,14 @@ export class VirtualDevices {
   }
 
   /** Creates the configuration entry for the device file the instance started with. */
-  async initialise(specs: readonly VirtualDeviceSpec[]): Promise<VirtualDevice[]> {
+  async initialise(
+    specs: readonly VirtualDeviceSpec[],
+  ): Promise<VirtualDevice[]> {
     return this.#serial(async () => {
       this.#specs = [...specs];
+      const existing = await this.#entityIds();
       await this.#createEntry();
-      return this.#appear(specs);
+      return this.#appear(specs, existing);
     });
   }
 
@@ -81,23 +84,26 @@ export class VirtualDevices {
       );
       if (valid.length === 0) return [];
       const previous = this.#specs;
-      this.#specs = [...previous, ...valid];
+      const entryId = this.#entryId;
       try {
+        const existing = await this.#entityIds();
+        this.#specs = [...previous, ...valid];
         await this.#writeFile();
-        await postJson(
-          this.#context.baseUrl,
-          `${ENTRY}/${this.#entryId}/reload`,
-          {},
-          { token: this.#context.token, timeoutMs: 60_000 },
-        );
-        return await this.#appear(valid);
+        await this.#reload(entryId);
+        return await this.#appear(valid, existing);
       } catch (error) {
         this.#specs = previous;
+        // Put the previous file back so a later reload does not bring the failed devices in.
+        try {
+          await this.#writeFile();
+          await this.#reload(entryId);
+        } catch {
+          // Best effort: the original error is the one worth reporting.
+        }
         if (error instanceof SandboxError) throw error;
-        throw failed(
-          error instanceof Error ? error.message : String(error),
-          [this.#context.token],
-        );
+        throw failed(error instanceof Error ? error.message : String(error), [
+          this.#context.token,
+        ]);
       }
     });
   }
@@ -106,6 +112,29 @@ export class VirtualDevices {
     const run = this.#queue.then(task, task);
     this.#queue = run.catch(() => undefined);
     return run;
+  }
+
+  async #reload(entryId: string): Promise<void> {
+    await postJson(
+      this.#context.baseUrl,
+      `${ENTRY}/${entryId}/reload`,
+      {},
+      { token: this.#context.token, timeoutMs: 60_000 },
+    );
+  }
+
+  /** Every entity id in the instance now, so entities that were already there are never taken for new ones. */
+  async #entityIds(): Promise<Set<string>> {
+    try {
+      const rows = (await getJson(this.#context.baseUrl, "/api/states", {
+        token: this.#context.token,
+      })) as StateRow[];
+      return new Set(rows.map((row) => row.entity_id));
+    } catch (error) {
+      throw failed(error instanceof Error ? error.message : String(error), [
+        this.#context.token,
+      ]);
+    }
   }
 
   async #writeFile(): Promise<void> {
@@ -147,15 +176,17 @@ export class VirtualDevices {
       }
       this.#entryId = entryId;
     } catch (error) {
-      throw failed(
-        error instanceof Error ? error.message : String(error),
-        [token],
-      );
+      throw failed(error instanceof Error ? error.message : String(error), [
+        token,
+      ]);
     }
   }
 
   /** Waits for the new entities and reads their ids back (research R7: by name and kind). */
-  async #appear(specs: readonly VirtualDeviceSpec[]): Promise<VirtualDevice[]> {
+  async #appear(
+    specs: readonly VirtualDeviceSpec[],
+    existing: ReadonlySet<string>,
+  ): Promise<VirtualDevice[]> {
     const { baseUrl, token } = this.#context;
     const wanted = specs;
     const found = new Map<string, string>();
@@ -172,6 +203,7 @@ export class VirtualDevices {
             typeof candidate.attributes?.friendly_name === "string" &&
             candidate.attributes.friendly_name.toLowerCase() ===
               spec.name.toLowerCase() &&
+            !existing.has(candidate.entity_id) &&
             ![...found.values()].includes(candidate.entity_id),
         );
         if (row !== undefined) found.set(spec.name, row.entity_id);

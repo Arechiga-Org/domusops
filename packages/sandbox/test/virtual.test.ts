@@ -1,5 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create } from "tar";
@@ -88,6 +95,34 @@ describe("validating devices", () => {
     ["a non-object entry", [null]],
   ])("rejects %s with a TypeError", (_label, input) => {
     expect(() => validateDevices(input as never)).toThrow(TypeError);
+  });
+
+  it.each([
+    ["Hall Light", "hall-light"],
+    ["Hall", "HALL"],
+    ["Café", "Cafe"],
+  ])("rejects %j and %j, which make the same entity id", (first, second) => {
+    expect(() =>
+      validateDevices([
+        { kind: "light", name: first },
+        { kind: "switch", name: second },
+      ]),
+    ).toThrow(TypeError);
+  });
+
+  it("compares a new name with the slugs of the names already taken", () => {
+    expect(() =>
+      validateDevices([{ kind: "switch", name: "hall_light" }], ["Hall Light"]),
+    ).toThrow(TypeError);
+  });
+
+  it("keeps names with no letters or digits apart by their own text", () => {
+    expect(
+      validateDevices([
+        { kind: "light", name: "★" },
+        { kind: "light", name: "☆" },
+      ]),
+    ).toHaveLength(2);
   });
 
   it("counts names already in the instance as taken", () => {
@@ -190,6 +225,32 @@ describe("packing with virtual devices", () => {
       entries.has("config/custom_components/virtual/translations/en.json"),
     ).toBe(false);
     expect(entries.get(`config/${DEVICE_FILE}`)?.content).toBe(DEVICE_TEXT);
+  });
+});
+
+describe("a symlinked virtual integration", () => {
+  it("is the user's own and ours is not added", async () => {
+    const dir = scratch();
+    writeFileSync(join(dir, "configuration.yaml"), "default_config:\n");
+    mkdirSync(join(dir, "vendor", "virtual"), { recursive: true });
+    writeFileSync(
+      join(dir, "vendor", "virtual", "manifest.json"),
+      '{"domain":"virtual","own":true}',
+    );
+    mkdirSync(join(dir, "custom_components"), { recursive: true });
+    symlinkSync(
+      join("..", "vendor", "virtual"),
+      join(dir, "custom_components", "virtual"),
+    );
+    const { archive, summary } = await packConfig(
+      { dir },
+      { integration: INTEGRATION, deviceFile: DEVICE_TEXT },
+    );
+    expect(summary?.userVirtualIntegration).toBe(true);
+    const entries = await readArchive(archive);
+    expect(
+      entries.has("config/custom_components/virtual/translations/en.json"),
+    ).toBe(false);
   });
 });
 

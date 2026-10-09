@@ -62,6 +62,7 @@ class Clock:
         self.hass = hass
         self._now: datetime | None = None
         self._original: dict[str, Any] | None = None
+        self._lock = asyncio.Lock()
 
     @property
     def frozen(self) -> bool:
@@ -135,6 +136,10 @@ class Clock:
             _LOGGER.warning("Could not re-arm automations after a clock change", exc_info=True)
 
     async def freeze(self, at: datetime, *, rearm: bool = True) -> datetime:
+        async with self._lock:
+            return await self._freeze(at, rearm=rearm)
+
+    async def _freeze(self, at: datetime, *, rearm: bool = True) -> datetime:
         self._now = at
         self._install()
         if rearm:
@@ -142,12 +147,13 @@ class Clock:
         return at
 
     async def resume(self) -> datetime:
-        was_frozen = self.frozen
-        self._restore()
-        self._now = None
-        if was_frozen:
-            await self._rearm()
-        return dt_util.utcnow()
+        async with self._lock:
+            was_frozen = self.frozen
+            self._restore()
+            self._now = None
+            if was_frozen:
+                await self._rearm()
+            return dt_util.utcnow()
 
     async def advance(self, seconds: float) -> tuple[datetime, int]:
         if not 0 < seconds <= MAX_ADVANCE_SECONDS:
@@ -155,66 +161,92 @@ class Clock:
                 "invalid_time",
                 f"`seconds` must be greater than 0 and at most {MAX_ADVANCE_SECONDS}.",
             )
+        async with self._lock:
+            return await self._advance(seconds)
+
+    async def _advance(self, seconds: float) -> tuple[datetime, int]:
         if self._now is None:
             # Freezing at the real time leaves the pending timers correctly aimed.
-            await self.freeze(dt_util.utcnow(), rearm=False)
+            await self._freeze(dt_util.utcnow(), rearm=False)
         assert self._now is not None
         loop = self.hass.loop
         target = self._now + timedelta(seconds=seconds)
         target_ts = target.timestamp()
         start_ts = self._now.timestamp()
-        due: dict[int, float] = {}
         fired = 0
+        sequence = 0
+        # (due, order, handle): the timers of the event helper, earliest first.
+        queue: list[tuple[float, int, Any]] = []
 
-        def scan() -> list[tuple[float, Any]]:
+        def track(handle: Any) -> None:
+            nonlocal sequence
+            if handle.cancelled() or not _is_event_timer(handle):
+                return
+            assert self._now is not None
+            expected = getattr(handle._callback, "expected_fire_timestamp", None)
+            due = (
+                float(expected)
+                if expected is not None
+                else self._now.timestamp() + max(0.0, handle.when() - loop.time())
+            )
+            sequence += 1
+            heapq.heappush(queue, (due, sequence, handle))
+
+        for handle in list(loop._scheduled):  # type: ignore[attr-defined]
+            track(handle)
+
+        # Timers scheduled while the advance runs are picked up here, without scanning the loop.
+        original_call_at = loop.call_at
+
+        def call_at(when: float, callback: Any, *args: Any, **kwargs: Any) -> Any:
+            handle = original_call_at(when, callback, *args, **kwargs)
+            track(handle)
+            return handle
+
+        loop.call_at = call_at  # type: ignore[method-assign]
+        try:
+            while queue:
+                due, _, handle = queue[0]
+                if handle.cancelled():
+                    heapq.heappop(queue)
+                    continue
+                # A timer already overdue when the advance starts belongs to the real clock (a
+                # token expiry in the past of the frozen time, say) and re-arms itself for the
+                # same instant.
+                if due <= start_ts:
+                    heapq.heappop(queue)
+                    continue
+                if due > target_ts:
+                    break
+                heapq.heappop(queue)
+                fired += 1
+                if fired > MAX_FIRED:
+                    raise ClockError(
+                        "time_control_failed",
+                        f"More than {MAX_FIRED} timers fell due while advancing; stopped at "
+                        f"{format_time(self._now)}.",
+                    )
+                # A timer rearms itself when it runs even a hair early, so the clock must not
+                # fall short of the instant through rounding to microseconds.
+                instant = datetime.fromtimestamp(due, timezone.utc)
+                while instant.timestamp() < due:
+                    instant += timedelta(microseconds=1)
+                self._now = max(self._now, instant)
+                handle._run()
+                handle.cancel()
+                await asyncio.sleep(0)
+            self._now = max(self._now, target)
+        finally:
+            del loop.call_at
+            # Timers that did not fall due keep their remaining virtual time on the real clock;
+            # after a failure that is measured from where the clock stopped.
             assert self._now is not None
             now_ts = self._now.timestamp()
             loop_now = loop.time()
-            pending: list[tuple[float, Any]] = []
-            for handle in list(loop._scheduled):  # type: ignore[attr-defined]
-                if handle.cancelled() or not _is_event_timer(handle):
+            for due, _, handle in queue:
+                if handle.cancelled():
                     continue
-                key = id(handle)
-                if key not in due:
-                    expected = getattr(handle._callback, "expected_fire_timestamp", None)
-                    due[key] = (
-                        float(expected)
-                        if expected is not None
-                        else now_ts + max(0.0, handle.when() - loop_now)
-                    )
-                pending.append((due[key], handle))
-            return pending
-
-        while True:
-            # A timer already overdue when the advance starts belongs to the real clock (a token
-            # expiry in the past of the frozen time, say) and re-arms itself for the same instant.
-            ready = [item for item in scan() if start_ts < item[0] <= target_ts]
-            if not ready:
-                break
-            when_ts, handle = min(ready, key=lambda item: item[0])
-            fired += 1
-            if fired > MAX_FIRED:
-                raise ClockError(
-                    "time_control_failed",
-                    f"More than {MAX_FIRED} timers fell due while advancing; stopped.",
-                )
-            # A timer rearms itself when it runs even a hair early, so the clock must not fall
-            # short of the instant through rounding to microseconds.
-            instant = datetime.fromtimestamp(when_ts, timezone.utc)
-            while instant.timestamp() < when_ts:
-                instant += timedelta(microseconds=1)
-            self._now = max(self._now, instant)
-            handle._run()
-            handle.cancel()
-            due.pop(id(handle), None)
-            await asyncio.sleep(0)
-
-        self._now = target
-        # Timers that did not fall due keep their remaining virtual time on the real clock.
-        loop_now = loop.time()
-        for due_ts, handle in scan():
-            if getattr(handle._callback, "expected_fire_timestamp", None) is None:
-                handle._when = loop_now + max(0.0, due_ts - target_ts)
-        heapq.heapify(loop._scheduled)  # type: ignore[attr-defined]
-        return target, fired
-
+                if getattr(handle._callback, "expected_fire_timestamp", None) is None:
+                    handle._when = loop_now + max(0.0, due - now_ts)
+            heapq.heapify(loop._scheduled)  # type: ignore[attr-defined]
+        return self._now, fired

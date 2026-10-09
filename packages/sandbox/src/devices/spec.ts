@@ -41,6 +41,17 @@ function isKind(value: unknown): value is DeviceKind {
 /** The integration reads a leading `+` or `!` in a name as an instruction about the entity id. */
 const RESERVED_NAME_START = /^[+!]/;
 
+/** The id fragment Home Assistant derives from a name; names with the same one would collide. */
+export function slugOf(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return slug === "" ? name.toLowerCase() : slug;
+}
+
 /**
  * Checks `specs` and returns them normalised. `taken` holds the names already in the instance.
  * A kind the device integration does not offer is a `SandboxError`; everything else wrong with
@@ -53,7 +64,7 @@ export function validateDevices(
   if (!Array.isArray(specs)) {
     throw new TypeError("`devices` must be an array of device specifications.");
   }
-  const seen = new Set(taken.map((name) => name.toLowerCase()));
+  const seen = new Set(taken.map(slugOf));
   return specs.map((spec, index) => {
     const where = `devices[${String(index)}]`;
     if (typeof spec !== "object" || spec === null) {
@@ -77,12 +88,12 @@ export function validateDevices(
     if (RESERVED_NAME_START.test(name)) {
       throw new TypeError(`${where}.name must not start with "+" or "!".`);
     }
-    if (seen.has(name.toLowerCase())) {
+    if (seen.has(slugOf(name))) {
       throw new TypeError(
-        `${where}.name "${name}" is already used by another device in this instance.`,
+        `${where}.name "${name}" is already used by another device in this instance (names are compared by the entity id they produce, so "Hall Light" and "hall-light" collide).`,
       );
     }
-    seen.add(name.toLowerCase());
+    seen.add(slugOf(name));
     for (const field of ["class", "initial"] as const) {
       const value = spec[field];
       if (value !== undefined && (typeof value !== "string" || value === "")) {

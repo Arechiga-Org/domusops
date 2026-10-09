@@ -332,6 +332,44 @@ describe("start --device", () => {
     expect(h.started).toEqual([]);
   });
 
+  it("says which entity id each device got, as text and as JSON", async () => {
+    const devices = [
+      { kind: "light" as const, name: "Hall", entityId: "light.hall" },
+    ];
+    const withDevices = (h: Harness): Partial<CliDeps> => ({
+      start: async (options) => {
+        h.started.push(options);
+        return {
+          ...fakeSandbox(h.stopped, options.mode, h.reaped, h.detached),
+          devices,
+        };
+      },
+    });
+    const text = harness();
+    Object.assign(text.deps, withDevices(text));
+    await main(["start", "--background", "--device", "light:Hall"], text.deps);
+    expect(text.out.join("")).toContain('device light "Hall" light.hall');
+
+    const json = harness();
+    Object.assign(json.deps, withDevices(json));
+    await main(
+      ["start", "--background", "--json", "--device", "light:Hall"],
+      json.deps,
+    );
+    expect(
+      (JSON.parse(json.out.join("")) as { devices: unknown }).devices,
+    ).toEqual(devices);
+    expect(json.out.join("")).not.toContain(TOKEN);
+  });
+
+  it("explains that a name cannot contain a colon", async () => {
+    const h = harness();
+    expect(
+      await main(["start", "--device", "light:a:b:c", "--", "true"], h.deps),
+    ).toBe(2);
+    expect(h.err.join("")).toContain('cannot contain ":"');
+  });
+
   it("starts without devices when none are given", async () => {
     const h = harness();
     await main(["start", "--", "true"], h.deps);

@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join, posix } from "node:path";
 import { Parser } from "tar";
@@ -132,13 +138,14 @@ export async function ensureVirtualIntegration(
       );
     }
     tarball = downloaded;
+    const temporary = `${cached}.${String(process.pid)}.tmp`;
     try {
       mkdirSync(cacheDir, { recursive: true });
-      const temporary = `${cached}.${String(process.pid)}.tmp`;
       writeFileSync(temporary, tarball);
       renameSync(temporary, cached);
     } catch {
       // A cache that cannot be written only costs the next run another download.
+      rmSync(temporary, { force: true });
     }
   }
   let files: VirtualFile[];

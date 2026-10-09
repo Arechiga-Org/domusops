@@ -296,6 +296,9 @@ function addSource(
         } else {
           const link = relative(directory, resolved).split("\\").join("/");
           builder.addSymlink(target, link === "" ? "." : link);
+          if (relativePath === "custom_components/virtual") {
+            userVirtualIntegration = true;
+          }
         }
       } else if (entry.isDirectory()) {
         if (relativePath === "custom_components/virtual") {
@@ -345,7 +348,8 @@ function addSource(
       placeholderKeys: secrets.placeholderKeys,
       userVirtualIntegration,
     },
-    secretValues: callerSecrets === undefined ? [] : secretValues(callerSecrets),
+    secretValues:
+      callerSecrets === undefined ? [] : secretValues(callerSecrets),
   };
 }
 
