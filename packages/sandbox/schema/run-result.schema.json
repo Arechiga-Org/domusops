@@ -1,0 +1,231 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "domusops.sandbox-result/0.1",
+  "description": "The result of one `domusops-sandbox smoke` run.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "channel",
+    "outcome",
+    "steps",
+    "startedAt",
+    "finishedAt",
+    "runner",
+    "sandboxVersion"
+  ],
+  "properties": {
+    "format": {
+      "const": "domusops.sandbox-result/0.1"
+    },
+    "channel": {
+      "enum": ["stable", "previous-stable", "beta", "exact"]
+    },
+    "release": {
+      "$ref": "#/definitions/release"
+    },
+    "outcome": {
+      "enum": ["passed", "failed", "could-not-run", "no-beta-in-progress"]
+    },
+    "failedStep": {
+      "enum": [
+        "resolve",
+        "pull",
+        "start",
+        "load-config",
+        "virtual-device",
+        "set-state",
+        "time",
+        "mcp-snapshot",
+        "websocket",
+        "teardown"
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/step"
+      }
+    },
+    "startedAt": {
+      "$ref": "#/definitions/instant"
+    },
+    "finishedAt": {
+      "$ref": "#/definitions/instant"
+    },
+    "runner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sandboxVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ciRunUrl": {
+      "type": "string",
+      "pattern": "^https://\\S+$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "no-beta-in-progress"
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "not": {
+          "required": ["release"]
+        },
+        "properties": {
+          "channel": {
+            "const": "beta"
+          }
+        }
+      },
+      "else": {
+        "if": {
+          "properties": {
+            "outcome": {
+              "const": "could-not-run"
+            },
+            "failedStep": {
+              "const": "resolve"
+            }
+          },
+          "required": ["outcome", "failedStep"]
+        },
+        "then": {
+          "not": {
+            "required": ["release"]
+          }
+        },
+        "else": {
+          "required": ["release"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "enum": ["failed", "could-not-run"]
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "required": ["failedStep"]
+      },
+      "else": {
+        "not": {
+          "required": ["failedStep"]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "enum": ["passed", "failed"]
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "properties": {
+          "steps": {
+            "minItems": 8,
+            "maxItems": 8
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "steps": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "failed"
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "properties": {
+          "failedStep": {
+            "not": {
+              "enum": ["resolve", "pull"]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "could-not-run"
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "properties": {
+          "failedStep": {
+            "enum": ["resolve", "pull"]
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "release": {
+      "type": "string",
+      "pattern": "^\\d{4}\\.\\d{1,2}\\.\\d+(b\\d+)?$"
+    },
+    "instant": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status"],
+      "properties": {
+        "name": {
+          "enum": [
+            "start",
+            "load-config",
+            "virtual-device",
+            "set-state",
+            "time",
+            "mcp-snapshot",
+            "websocket",
+            "teardown"
+          ]
+        },
+        "status": {
+          "enum": ["passed", "failed", "skipped"]
+        },
+        "ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    }
+  }
+}

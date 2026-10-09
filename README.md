@@ -18,7 +18,7 @@ inventory of a live Home Assistant instance) is in progress. See
 | [`@domusops/schema`](./packages/schema)       | scaffolded                                    |
 | [`@domusops/mcp`](./packages/mcp)             | `ha_snapshot`, `ha_logbook_query`, `ha_trace` |
 | [`@domusops/bootstrap`](./packages/bootstrap) | CLI behind the `ha-bootstrap` skill           |
-| [`@domusops/sandbox`](./packages/sandbox)     | not started                                   |
+| [`@domusops/sandbox`](./packages/sandbox)     | ephemeral Home Assistant test harness         |
 
 ## Skills
 
@@ -28,9 +28,19 @@ inventory of a live Home Assistant instance) is in progress. See
 
 ## Supported Home Assistant versions
 
-Not yet published — per this project's own governance (constitution §8), the
-supported-version matrix is generated from CI, not hand-written, and there is
-no CI run yet.
+The table is generated from the results of CI runs of `@domusops/sandbox` (constitution §8) and
+is never edited by hand: `pnpm sandbox:table --run <run id>` rewrites it from a run's results.
+Each date links to the run that produced the row.
+
+<!-- domusops:supported-versions:start -->
+
+| Channel         | Release | Result          | Checked |
+| --------------- | ------- | --------------- | ------- |
+| Current stable  | —       | Not yet checked | —       |
+| Previous stable | —       | Not yet checked | —       |
+| Current beta    | —       | Not yet checked | —       |
+
+<!-- domusops:supported-versions:end -->
 
 ## Development
 

@@ -6,8 +6,31 @@ import type { SandboxListing } from "../src/instance/list.js";
 import type { StartOptions } from "../src/instance/start.js";
 import type { Removal } from "../src/runtime/reaper.js";
 import type { ConfigSummary } from "../src/types.js";
+import { readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  RESULT_FORMAT,
+  STEP_NAMES,
+  type RunResult,
+} from "../src/results/result.js";
+import type { SmokeTarget } from "../src/smoke/run.js";
 
 const TOKEN = "tok-0123456789abcdef";
+
+function passedRun(): RunResult {
+  return {
+    format: RESULT_FORMAT,
+    channel: "stable",
+    release: "2026.10.1",
+    outcome: "passed",
+    steps: STEP_NAMES.map((name) => ({ name, status: "passed", ms: 5 })),
+    startedAt: "2026-10-08T10:00:00Z",
+    finishedAt: "2026-10-08T10:01:00Z",
+    runner: "linux-x64",
+    sandboxVersion: "0.1.0",
+  };
+}
 
 function fakeSandbox(
   stopped: string[],
@@ -63,6 +86,8 @@ interface Harness {
   listings: SandboxListing[];
   started: StartOptions[];
   ran: { argv: readonly string[]; env: NodeJS.ProcessEnv }[];
+  smoked: SmokeTarget[];
+  smokeResult: RunResult;
 }
 
 function harness(
@@ -80,6 +105,8 @@ function harness(
     listings: [],
     started: [],
     ran: [],
+    smoked: [],
+    smokeResult: passedRun(),
     deps: undefined as unknown as CliDeps,
   };
   h.deps = {
@@ -102,6 +129,10 @@ function harness(
       release: "2026.10.1",
       beta: false,
     }),
+    smoke: async (target) => {
+      h.smoked.push(target);
+      return h.smokeResult;
+    },
     run: async (argv, runEnv) => {
       h.ran.push({ argv, env: runEnv });
       return exitCode;
@@ -656,5 +687,88 @@ describe("start --config", () => {
       1,
     );
     expect(h.err.join("")).toContain("config_dir_invalid");
+  });
+});
+
+describe("smoke", () => {
+  it("checks the stable channel by default and exits 0 for a pass", async () => {
+    const h = harness();
+    expect(await main(["smoke"], h.deps)).toBe(0);
+    expect(h.smoked).toEqual([{ channel: "stable" }]);
+    expect(h.out.join("")).toContain("stable 2026.10.1: passed");
+  });
+
+  it("takes a channel or an exact release", async () => {
+    const h = harness();
+    await main(["smoke", "--channel", "previous-stable"], h.deps);
+    await main(["smoke", "--release", "2026.9.3"], h.deps);
+    expect(h.smoked).toEqual([
+      { channel: "previous-stable" },
+      { release: "2026.9.3" },
+    ]);
+  });
+
+  it.each([
+    [["smoke", "--channel", "nightly"]],
+    [["smoke", "--release", "latest"]],
+    [["smoke", "--channel", "stable", "--release", "2026.9.3"]],
+    [["smoke", "--result", ""]],
+    [["smoke", "--bogus"]],
+    [["smoke", "extra"]],
+  ])("exits 2 for %j without running anything", async (argv) => {
+    const h = harness();
+    expect(await main(argv, h.deps)).toBe(2);
+    expect(h.smoked).toEqual([]);
+  });
+
+  it("exits 1 for a failed check and names the step", async () => {
+    const h = harness();
+    h.smokeResult = {
+      ...passedRun(),
+      outcome: "failed",
+      failedStep: "time",
+      steps: STEP_NAMES.map((name) => ({
+        name,
+        status: name === "time" ? "failed" : "passed",
+        ms: 1,
+        ...(name === "time" ? { message: "automation did not fire" } : {}),
+      })),
+    };
+    expect(await main(["smoke"], h.deps)).toBe(1);
+    expect(h.out.join("")).toContain("failed at time");
+    expect(h.out.join("")).toContain("automation did not fire");
+  });
+
+  it("exits 3 when the run could not happen, and 0 when no beta is in progress", async () => {
+    const h = harness();
+    h.smokeResult = {
+      ...passedRun(),
+      outcome: "could-not-run",
+      failedStep: "pull",
+      steps: [],
+    };
+    expect(await main(["smoke"], h.deps)).toBe(3);
+    const rest = Object.fromEntries(
+      Object.entries(passedRun()).filter(([name]) => name !== "release"),
+    ) as RunResult;
+    h.smokeResult = {
+      ...rest,
+      channel: "beta",
+      outcome: "no-beta-in-progress",
+      steps: [],
+    };
+    expect(await main(["smoke", "--channel", "beta"], h.deps)).toBe(0);
+  });
+
+  it("writes the result file when asked", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domusops-smoke-"));
+    try {
+      const file = join(dir, "result.json");
+      const h = harness();
+      await main(["smoke", "--result", file], h.deps);
+      expect(JSON.parse(readFileSync(file, "utf8"))).toEqual(passedRun());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

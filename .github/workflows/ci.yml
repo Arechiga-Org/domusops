@@ -68,16 +68,61 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @domusops/bootstrap run test:bootstrap:container
 
-  # Constitution §8: the supported-version matrix is proven here, not
-  # hand-written in the README. Activated once @domusops/sandbox exists
-  # (backlog item 3 in docs/SEED.md §6) — currently a no-op placeholder.
+  # Constitution §8: the supported-version matrix is proven here, not hand-written in the README.
+  # Each leg runs the smoke check (the eight steps of specs/005-sandbox-harness/contracts/run-result.md)
+  # and the container tests on one channel, then uploads the machine-readable result. The beta leg
+  # may fail without failing the workflow; stable and previous-stable may not (see sandbox-gate).
+  # Nothing here prints the environment or a token.
   sandbox-matrix:
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.channel == 'beta' }}
     strategy:
+      fail-fast: false
       matrix:
-        ha-version: [stable, stable-1, beta]
+        channel: [stable, previous-stable, beta]
     steps:
       - uses: actions/checkout@v4
-      - name: sandbox not implemented yet
-        run: |
-          echo "TODO: ./packages/sandbox/ci/run.sh --ha ${{ matrix.ha-version }}"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @domusops/sandbox... build
+      - name: Smoke check
+        run: node packages/sandbox/dist/cli.js smoke --channel ${{ matrix.channel }} --result sandbox-result-${{ matrix.channel }}.json
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-result-${{ matrix.channel }}
+          path: sandbox-result-${{ matrix.channel }}.json
+          if-no-files-found: warn
+      - name: Container tests
+        if: ${{ !cancelled() }}
+        env:
+          DOMUSOPS_SANDBOX_CHANNEL: ${{ matrix.channel }}
+        run: pnpm --filter @domusops/sandbox run test:container
+
+  # One required check for branch protection: the matrix legs that must pass are stable and
+  # previous-stable. The beta leg is informative. The table goes to the job summary.
+  sandbox-gate:
+    needs: sandbox-matrix
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @domusops/sandbox... build
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sandbox-result-*
+          path: sandbox-results
+          merge-multiple: true
+      - name: Check the matrix
+        run: node packages/sandbox/scripts/supported-versions.mjs --gate sandbox-results >> "$GITHUB_STEP_SUMMARY"

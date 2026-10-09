@@ -35,7 +35,7 @@ Written by `domusops-sandbox smoke --result <file>`; validated by
 }
 ```
 
-Rules: `release` is absent only for `no-beta-in-progress`. `failedStep` is present exactly when
+Rules: `release` is absent for `no-beta-in-progress` and for a `could-not-run` at `resolve`, where no release was found. `failedStep` is present exactly when
 the outcome is `failed` or `could-not-run` (then `resolve` or `pull`). `steps` is empty for
 `could-not-run` and `no-beta-in-progress`. `message` is English, at most 300 characters, and
 never contains a token, a secret, or entity states.

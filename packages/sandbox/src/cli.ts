@@ -24,7 +24,10 @@ import {
 } from "./runtime/reaper.js";
 import { validateOptions, type StartOptions } from "./instance/start.js";
 import { resolveChannel } from "./release/resolve.js";
+import { writeResult, type RunResult } from "./results/result.js";
+import { defaultSmokeDeps, runSmoke, type SmokeTarget } from "./smoke/run.js";
 import {
+  RELEASE_RE,
   isChannel,
   type Channel,
   type ResolvedRelease,
@@ -50,6 +53,8 @@ export interface CliDeps {
   held(listing: SandboxListing): boolean;
   stop(id: string): Promise<void>;
   cleanup(): Promise<{ removed: Removal[] }>;
+  /** Runs the smoke check on one release; a failed check is a result, not an exception. */
+  smoke(target: SmokeTarget): Promise<RunResult>;
   /** Runs the command with the given environment; resolves to its exit code. */
   run(argv: readonly string[], env: NodeJS.ProcessEnv): Promise<number>;
   out(text: string): void;
@@ -67,6 +72,7 @@ const USAGE = `Usage:
   domusops-sandbox list [--json]
   domusops-sandbox stop <id>... | --all [--force]
   domusops-sandbox cleanup [--json]
+  domusops-sandbox smoke [--channel <c> | --release <r>] [--result <file>]
 `;
 
 function splitAtDashes(argv: readonly string[]): {
@@ -328,6 +334,59 @@ async function runList(own: string[], deps: CliDeps): Promise<number> {
   return EXIT_OK;
 }
 
+async function runSmokeCommand(own: string[], deps: CliDeps): Promise<number> {
+  const { values } = parseArgs({
+    args: own,
+    options: {
+      channel: { type: "string" },
+      release: { type: "string" },
+      result: { type: "string" },
+    },
+    allowPositionals: false,
+    strict: true,
+  });
+  if (values.channel !== undefined && values.release !== undefined) {
+    throw new UsageError("Give either --channel or --release, not both.");
+  }
+  if (values.result === "") throw new UsageError("--result needs a path.");
+  let target: SmokeTarget;
+  if (values.release !== undefined) {
+    if (!RELEASE_RE.test(values.release)) {
+      throw new UsageError(
+        `"${values.release}" is not a Home Assistant release such as 2026.10.1.`,
+      );
+    }
+    target = { release: values.release };
+  } else {
+    const channel = values.channel ?? "stable";
+    if (!isChannel(channel)) {
+      throw new UsageError(
+        "--channel must be stable, previous-stable or beta.",
+      );
+    }
+    target = { channel };
+  }
+
+  const result = await deps.smoke(target);
+  if (values.result !== undefined) writeResult(values.result, result);
+  deps.out(describeRun(result));
+  if (result.outcome === "failed") return EXIT_FAILURE;
+  return result.outcome === "could-not-run" ? EXIT_COULD_NOT_RUN : EXIT_OK;
+}
+
+function describeRun(result: RunResult): string {
+  const lines = [
+    `${result.channel} ${result.release ?? "(no release)"}: ${result.outcome}${result.failedStep === undefined ? "" : ` at ${result.failedStep}`}`,
+  ];
+  for (const step of result.steps) {
+    const message = step.message === undefined ? "" : `  ${step.message}`;
+    lines.push(
+      `  ${step.name.padEnd(15)}${step.status}${step.ms === undefined ? "" : ` (${String(step.ms)} ms)`}${message}`,
+    );
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 async function runStop(own: string[], deps: CliDeps): Promise<number> {
   const { values, positionals } = parseArgs({
     args: own,
@@ -407,6 +466,7 @@ export async function main(
     if (name === "list") return await runList(rest, deps);
     if (name === "stop") return await runStop(rest, deps);
     if (name === "cleanup") return await runCleanup(rest, deps);
+    if (name === "smoke") return await runSmokeCommand(rest, deps);
     throw new UsageError(
       name === undefined ? "No command given." : `Unknown command "${name}".`,
     );
@@ -467,6 +527,7 @@ if (isEntryPoint(process.argv[1])) {
     held: (listing) => ownerMayBeAlive(listing, hostname(), processAlive),
     stop: stopSandbox,
     cleanup,
+    smoke: (target) => runSmoke(target, defaultSmokeDeps(process.env)),
     run: runCommand,
     out: (text) => void process.stdout.write(text),
     err: (text) => void process.stderr.write(text),
