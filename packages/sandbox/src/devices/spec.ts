@@ -85,6 +85,9 @@ export function validateDevices(
         `${where}.name must be 1 to ${String(MAX_DEVICE_NAME)} characters.`,
       );
     }
+    if (/\p{Cc}/u.test(name)) {
+      throw new TypeError(`${where}.name must not contain control characters.`);
+    }
     if (RESERVED_NAME_START.test(name)) {
       throw new TypeError(`${where}.name must not start with "+" or "!".`);
     }

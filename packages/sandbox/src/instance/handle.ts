@@ -41,7 +41,7 @@ const ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const SERVICE_PART = /^[a-z0-9_]+$/;
 /** ISO 8601 date and time, with an optional offset; what the instance's own parser reads. */
 const ISO_INSTANT =
-  /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:?\d{2})?$/;
+  /^\d{4}-\d{2}-\d{2}[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,6})?)?(?:Z|[+-](?:[01]\d|2[0-3]):?[0-5]\d)?$/;
 
 /** True for an ISO 8601 date and time the instance can read; a date alone or free text is not. */
 export function isInstant(value: unknown): value is string {
@@ -80,7 +80,10 @@ export interface Sandbox {
   readonly devices: readonly VirtualDevice[];
   /** Needs `devices` (an empty list is enough) at start. */
   addDevices(devices: VirtualDeviceSpec[]): Promise<VirtualDevice[]>;
-  /** Writes the state machine entry, as a device would: triggers and automations see it. */
+  /**
+   * Writes the state machine entry, as a device would: triggers and automations see it.
+   * Without `attributes` the entity keeps the ones it has; with them they replace the old set.
+   */
   setState(
     entityId: string,
     state: string,
@@ -209,17 +212,20 @@ export class SandboxHandle implements Sandbox {
   async setState(
     entityId: string,
     state: string,
-    attributes: Record<string, unknown> = {},
+    attributes?: Record<string, unknown>,
   ): Promise<void> {
     this.assertRunning();
     assertEntityId(entityId);
     if (typeof state !== "string") {
       throw new TypeError("`state` must be a string.");
     }
+    // The endpoint replaces the whole attribute set, so keep the current one unless told otherwise.
+    const kept =
+      attributes ?? (await this.getState(entityId))?.attributes ?? {};
     await postJson(
       this.url,
       `/api/states/${entityId}`,
-      { state, attributes },
+      { state, attributes: kept },
       { token: this.#token },
     );
   }

@@ -57,11 +57,18 @@ async function downloadTarball(url: string): Promise<Buffer> {
   if (!response.ok) {
     throw new Error(`${url} answered ${String(response.status)}`);
   }
-  const body = Buffer.from(await response.arrayBuffer());
-  if (body.length > MAX_TARBALL_BYTES) {
-    throw new Error(`${url} is larger than expected`);
+  const tooLarge = new Error(`${url} is larger than expected`);
+  const declared = Number(response.headers.get("content-length"));
+  if (declared > MAX_TARBALL_BYTES) throw tooLarge;
+  if (response.body === null) throw new Error(`${url} sent no body`);
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of response.body as AsyncIterable<Uint8Array>) {
+    size += chunk.length;
+    if (size > MAX_TARBALL_BYTES) throw tooLarge;
+    chunks.push(Buffer.from(chunk));
   }
-  return body;
+  return Buffer.concat(chunks);
 }
 
 function sha256(data: Buffer): string {

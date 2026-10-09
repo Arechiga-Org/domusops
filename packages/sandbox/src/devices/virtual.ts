@@ -18,6 +18,7 @@ const FLOW = "/api/config/config_entries/flow";
 const ENTRY = "/api/config/config_entries/entry";
 const APPEAR_TIMEOUT_MS = 30_000;
 const POLL_MS = 250;
+const RESTORE_TIMEOUT_MS = 10_000;
 
 export interface DeviceContext {
   runtime: Runtime;
@@ -28,7 +29,8 @@ export interface DeviceContext {
 
 interface StateRow {
   entity_id: string;
-  attributes?: { friendly_name?: unknown };
+  state?: string;
+  attributes?: { friendly_name?: unknown } & Record<string, unknown>;
 }
 
 function failed(detail: string, secrets: readonly string[]): SandboxError {
@@ -53,6 +55,7 @@ export class VirtualDevices {
   #specs: VirtualDeviceSpec[] = [];
   #entryId: string | null = null;
   #queue: Promise<unknown> = Promise.resolve();
+  #known: VirtualDevice[] = [];
 
   constructor(context: DeviceContext) {
     this.#context = context;
@@ -63,10 +66,15 @@ export class VirtualDevices {
     specs: readonly VirtualDeviceSpec[],
   ): Promise<VirtualDevice[]> {
     return this.#serial(async () => {
-      this.#specs = [...specs];
-      const existing = await this.#entityIds();
-      await this.#createEntry();
-      return this.#appear(specs, existing);
+      try {
+        this.#specs = [...specs];
+        const existing = await this.#entityIds();
+        await this.#createEntry();
+        this.#known = await this.#appear(specs, existing);
+        return [...this.#known];
+      } catch (error) {
+        throw this.#asFailure(error);
+      }
     });
   }
 
@@ -85,12 +93,22 @@ export class VirtualDevices {
       if (valid.length === 0) return [];
       const previous = this.#specs;
       const entryId = this.#entryId;
+      let existing: Set<string>;
+      let before: StateRow[];
       try {
-        const existing = await this.#entityIds();
-        this.#specs = [...previous, ...valid];
+        before = await this.#rows();
+        existing = new Set(before.map((row) => row.entity_id));
+      } catch (error) {
+        throw this.#asFailure(error);
+      }
+      this.#specs = [...previous, ...valid];
+      try {
         await this.#writeFile();
         await this.#reload(entryId);
-        return await this.#appear(valid, existing);
+        const created = await this.#appear(valid, existing);
+        await this.#restore(before);
+        this.#known.push(...created);
+        return created;
       } catch (error) {
         this.#specs = previous;
         // Put the previous file back so a later reload does not bring the failed devices in.
@@ -100,12 +118,16 @@ export class VirtualDevices {
         } catch {
           // Best effort: the original error is the one worth reporting.
         }
-        if (error instanceof SandboxError) throw error;
-        throw failed(error instanceof Error ? error.message : String(error), [
-          this.#context.token,
-        ]);
+        throw this.#asFailure(error);
       }
     });
+  }
+
+  #asFailure(error: unknown): SandboxError {
+    if (error instanceof SandboxError) return error;
+    return failed(error instanceof Error ? error.message : String(error), [
+      this.#context.token,
+    ]);
   }
 
   #serial<T>(task: () => Promise<T>): Promise<T> {
@@ -123,17 +145,45 @@ export class VirtualDevices {
     );
   }
 
+  async #rows(): Promise<StateRow[]> {
+    return (await getJson(this.#context.baseUrl, "/api/states", {
+      token: this.#context.token,
+    })) as StateRow[];
+  }
+
   /** Every entity id in the instance now, so entities that were already there are never taken for new ones. */
   async #entityIds(): Promise<Set<string>> {
-    try {
-      const rows = (await getJson(this.#context.baseUrl, "/api/states", {
-        token: this.#context.token,
-      })) as StateRow[];
-      return new Set(rows.map((row) => row.entity_id));
-    } catch (error) {
-      throw failed(error instanceof Error ? error.message : String(error), [
-        this.#context.token,
-      ]);
+    return new Set((await this.#rows()).map((row) => row.entity_id));
+  }
+
+  /**
+   * Reloading the entry recreates every device, and one that holds no persistent value (a sensor
+   * given a state, say) comes back unavailable. Puts the states the earlier devices had back.
+   */
+  async #restore(before: readonly StateRow[]): Promise<void> {
+    const mine = new Set(this.#known.map((device) => device.entityId));
+    const wanted = before.filter(
+      (row) => mine.has(row.entity_id) && row.state !== undefined,
+    );
+    const deadline = Date.now() + RESTORE_TIMEOUT_MS;
+    let after = new Map<string, StateRow>();
+    for (;;) {
+      after = new Map(
+        (await this.#rows()).map((row) => [row.entity_id, row] as const),
+      );
+      if (wanted.every((row) => after.has(row.entity_id))) break;
+      if (Date.now() > deadline) break;
+      await sleep(POLL_MS);
+    }
+    for (const row of wanted) {
+      const now = after.get(row.entity_id);
+      if (now === undefined || now.state === row.state) continue;
+      await postJson(
+        this.#context.baseUrl,
+        `/api/states/${row.entity_id}`,
+        { state: row.state, attributes: row.attributes ?? {} },
+        { token: this.#context.token },
+      );
     }
   }
 

@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { create } from "tar";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { packConfig } from "../src/config/pack.js";
 import {
   VIRTUAL_SHA256,
@@ -83,6 +83,9 @@ describe("validating devices", () => {
     ],
     ["a name starting with +", [{ kind: "light", name: "+Hall" }]],
     ["a name starting with !", [{ kind: "light", name: "!Hall" }]],
+    ["a name with a newline", [{ kind: "light", name: "Hall\nLamp" }]],
+    ["a name with a tab", [{ kind: "light", name: "Hall\tLamp" }]],
+    ["a name with a NUL", [{ kind: "light", name: "Hall\u0000" }]],
     [
       "a duplicate across kinds, ignoring case",
       [
@@ -302,6 +305,28 @@ describe("fetching the integration", () => {
         },
       }),
     ).rejects.toMatchObject({ code: "virtual_unavailable" });
+  });
+
+  it("refuses a download that declares or streams more than the size cap", async () => {
+    const big = Buffer.alloc(9 * 1024 * 1024);
+    const declared = new Response(big, {
+      headers: { "content-length": String(big.length) },
+    });
+    const streamed = new Response(big);
+    streamed.headers.delete("content-length");
+    for (const response of [declared, streamed]) {
+      vi.stubGlobal("fetch", async () => response);
+      try {
+        await expect(
+          ensureVirtualIntegration({ cacheDir: scratch() }),
+        ).rejects.toMatchObject({
+          code: "virtual_unavailable",
+          message: expect.stringContaining("larger than expected"),
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    }
   });
 
   it("ignores a cached tarball that no longer matches the pin", async () => {

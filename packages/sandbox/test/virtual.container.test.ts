@@ -49,6 +49,38 @@ describe.each(CHANNELS)("virtual devices on %s", (channel) => {
   );
 
   it(
+    "keeps the state and attributes of earlier devices when devices are added",
+    async () => {
+      const sandbox = await startSandbox({
+        ...startTarget(channel),
+        devices: [{ kind: "sensor", name: "Temp" }],
+      });
+      try {
+        await sandbox.setState("sensor.temp", "21", {
+          unit_of_measurement: "C",
+        });
+        // Without attributes the entity keeps the ones it has.
+        await sandbox.setState("sensor.temp", "22");
+        expect(await sandbox.getState("sensor.temp")).toMatchObject({
+          state: "22",
+          attributes: { unit_of_measurement: "C" },
+        });
+
+        await sandbox.addDevices([{ kind: "switch", name: "Extra" }]);
+
+        expect(await sandbox.getState("sensor.temp")).toMatchObject({
+          state: "22",
+          attributes: { unit_of_measurement: "C" },
+        });
+        expect(await sandbox.getState("switch.extra")).not.toBeNull();
+      } finally {
+        await sandbox.stop();
+      }
+    },
+    8 * MINUTE,
+  );
+
+  it(
     "refuses to add devices to an instance started without them",
     async () => {
       const sandbox = await startSandbox({ ...startTarget(channel) });

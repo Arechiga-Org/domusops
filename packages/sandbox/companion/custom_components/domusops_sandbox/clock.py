@@ -1,9 +1,9 @@
 """Clock control for the sandbox harness (research R6).
 
 A frozen instance reports one fixed instant from Home Assistant's time helpers. `advance` moves
-that instant forward and runs the timers of `homeassistant.helpers.event` (time triggers, time
-patterns, delays, intervals) that fall due on the way, in order, the way Home Assistant's own test
-helper does. Timers of anything else on the event loop (connections, the lifetime deadline) are
+that instant forward and runs the timers of `homeassistant.helpers.event` and of the script
+engine (time triggers, time patterns, intervals, `delay` and `wait` timeouts) that fall due on the
+way, in order, the way Home Assistant's own test helper does. Timers of anything else on the event loop (connections, the lifetime deadline) are
 left on real time, so controlling the clock cannot break the harness.
 
 This relies on Home Assistant internals (`helpers.event.time_tracker_*`, the loop's timer heap).
@@ -16,10 +16,14 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 import heapq
 import logging
+import time as real_time
 from typing import Any
 
+from homeassistant import core as ha_core
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity as ha_entity
 from homeassistant.helpers import event as ha_event
+from homeassistant.helpers import script as ha_script
 from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,7 +31,11 @@ _LOGGER = logging.getLogger(__name__)
 MAX_ADVANCE_SECONDS = 7 * 24 * 3600
 # Upper bound on the timers one `advance` runs, so a runaway interval cannot hang the instance.
 MAX_FIRED = 100_000
-_EVENT_MODULE = ha_event.__name__
+# Longest wait for the work a timer started to come to rest.
+SETTLE_SECONDS = 0.5
+# Timers that follow the clock: the event helper's (time triggers, patterns, intervals,
+# `async_call_later`) and the script engine's `delay` / `wait` timeouts.
+_TIMER_MODULES = {ha_event.__name__, ha_script.__name__}
 
 
 class ClockError(Exception):
@@ -41,7 +49,7 @@ class ClockError(Exception):
 def _is_event_timer(handle: Any) -> bool:
     callback = getattr(handle, "_callback", None)
     module = getattr(callback, "__module__", None) or type(callback).__module__
-    return module == _EVENT_MODULE
+    return module in _TIMER_MODULES
 
 
 def format_time(value: datetime) -> str:
@@ -55,6 +63,21 @@ def parse_time(value: str) -> datetime:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
     return parsed.astimezone(timezone.utc)
+
+
+class _FrozenTime:
+    """Stands in for the `time` module inside `homeassistant.core`, which stamps states and events
+    with `time.time()`; every other attribute is the real module's. Entities stamp their own state
+    writes with `helpers.entity.timer`, patched alongside."""
+
+    def __init__(self, clock: Clock) -> None:
+        self._clock = clock
+
+    def time(self) -> float:
+        return self._clock._timestamp()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(real_time, name)
 
 
 class Clock:
@@ -91,11 +114,15 @@ class Clock:
             "now": dt_util.now,
             "tracker_utcnow": ha_event.time_tracker_utcnow,
             "tracker_timestamp": ha_event.time_tracker_timestamp,
+            "core_time": ha_core.time,
+            "entity_timer": ha_entity.timer,
         }
         dt_util.utcnow = self._utcnow
         dt_util.now = self._local_now
         ha_event.time_tracker_utcnow = self._utcnow
         ha_event.time_tracker_timestamp = self._timestamp
+        ha_core.time = _FrozenTime(self)
+        ha_entity.timer = self._timestamp
 
     def _restore(self) -> None:
         original = self._original
@@ -105,6 +132,8 @@ class Clock:
         dt_util.now = original["now"]
         ha_event.time_tracker_utcnow = original["tracker_utcnow"]
         ha_event.time_tracker_timestamp = original["tracker_timestamp"]
+        ha_core.time = original["core_time"]
+        ha_entity.timer = original["entity_timer"]
         self._original = None
 
     async def _rearm(self) -> None:
@@ -164,6 +193,15 @@ class Clock:
         async with self._lock:
             return await self._advance(seconds)
 
+    async def _settle(self) -> None:
+        """Lets what a timer started run as far as it can without time passing (a triggered
+        automation reaching its next delay, say), so its follow-up timers exist before the next
+        one is picked."""
+        try:
+            await asyncio.wait_for(self.hass.async_block_till_done(), SETTLE_SECONDS)
+        except TimeoutError:
+            pass
+
     async def _advance(self, seconds: float) -> tuple[datetime, int]:
         if self._now is None:
             # Freezing at the real time leaves the pending timers correctly aimed.
@@ -207,7 +245,7 @@ class Clock:
         try:
             while queue:
                 due, _, handle = queue[0]
-                if handle.cancelled():
+                if handle.cancelled() or not handle._scheduled:
                     heapq.heappop(queue)
                     continue
                 # A timer already overdue when the advance starts belongs to the real clock (a
@@ -234,8 +272,9 @@ class Clock:
                 self._now = max(self._now, instant)
                 handle._run()
                 handle.cancel()
-                await asyncio.sleep(0)
+                await self._settle()
             self._now = max(self._now, target)
+            await self._settle()
         finally:
             del loop.call_at
             # Timers that did not fall due keep their remaining virtual time on the real clock;

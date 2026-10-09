@@ -184,6 +184,9 @@ async function launch(
   progress: Progress,
   internals: StartInternals,
 ): Promise<Sandbox> {
+  // Docker is checked before the integration is downloaded, so a machine without it fails at once.
+  await runtime.ensureAvailable();
+
   // The directory is read before anything is pulled or created, so a bad one costs nothing.
   const virtual =
     valid.devices === undefined
@@ -193,8 +196,6 @@ async function launch(
           deviceFile: renderDeviceFile(valid.devices),
         };
   const packed = await packConfig(valid.config, virtual);
-
-  await runtime.ensureAvailable();
 
   progress("resolving");
   const release =

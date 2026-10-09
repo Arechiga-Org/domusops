@@ -185,6 +185,19 @@ conditions, and templates see is controlled. This limitation is documented.
   after the instant the advance starts: a real-time timer already overdue relative to the frozen
   instant (a token expiry in the past of the frozen time) re-arms itself for the same instant and
   would otherwise run without end. A run is capped at 100,000 timers (`time_control_failed`).
+- Tracked timers are those of the event helper and the script engine's `delay` and `wait`
+  timeouts (`loop.call_later` with `_set_result_unless_done` in `helpers.script`). After each
+  timer runs, the companion lets the loop settle (`async_block_till_done`, at most 0.5 s) so the
+  follow-up timers of a multi-step automation (trigger, action, `delay`, action) exist before the
+  next one is picked and fall due in the same `advance`.
+- Core stamps states and events with `time.time()`, and entities with `helpers.entity.timer`
+  (bound to `time.time` at import), so a frozen instance replaces both: `last_changed` and
+  `now() - last_changed` follow the frozen clock.
+- **Limitations**: enabled automations are turned off and on to re-arm them, without stopping a
+  run in progress (`stop_actions: false`). Time triggers of non-automation consumers (template `now()` sensors,
+  `timer` and `input_datetime` helpers, script runs already waiting when the clock changes) keep
+  the aim they had, and a module that did `from homeassistant.util.dt import utcnow` keeps the
+  unpatched function. Prefer to freeze before the scenario starts.
 
 **Alternatives considered**: A host-side reaper daemon: a resident process for a test tool.
 A watchdog sidecar container: a second container per instance and shared PID namespaces.
@@ -235,6 +248,10 @@ proves compatibility per release; a failure names the integration and release (F
   installed only when `devices` is given at start (an empty list is enough); `addDevices` on an
   instance started without it fails with `virtual_unavailable`.
 - A new `light` starts `on`; set the state first when a scenario depends on it.
+- Reloading the entry on `addDevices` resets every earlier device to its initial state, so the
+  library records the states and attributes first and writes back those that changed once the
+  earlier entities exist again. `setState` without attributes keeps the entity's current ones,
+  because the states endpoint replaces the whole set.
 
 ## R8 — Secrets in a sandbox
 
