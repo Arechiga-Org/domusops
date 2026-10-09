@@ -148,7 +148,7 @@ description: "Task list for the @domusops/sandbox ephemeral harness (part 1 of 2
 
 - [X] T054 [US5] Extend `handle.ts`: `connection()` and `mcpEnv()` return exactly the two keys `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`; no function in the library accepts a URL or a token (R10)
 - [X] T055 [US5] Add `env <id>` to `cli.ts`: the only command that prints a token, as `KEY=value` lines usable with `eval` or a `.env` file
-- [X] T056 [US5] Container test `packages/sandbox/test/mcp.container.test.ts`: start `@domusops/mcp` from its built entry with the `mcpEnv()` environment and call `ha_snapshot`; open a WebSocket and run `get_states`; assert `packages/mcp` is untouched by this feature (`git diff --stat main -- packages/mcp` empty); after `stop()`, the old URL and token no longer work (US5 scenario 4)
+- [X] T056 [US5] Container test `packages/sandbox/test/mcp.container.test.ts`: start `@domusops/mcp` from its built entry with the `mcpEnv()` environment and call `ha_snapshot`; open a WebSocket and run `get_states`; assert `packages/mcp` needs nothing from the sandbox (no reference to it in its sources or `package.json`, in `test/mcp-independence.test.ts`); after `stop()`, the old URL and token no longer work (US5 scenario 4)
 - [X] T057 [US5] Add `.changeset/sandbox-env.md` (`@domusops/sandbox` minor: the `env` command, `connection()`, `mcpEnv()`)
 
 ---

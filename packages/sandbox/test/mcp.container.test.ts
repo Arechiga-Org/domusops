@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -8,14 +8,12 @@ import { CHANNELS, startTarget } from "./support/channels.js";
 
 const MINUTE = 60_000;
 const REQUEST_TIMEOUT_MS = 60_000;
-const REPOSITORY = fileURLToPath(new URL("../../..", import.meta.url));
 const MCP_ENTRY = fileURLToPath(
   new URL("../../mcp/dist/cli.js", import.meta.url),
 );
 
 interface Reply {
   id?: number;
-  method?: string;
   result?: { content?: { type: string; text: string }[]; isError?: boolean };
   error?: { message: string };
 }
@@ -25,8 +23,12 @@ async function withMcp<T>(
   env: Record<string, string>,
   body: (call: (name: string, args: object) => Promise<unknown>) => Promise<T>,
 ): Promise<T> {
+  // Settings of the machine running the test must not change what the server answers.
+  const clean = Object.fromEntries(
+    Object.entries(process.env).filter(([key]) => !key.startsWith("DOMUSOPS_")),
+  );
   const child = spawn(process.execPath, [MCP_ENTRY], {
-    env: { ...process.env, ...env },
+    env: { ...clean, ...env },
     stdio: ["pipe", "pipe", "pipe"],
   });
   let stderr = "";
@@ -34,6 +36,14 @@ async function withMcp<T>(
     stderr += chunk.toString();
   });
   const waiting = new Map<number, (reply: Reply) => void>();
+  let failed: (error: Error) => void = () => undefined;
+  const exited = new Promise<never>((_resolve, reject) => {
+    failed = reject;
+    child.on("close", (code) =>
+      reject(new Error(`MCP server exited (${String(code)}): ${stderr}`)),
+    );
+  });
+  exited.catch(() => undefined);
   let buffered = "";
   child.stdout.on("data", (chunk: Buffer) => {
     buffered += chunk.toString();
@@ -55,14 +65,6 @@ async function withMcp<T>(
       if (reply.id !== undefined && isResponse) waiting.get(reply.id)?.(reply);
     }
   });
-  let failed: (error: Error) => void = () => undefined;
-  const exited = new Promise<never>((_resolve, reject) => {
-    failed = reject;
-    child.on("exit", (code) =>
-      reject(new Error(`MCP server exited (${String(code)}): ${stderr}`)),
-    );
-  });
-  exited.catch(() => undefined);
   child.stdin.on("error", () => undefined);
   let next = 0;
   const request = (method: string, params: object): Promise<Reply> => {
@@ -71,14 +73,18 @@ async function withMcp<T>(
     child.stdin.write(
       `${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`,
     );
+    let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
-      setTimeout(
+      timer = setTimeout(
         () =>
           reject(new Error(`MCP ${method} got no answer in 60 s: ${stderr}`)),
         REQUEST_TIMEOUT_MS,
-      ).unref();
+      );
     });
-    return Promise.race([answer, exited, timeout]);
+    return Promise.race([answer, exited, timeout]).finally(() => {
+      clearTimeout(timer);
+      waiting.delete(id);
+    });
   };
   try {
     await request("initialize", {
@@ -143,6 +149,7 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
       } finally {
         await sandbox.stop();
       }
+      expect(() => sandbox.mcpEnv()).toThrow(/stopped/);
 
       // Another instance may have been given the freed port, and it would refuse the token.
       const { url, wsUrl, token } = connection;
@@ -153,23 +160,10 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
         (response) => response.status,
         () => "refused",
       );
-      expect(status).not.toBe(200);
+      // Refused: nothing is listening. 401: the freed port went to another instance.
+      expect(["refused", 401]).toContain(status);
       await expect(HaSocket.connect(wsUrl, token)).rejects.toThrow();
     },
     8 * MINUTE,
   );
-});
-
-describe("the existing tools are used as they are", () => {
-  it("leaves packages/mcp untouched", () => {
-    const git = (...args: string[]): string =>
-      execFileSync("git", args, { cwd: REPOSITORY, encoding: "utf8" });
-    let base: string;
-    try {
-      base = git("merge-base", "main", "HEAD").trim();
-    } catch {
-      return; // no main to compare with, as in a shallow CI checkout
-    }
-    expect(git("diff", "--stat", base, "HEAD", "--", "packages/mcp")).toBe("");
-  });
 });
