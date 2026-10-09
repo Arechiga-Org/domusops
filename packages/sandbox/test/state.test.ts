@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { inspect } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { SandboxHandle } from "../src/instance/handle.js";
 import type { Runtime } from "../src/runtime/docker.js";
@@ -86,5 +87,28 @@ describe("setState", () => {
       method: "POST",
       body: { state: "1", attributes: {} },
     });
+  });
+});
+
+describe("the connection", () => {
+  it("hands the existing tools exactly the URL and the token", async () => {
+    const { handle } = await handleOver({});
+    const port = (server?.address() as AddressInfo).port;
+    expect(handle.mcpEnv()).toEqual({
+      DOMUSOPS_HA_URL: `http://127.0.0.1:${String(port)}`,
+      DOMUSOPS_HA_TOKEN: "t",
+    });
+    expect(handle.connection()).toEqual({
+      url: `http://127.0.0.1:${String(port)}`,
+      wsUrl: `ws://127.0.0.1:${String(port)}/api/websocket`,
+      token: "t",
+    });
+  });
+
+  it("keeps the token out of everything but those two calls", async () => {
+    const { handle } = await handleOver({});
+    expect(JSON.stringify(handle)).not.toContain('"t"');
+    expect(inspect(handle)).not.toContain("token");
+    expect(String(handle)).not.toContain(":t");
   });
 });
