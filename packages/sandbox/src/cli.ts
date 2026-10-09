@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { SandboxError } from "./errors.js";
 import { resolve as resolvePath } from "node:path";
+import type { VirtualDeviceSpec } from "./devices/spec.js";
 import type { Sandbox } from "./instance/handle.js";
 import {
   attachSandbox,
@@ -60,8 +61,8 @@ class UsageError extends Error {}
 
 const USAGE = `Usage:
   domusops-sandbox resolve <stable|previous-stable|beta> [--json]
-  domusops-sandbox start [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--config <dir> [--secrets-file <file>]] [--json] -- <command> [args...]
-  domusops-sandbox start --background [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--config <dir> [--secrets-file <file>]] [--json]
+  domusops-sandbox start [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--config <dir> [--secrets-file <file>]] [--device <kind>:<name>[:<class>]]... [--json] -- <command> [args...]
+  domusops-sandbox start --background [--channel <c> | --release <r>] [--max-lifetime <min>] [--readiness-timeout <s>] [--config <dir> [--secrets-file <file>]] [--device <kind>:<name>[:<class>]]... [--json]
   domusops-sandbox env <id>
   domusops-sandbox list [--json]
   domusops-sandbox stop <id>... | --all [--force]
@@ -147,6 +148,24 @@ function describeConfig(config: ConfigSummary | null): string {
   return `${lines.join("\n")}\n`;
 }
 
+function parseDevice(text: string): VirtualDeviceSpec {
+  const parts = text.split(":");
+  const [kind, name, deviceClass] = parts;
+  if (
+    parts.length < 2 ||
+    parts.length > 3 ||
+    kind === undefined ||
+    name === undefined
+  ) {
+    throw new UsageError(
+      `--device "${text}" must look like <kind>:<name> or <kind>:<name>:<class>.`,
+    );
+  }
+  const spec = { kind, name } as VirtualDeviceSpec;
+  if (deviceClass !== undefined) spec.class = deviceClass;
+  return spec;
+}
+
 async function runStart(
   own: string[],
   command: string[] | null,
@@ -161,6 +180,7 @@ async function runStart(
       "max-lifetime": { type: "string" },
       config: { type: "string" },
       "secrets-file": { type: "string" },
+      device: { type: "string", multiple: true },
       background: { type: "boolean", default: false },
       json: { type: "boolean", default: false },
     },
@@ -204,6 +224,9 @@ async function runStart(
       options.config.secretsFile = resolvePath(values["secrets-file"]);
     }
   }
+  if (values.device !== undefined) {
+    options.devices = values.device.map(parseDevice);
+  }
   const lifetime = values["max-lifetime"];
   if (lifetime !== undefined) {
     options.maxLifetimeMinutes = parseNumber("max-lifetime", lifetime);
@@ -216,7 +239,12 @@ async function runStart(
   try {
     validateOptions(options);
   } catch (error) {
-    if (error instanceof TypeError || error instanceof RangeError) {
+    if (
+      error instanceof TypeError ||
+      error instanceof RangeError ||
+      (error instanceof SandboxError &&
+        error.code === "unsupported_device_kind")
+    ) {
       throw new UsageError(error.message);
     }
     throw error;

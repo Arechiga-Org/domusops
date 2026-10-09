@@ -26,6 +26,17 @@ function fakeSandbox(
     deadline: "2026-10-06T20:00:00.000Z",
     url: "http://127.0.0.1:49152",
     config: null,
+    devices: [],
+    addDevices: async () => [],
+    setState: async () => undefined,
+    getState: async () => null,
+    callService: async () => undefined,
+    time: {
+      freeze: async () => undefined,
+      advance: async () => ({ now: "2031-03-04T03:00:10Z", fired: 0 }),
+      resume: async () => undefined,
+      now: async () => ({ now: "2031-03-04T03:00:10Z", frozen: false }),
+    },
     connection: () => ({
       url: "http://127.0.0.1:49152",
       wsUrl: "ws://127.0.0.1:49152/api/websocket",
@@ -286,6 +297,46 @@ const listing = (id: string): SandboxListing => ({
   url: "http://127.0.0.1:49152",
   deadline: "2026-10-06T20:00:00.000Z",
   owner: null,
+});
+
+describe("start --device", () => {
+  it("passes each device through as a specification", async () => {
+    const h = harness();
+    expect(
+      await main(
+        [
+          "start",
+          "--device",
+          "light:Hall",
+          "--device",
+          "binary_sensor:Door:motion",
+          "--",
+          "true",
+        ],
+        h.deps,
+      ),
+    ).toBe(0);
+    expect(h.started[0]?.devices).toEqual([
+      { kind: "light", name: "Hall" },
+      { kind: "binary_sensor", name: "Door", class: "motion" },
+    ]);
+  });
+
+  it.each([
+    [["--device", "light"]],
+    [["--device", "light:a:b:c"]],
+    [["--device", "toaster:Hall"]],
+  ])("exits 2 for %j before starting anything", async (flags) => {
+    const h = harness();
+    expect(await main(["start", ...flags, "--", "true"], h.deps)).toBe(2);
+    expect(h.started).toEqual([]);
+  });
+
+  it("starts without devices when none are given", async () => {
+    const h = harness();
+    await main(["start", "--", "true"], h.deps);
+    expect(h.started[0]?.devices).toBeUndefined();
+  });
 });
 
 describe("start --background", () => {

@@ -20,7 +20,11 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.typing import ConfigType
 
+from .clock import MAX_ADVANCE_SECONDS, Clock, ClockError, format_time, parse_time
+
 DOMAIN = "domusops_sandbox"
+
+CLOCK_KEY = f"{DOMAIN}_clock"
 
 CONFIG_SCHEMA = vol.Schema({DOMAIN: vol.Schema({})}, extra=vol.ALLOW_EXTRA)
 
@@ -126,9 +130,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the WebSocket commands and arm the lifetime timers."""
     lifetime = _Lifetime(hass)
     hass.data[DOMAIN] = lifetime
+    hass.data[CLOCK_KEY] = Clock(hass)
     websocket_api.async_register_command(hass, ws_info)
     websocket_api.async_register_command(hass, ws_attach)
     websocket_api.async_register_command(hass, ws_detach)
+    websocket_api.async_register_command(hass, ws_time_freeze)
+    websocket_api.async_register_command(hass, ws_time_advance)
+    websocket_api.async_register_command(hass, ws_time_resume)
+    websocket_api.async_register_command(hass, ws_time_now)
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, lifetime.cancel_timers)
     lifetime.start()
     return True
@@ -145,7 +154,7 @@ def ws_info(hass: HomeAssistant, connection, msg) -> None:
             "id": os.environ.get("DOMUSOPS_SANDBOX_ID", ""),
             "mode": os.environ.get("DOMUSOPS_SANDBOX_MODE", ""),
             "deadline": os.environ.get("DOMUSOPS_SANDBOX_DEADLINE", ""),
-            "frozen": False,
+            "frozen": hass.data[CLOCK_KEY].frozen,
         },
     )
 
@@ -166,3 +175,74 @@ def ws_detach(hass: HomeAssistant, connection, msg) -> None:
     """Let the owner close its connection without stopping the instance."""
     hass.data[DOMAIN].detach(connection)
     connection.send_result(msg["id"], {})
+
+
+def _clock(hass: HomeAssistant) -> Clock:
+    return hass.data[CLOCK_KEY]
+
+
+def _failed(connection, msg, error: Exception) -> None:
+    if isinstance(error, ClockError):
+        connection.send_error(msg["id"], error.code, str(error))
+    else:
+        _LOGGER.exception("Clock command failed")
+        connection.send_error(msg["id"], "time_control_failed", str(error))
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/time/freeze", vol.Required("at"): str}
+)
+@websocket_api.async_response
+async def ws_time_freeze(hass: HomeAssistant, connection, msg) -> None:
+    """Freeze the instance's clock at an instant."""
+    try:
+        now = await _clock(hass).freeze(parse_time(msg["at"]))
+    except Exception as error:  # noqa: BLE001
+        _failed(connection, msg, error)
+        return
+    connection.send_result(msg["id"], {"now": format_time(now)})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/time/advance",
+        vol.Required("seconds"): vol.All(
+            vol.Coerce(float), vol.Range(min=0, max=MAX_ADVANCE_SECONDS)
+        ),
+    }
+)
+@websocket_api.async_response
+async def ws_time_advance(hass: HomeAssistant, connection, msg) -> None:
+    """Move the frozen clock forward, running the timers that fall due on the way."""
+    try:
+        now, fired = await _clock(hass).advance(msg["seconds"])
+    except Exception as error:  # noqa: BLE001
+        _failed(connection, msg, error)
+        return
+    connection.send_result(msg["id"], {"now": format_time(now), "fired": fired})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/time/resume"})
+@websocket_api.async_response
+async def ws_time_resume(hass: HomeAssistant, connection, msg) -> None:
+    """Return to real time."""
+    try:
+        now = await _clock(hass).resume()
+    except Exception as error:  # noqa: BLE001
+        _failed(connection, msg, error)
+        return
+    connection.send_result(msg["id"], {"now": format_time(now)})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/time/now"})
+@callback
+def ws_time_now(hass: HomeAssistant, connection, msg) -> None:
+    """The instance's current time and whether it is frozen."""
+    clock = _clock(hass)
+    connection.send_result(
+        msg["id"], {"now": format_time(clock.now()), "frozen": clock.frozen}
+    )

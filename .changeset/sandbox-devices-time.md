@@ -1,0 +1,5 @@
+---
+"@domusops/sandbox": minor
+---
+
+Add virtual devices, entity states and time control to the sandbox. `devices: [{ kind, name, class?, initial? }]` (or repeatable `--device <kind>:<name>[:<class>]`) creates devices before the instance is ready by reusing the community `hass-virtual` integration (v0.9.3, pinned by SHA-256 and cached under `$XDG_CACHE_HOME/domusops/sandbox`); supported kinds are `switch`, `binary_sensor`, `sensor`, `light`, `lock`, `fan`, `cover`, `valve` and `device_tracker`. The handle gains `addDevices`, `setState`, `getState` and `callService`, and `time.freeze`, `time.advance`, `time.resume` and `time.now` to freeze the instance's clock and run the timers that fall due while it advances (at most 7 days per call). A device kind the integration does not offer fails with `unsupported_device_kind`; an integration that cannot be fetched or does not load fails with `virtual_unavailable`. Time control relies on Home Assistant internals and only changes what automations, triggers, conditions and templates see.

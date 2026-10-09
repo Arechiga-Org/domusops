@@ -1,0 +1,220 @@
+"""Clock control for the sandbox harness (research R6).
+
+A frozen instance reports one fixed instant from Home Assistant's time helpers. `advance` moves
+that instant forward and runs the timers of `homeassistant.helpers.event` (time triggers, time
+patterns, delays, intervals) that fall due on the way, in order, the way Home Assistant's own test
+helper does. Timers of anything else on the event loop (connections, the lifetime deadline) are
+left on real time, so controlling the clock cannot break the harness.
+
+This relies on Home Assistant internals (`helpers.event.time_tracker_*`, the loop's timer heap).
+Those are covered by the container tests that run against every supported release.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timedelta, timezone
+import heapq
+import logging
+from typing import Any
+
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import event as ha_event
+from homeassistant.util import dt as dt_util
+
+_LOGGER = logging.getLogger(__name__)
+
+MAX_ADVANCE_SECONDS = 7 * 24 * 3600
+# Upper bound on the timers one `advance` runs, so a runaway interval cannot hang the instance.
+MAX_FIRED = 100_000
+_EVENT_MODULE = ha_event.__name__
+
+
+class ClockError(Exception):
+    """A clock command that cannot be carried out; `code` is the WebSocket error code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _is_event_timer(handle: Any) -> bool:
+    callback = getattr(handle, "_callback", None)
+    module = getattr(callback, "__module__", None) or type(callback).__module__
+    return module == _EVENT_MODULE
+
+
+def format_time(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def parse_time(value: str) -> datetime:
+    parsed = dt_util.parse_datetime(value)
+    if parsed is None:
+        raise ClockError("invalid_time", f"{value!r} is not an ISO 8601 date and time.")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+    return parsed.astimezone(timezone.utc)
+
+
+class Clock:
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+        self._now: datetime | None = None
+        self._original: dict[str, Any] | None = None
+
+    @property
+    def frozen(self) -> bool:
+        return self._now is not None
+
+    def now(self) -> datetime:
+        return self._now if self._now is not None else dt_util.utcnow()
+
+    def _utcnow(self) -> datetime:
+        assert self._now is not None
+        return self._now
+
+    def _local_now(self, time_zone: Any = None) -> datetime:
+        assert self._now is not None
+        return self._now.astimezone(time_zone or dt_util.DEFAULT_TIME_ZONE)
+
+    def _timestamp(self) -> float:
+        assert self._now is not None
+        return self._now.timestamp()
+
+    def _install(self) -> None:
+        if self._original is not None:
+            return
+        self._original = {
+            "utcnow": dt_util.utcnow,
+            "now": dt_util.now,
+            "tracker_utcnow": ha_event.time_tracker_utcnow,
+            "tracker_timestamp": ha_event.time_tracker_timestamp,
+        }
+        dt_util.utcnow = self._utcnow
+        dt_util.now = self._local_now
+        ha_event.time_tracker_utcnow = self._utcnow
+        ha_event.time_tracker_timestamp = self._timestamp
+
+    def _restore(self) -> None:
+        original = self._original
+        if original is None:
+            return
+        dt_util.utcnow = original["utcnow"]
+        dt_util.now = original["now"]
+        ha_event.time_tracker_utcnow = original["tracker_utcnow"]
+        ha_event.time_tracker_timestamp = original["tracker_timestamp"]
+        self._original = None
+
+    async def _rearm(self) -> None:
+        """Timers registered before the clock changed are aimed at the old time; register them again.
+
+        Automations are switched off and on rather than reloaded, because a reload keeps every
+        automation whose configuration did not change, together with its old timers.
+        """
+        if not self.hass.services.has_service("automation", "turn_off"):
+            return
+        enabled = [
+            state.entity_id
+            for state in self.hass.states.async_all("automation")
+            if state.state == "on"
+        ]
+        if not enabled:
+            return
+        try:
+            await self.hass.services.async_call(
+                "automation",
+                "turn_off",
+                {"entity_id": enabled, "stop_actions": False},
+                blocking=True,
+            )
+            await self.hass.services.async_call(
+                "automation", "turn_on", {"entity_id": enabled}, blocking=True
+            )
+        except Exception:  # noqa: BLE001 - best effort; the command itself still succeeded
+            _LOGGER.warning("Could not re-arm automations after a clock change", exc_info=True)
+
+    async def freeze(self, at: datetime, *, rearm: bool = True) -> datetime:
+        self._now = at
+        self._install()
+        if rearm:
+            await self._rearm()
+        return at
+
+    async def resume(self) -> datetime:
+        was_frozen = self.frozen
+        self._restore()
+        self._now = None
+        if was_frozen:
+            await self._rearm()
+        return dt_util.utcnow()
+
+    async def advance(self, seconds: float) -> tuple[datetime, int]:
+        if not 0 < seconds <= MAX_ADVANCE_SECONDS:
+            raise ClockError(
+                "invalid_time",
+                f"`seconds` must be greater than 0 and at most {MAX_ADVANCE_SECONDS}.",
+            )
+        if self._now is None:
+            # Freezing at the real time leaves the pending timers correctly aimed.
+            await self.freeze(dt_util.utcnow(), rearm=False)
+        assert self._now is not None
+        loop = self.hass.loop
+        target = self._now + timedelta(seconds=seconds)
+        target_ts = target.timestamp()
+        start_ts = self._now.timestamp()
+        due: dict[int, float] = {}
+        fired = 0
+
+        def scan() -> list[tuple[float, Any]]:
+            assert self._now is not None
+            now_ts = self._now.timestamp()
+            loop_now = loop.time()
+            pending: list[tuple[float, Any]] = []
+            for handle in list(loop._scheduled):  # type: ignore[attr-defined]
+                if handle.cancelled() or not _is_event_timer(handle):
+                    continue
+                key = id(handle)
+                if key not in due:
+                    expected = getattr(handle._callback, "expected_fire_timestamp", None)
+                    due[key] = (
+                        float(expected)
+                        if expected is not None
+                        else now_ts + max(0.0, handle.when() - loop_now)
+                    )
+                pending.append((due[key], handle))
+            return pending
+
+        while True:
+            # A timer already overdue when the advance starts belongs to the real clock (a token
+            # expiry in the past of the frozen time, say) and re-arms itself for the same instant.
+            ready = [item for item in scan() if start_ts < item[0] <= target_ts]
+            if not ready:
+                break
+            when_ts, handle = min(ready, key=lambda item: item[0])
+            fired += 1
+            if fired > MAX_FIRED:
+                raise ClockError(
+                    "time_control_failed",
+                    f"More than {MAX_FIRED} timers fell due while advancing; stopped.",
+                )
+            # A timer rearms itself when it runs even a hair early, so the clock must not fall
+            # short of the instant through rounding to microseconds.
+            instant = datetime.fromtimestamp(when_ts, timezone.utc)
+            while instant.timestamp() < when_ts:
+                instant += timedelta(microseconds=1)
+            self._now = max(self._now, instant)
+            handle._run()
+            handle.cancel()
+            due.pop(id(handle), None)
+            await asyncio.sleep(0)
+
+        self._now = target
+        # Timers that did not fall due keep their remaining virtual time on the real clock.
+        loop_now = loop.time()
+        for due_ts, handle in scan():
+            if getattr(handle._callback, "expected_fire_timestamp", None) is None:
+                handle._when = loop_now + max(0.0, due_ts - target_ts)
+        heapq.heapify(loop._scheduled)  # type: ignore[attr-defined]
+        return target, fired
+

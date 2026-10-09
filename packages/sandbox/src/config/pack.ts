@@ -9,6 +9,8 @@ import { isAbsolute, join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Header, Pack, ReadEntry } from "tar";
 import { SandboxError } from "../errors.js";
+import { DEVICE_FILE } from "../devices/spec.js";
+import type { VirtualFile } from "../devices/fetch.js";
 import type { ConfigSummary } from "../types.js";
 import { buildSecrets, referencedSecrets, secretValues } from "./secrets.js";
 
@@ -376,11 +378,48 @@ function withCompanion(configuration: string): string {
   return `${configuration}${separator}\n${COMPANION_DOMAIN}:\n`;
 }
 
+/** What virtual devices add to the archive (research R7). */
+export interface VirtualPayload {
+  /** The integration's files; not added when the caller's configuration ships its own. */
+  integration: VirtualFile[];
+  /** The text of the device file. */
+  deviceFile: string;
+}
+
+const VIRTUAL_TARGET = posix.join(CONFIG_ROOT, "custom_components", "virtual");
+
+function addVirtual(
+  builder: TarBuilder,
+  virtual: VirtualPayload,
+  userVirtualIntegration: boolean,
+): void {
+  if (!userVirtualIntegration) {
+    builder.addDirectory(VIRTUAL_TARGET);
+    const made = new Set<string>();
+    for (const file of virtual.integration) {
+      const parts = file.path.split("/");
+      for (let depth = 1; depth < parts.length; depth += 1) {
+        const directory = posix.join(VIRTUAL_TARGET, ...parts.slice(0, depth));
+        if (!made.has(directory)) {
+          made.add(directory);
+          builder.addDirectory(directory);
+        }
+      }
+      builder.addFile(posix.join(VIRTUAL_TARGET, file.path), file.data);
+    }
+  }
+  builder.addFile(posix.join(CONFIG_ROOT, DEVICE_FILE), virtual.deviceFile);
+}
+
 /**
  * The archive for a new instance: the caller's configuration directory when one is given, the
- * baseline otherwise, plus the companion. Nothing is written on the host, source included.
+ * baseline otherwise, plus the companion and, when devices are requested, the virtual-device
+ * integration and its device file. Nothing is written on the host, source included.
  */
-export async function packConfig(source?: ConfigSource): Promise<PackResult> {
+export async function packConfig(
+  source?: ConfigSource,
+  virtual?: VirtualPayload,
+): Promise<PackResult> {
   const builder = new TarBuilder();
   let summary: ConfigSummary | null = null;
   let values: string[] = [];
@@ -401,5 +440,8 @@ export async function packConfig(source?: ConfigSource): Promise<PackResult> {
     }
   }
   addCompanion(builder);
+  if (virtual !== undefined) {
+    addVirtual(builder, virtual, summary?.userVirtualIntegration ?? false);
+  }
   return { archive: await builder.finish(), summary, secretValues: values };
 }

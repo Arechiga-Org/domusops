@@ -12,7 +12,19 @@ import type { Removal } from "./runtime/reaper.js";
 export { SandboxError, type SandboxErrorCode } from "./errors.js";
 export { resolveChannel } from "./release/resolve.js";
 export type { Channel, ResolvedRelease } from "./release/versions.js";
-export type { Sandbox, Connection, McpEnv } from "./instance/handle.js";
+export type {
+  Sandbox,
+  SandboxTime,
+  EntityState,
+  Connection,
+  McpEnv,
+} from "./instance/handle.js";
+export { DEVICE_KINDS } from "./devices/spec.js";
+export type {
+  DeviceKind,
+  VirtualDevice,
+  VirtualDeviceSpec,
+} from "./devices/spec.js";
 export type { StartOptions } from "./instance/start.js";
 export type { ConfigSource } from "./config/pack.js";
 export type { SandboxListing } from "./instance/list.js";

@@ -1,6 +1,17 @@
 import { hostname } from "node:os";
 import { SandboxError } from "../errors.js";
 import { packConfig, type ConfigSource } from "../config/pack.js";
+import {
+  ensureVirtualIntegration,
+  type FetchOptions,
+} from "../devices/fetch.js";
+import {
+  renderDeviceFile,
+  validateDevices,
+  type VirtualDevice,
+  type VirtualDeviceSpec,
+} from "../devices/spec.js";
+import { VirtualDevices } from "../devices/virtual.js";
 import { exactRelease, resolveChannel } from "../release/resolve.js";
 import {
   RELEASE_RE,
@@ -41,6 +52,11 @@ export interface StartOptions {
   mode?: SandboxMode;
   /** A configuration directory to run; it is only read. Default: an empty configuration. */
   config?: ConfigSource;
+  /**
+   * Virtual devices to create before `ready`. Giving the option, even an empty list, installs the
+   * virtual-device integration, which `addDevices` needs later; the first use downloads it.
+   */
+  devices?: VirtualDeviceSpec[];
   maxLifetimeMinutes?: number;
   readinessTimeoutSeconds?: number;
   onProgress?: (state: LifecycleState, note?: string) => void;
@@ -49,12 +65,14 @@ export interface StartOptions {
 /** Test seams; the public API never exposes them. */
 export interface StartInternals {
   resolve?: (channel: Channel) => Promise<ResolvedRelease>;
+  virtual?: FetchOptions;
 }
 
 interface ValidOptions {
   request: { channel: Channel } | { release: string };
   mode: SandboxMode;
   config: ConfigSource | undefined;
+  devices: VirtualDeviceSpec[] | undefined;
   maxLifetimeMinutes: number;
   readinessTimeoutSeconds: number;
 }
@@ -114,6 +132,10 @@ export function validateOptions(options: StartOptions): ValidOptions {
         : { channel: options.channel ?? "stable" },
     mode,
     config,
+    devices:
+      options.devices === undefined
+        ? undefined
+        : validateDevices(options.devices),
     maxLifetimeMinutes,
     readinessTimeoutSeconds,
   };
@@ -163,7 +185,14 @@ async function launch(
   internals: StartInternals,
 ): Promise<Sandbox> {
   // The directory is read before anything is pulled or created, so a bad one costs nothing.
-  const packed = await packConfig(valid.config);
+  const virtual =
+    valid.devices === undefined
+      ? undefined
+      : {
+          integration: await ensureVirtualIntegration(internals.virtual),
+          deviceFile: renderDeviceFile(valid.devices),
+        };
+  const packed = await packConfig(valid.config, virtual);
 
   await runtime.ensureAvailable();
 
@@ -276,6 +305,19 @@ async function launch(
         }
       });
     }
+
+    let virtualDevices: VirtualDevices | undefined;
+    let created: VirtualDevice[] = [];
+    if (valid.devices !== undefined) {
+      progress("validating", "creating virtual devices");
+      virtualDevices = new VirtualDevices({
+        runtime,
+        containerId,
+        baseUrl,
+        token,
+      });
+      created = await virtualDevices.initialise(valid.devices);
+    }
     // A background instance outlives this process: only its deadline and `stop` end it.
     if (valid.mode === "background") release_guard();
 
@@ -290,6 +332,9 @@ async function launch(
       config: packed.summary,
       runtime,
       reaped,
+      ...(virtualDevices !== undefined
+        ? { virtual: virtualDevices, devices: created }
+        : {}),
       onRelease,
       onProgress: progress,
       ...(valid.mode === "tied" ? { releaseGuard: release_guard } : {}),

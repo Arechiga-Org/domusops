@@ -173,6 +173,19 @@ catch: the smoke check's time step fails on the release that changes them, and t
 named in the result (FR-028). Recorder timestamps keep real time; only what automations, triggers,
 conditions, and templates see is controlled. This limitation is documented.
 
+**Verified on 2026.9.3 (T049, T052)**:
+
+- `time_tracker_utcnow` and `time_tracker_timestamp` are bound when the event helper is imported,
+  so the companion replaces them on the helper module as well as `dt_util.utcnow`/`now`.
+- Timers registered before a freeze or resume are aimed at the old time. Reloading automations
+  does not re-aim them (a reload keeps every automation whose configuration did not change), so the
+  companion turns each enabled automation off and on again. Time triggers of other kinds
+  (template sensors, other integrations) keep their old aim; this is the documented limitation.
+- `advance` runs only the timers of the event helper, in due order, and only those that fall due
+  after the instant the advance starts: a real-time timer already overdue relative to the frozen
+  instant (a token expiry in the past of the frozen time) re-arms itself for the same instant and
+  would otherwise run without end. A run is capped at 100,000 timers (`time_control_failed`).
+
 **Alternatives considered**: A host-side reaper daemon: a resident process for a test tool.
 A watchdog sidecar container: a second container per instance and shared PID namespaces.
 Reaping only on the next invocation: misses FR-030 when nobody runs the sandbox again.
@@ -208,7 +221,20 @@ kinds the smoke check and feature 006 need and is configurable by file, which is
 **Risk**: its latest release (2025-08-13) predates the 2026 releases in the matrix. The matrix
 proves compatibility per release; a failure names the integration and release (FR-011).
 
-Verify in T-contract: the config-flow field names (`group_name`, `file_name`) and the reload path.
+**Verified on 2026.9.3 (T045, T052)**:
+
+- The tarball SHA-256 is `78d25f0d886aeaaba69909a5279632600e80e0a1c29a33cfeca272afe94e2e0b`.
+- The flow's user step takes `group_name` (`domusops`) and `file_name` (`/config/domusops-virtual.yaml`),
+  and creates one config entry. Reloading that entry (`POST /api/config/config_entries/entry/<id>/reload`)
+  after the file is rewritten makes new devices appear. The integration loads on 2026.9.3.
+- The entity id is `<kind>.<slugify(name)>`, and the integration keys its metadata by the entity
+  name, so names must be unique across kinds (the library checks this, case-insensitively) and a
+  leading `+` or `!` in a name changes the entity id (the library refuses it). The library reads
+  the id back from the state machine by `friendly_name` and kind rather than computing it.
+- Home Assistant caches the list of custom components at its first use, so the integration is
+  installed only when `devices` is given at start (an empty list is enough); `addDevices` on an
+  instance started without it fails with `virtual_unavailable`.
+- A new `light` starts `on`; set the state first when a scenario depends on it.
 
 ## R8 — Secrets in a sandbox
 

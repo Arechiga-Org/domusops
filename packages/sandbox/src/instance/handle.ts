@@ -1,6 +1,10 @@
 import { inspect } from "node:util";
 import { SandboxError } from "../errors.js";
 import type { ResolvedRelease } from "../release/versions.js";
+import type { VirtualDevices } from "../devices/virtual.js";
+import type { VirtualDevice, VirtualDeviceSpec } from "../devices/spec.js";
+import { HttpError, getJson, postJson } from "../ha/rest.js";
+import { HaSocket, WsCommandError } from "../ha/ws.js";
 import type { Runtime } from "../runtime/docker.js";
 import type { Removal } from "../runtime/reaper.js";
 import type { ConfigSummary, LifecycleState, SandboxMode } from "../types.js";
@@ -17,6 +21,27 @@ export interface McpEnv {
   DOMUSOPS_HA_TOKEN: string;
 }
 
+export interface EntityState {
+  state: string;
+  attributes: Record<string, unknown>;
+}
+
+/** Control of the instance's clock; needs Home Assistant internals, so only CI proves it per release. */
+export interface SandboxTime {
+  /** Fixes the instance's clock at `at` (ISO 8601; no zone means the instance's own). */
+  freeze(at: string): Promise<void>;
+  /** Moves a frozen clock forward and runs the timers that fall due. 0 < seconds <= 604800. */
+  advance(seconds: number): Promise<{ now: string; fired: number }>;
+  /** Back to real time. */
+  resume(): Promise<void>;
+  now(): Promise<{ now: string; frozen: boolean }>;
+}
+
+const ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
+const SERVICE_PART = /^[a-z0-9_]+$/;
+export const MAX_ADVANCE_SECONDS = 7 * 24 * 3600;
+const TIME_COMMAND_TIMEOUT_MS = 90_000;
+
 export interface Sandbox {
   readonly id: string;
   readonly release: ResolvedRelease;
@@ -29,6 +54,23 @@ export interface Sandbox {
   readonly reaped: readonly Removal[];
   connection(): Connection;
   mcpEnv(): McpEnv;
+  /** Devices created so far, from `devices` at start and `addDevices`. */
+  readonly devices: readonly VirtualDevice[];
+  /** Needs `devices` (an empty list is enough) at start. */
+  addDevices(devices: VirtualDeviceSpec[]): Promise<VirtualDevice[]>;
+  /** Writes the state machine entry, as a device would: triggers and automations see it. */
+  setState(
+    entityId: string,
+    state: string,
+    attributes?: Record<string, unknown>,
+  ): Promise<void>;
+  getState(entityId: string): Promise<EntityState | null>;
+  callService(
+    domain: string,
+    service: string,
+    data?: Record<string, unknown>,
+  ): Promise<void>;
+  readonly time: SandboxTime;
   /** Background: releases this process's hold and leaves the instance running. Tied: same as stop. */
   detach(): Promise<void>;
   /** Idempotent. */
@@ -46,6 +88,10 @@ export interface HandleInit {
   config: ConfigSummary | null;
   runtime: Runtime;
   reaped?: readonly Removal[];
+  /** Present when the instance was started with `devices`. */
+  virtual?: VirtualDevices;
+  /** The devices the instance started with. */
+  devices?: readonly VirtualDevice[];
   /** Run once, in order, when this process lets go of the instance: detach or stop. */
   onRelease?: (() => void | Promise<void>)[];
   /** Called once the container is removed, never before: until then the exit guard stays armed. */
@@ -62,6 +108,7 @@ export class SandboxHandle implements Sandbox {
   readonly url: string;
   readonly config: ConfigSummary | null;
   readonly reaped: readonly Removal[];
+  readonly time: SandboxTime;
   readonly #token: string;
   readonly #wsUrl: string;
   readonly #containerId: string;
@@ -69,6 +116,8 @@ export class SandboxHandle implements Sandbox {
   readonly #onRelease: (() => void | Promise<void>)[];
   readonly #releaseGuard: (() => void) | undefined;
   readonly #onProgress: ((state: LifecycleState) => void) | undefined;
+  readonly #virtual: VirtualDevices | undefined;
+  readonly #devices: VirtualDevice[];
   #stopping: Promise<void> | null = null;
   #detached: Promise<void> | null = null;
 
@@ -87,6 +136,124 @@ export class SandboxHandle implements Sandbox {
     this.#onRelease = init.onRelease ?? [];
     this.#releaseGuard = init.releaseGuard;
     this.#onProgress = init.onProgress;
+    this.#virtual = init.virtual;
+    this.#devices = [...(init.devices ?? [])];
+    this.time = {
+      freeze: async (at) => {
+        if (typeof at !== "string" || Number.isNaN(Date.parse(at))) {
+          throw new TypeError("`at` must be an ISO 8601 date and time.");
+        }
+        await this.companion("time/freeze", { at });
+      },
+      advance: async (seconds) => {
+        if (
+          !Number.isFinite(seconds) ||
+          seconds <= 0 ||
+          seconds > MAX_ADVANCE_SECONDS
+        ) {
+          throw new RangeError(
+            `\`seconds\` must be greater than 0 and at most ${String(MAX_ADVANCE_SECONDS)}.`,
+          );
+        }
+        return this.companion<{ now: string; fired: number }>("time/advance", {
+          seconds,
+        });
+      },
+      resume: async () => {
+        await this.companion("time/resume", {});
+      },
+      now: () =>
+        this.companion<{ now: string; frozen: boolean }>("time/now", {}),
+    };
+  }
+
+  get devices(): readonly VirtualDevice[] {
+    return [...this.#devices];
+  }
+
+  async addDevices(devices: VirtualDeviceSpec[]): Promise<VirtualDevice[]> {
+    this.assertRunning();
+    if (this.#virtual === undefined) {
+      throw new SandboxError(
+        "virtual_unavailable",
+        "This handle cannot add devices: the instance was started without `devices`, or this process only reattached to it.",
+      );
+    }
+    const created = await this.#virtual.add(devices);
+    this.#devices.push(...created);
+    return created;
+  }
+
+  async setState(
+    entityId: string,
+    state: string,
+    attributes: Record<string, unknown> = {},
+  ): Promise<void> {
+    this.assertRunning();
+    assertEntityId(entityId);
+    if (typeof state !== "string") {
+      throw new TypeError("`state` must be a string.");
+    }
+    await postJson(
+      this.url,
+      `/api/states/${entityId}`,
+      { state, attributes },
+      { token: this.#token },
+    );
+  }
+
+  async getState(entityId: string): Promise<EntityState | null> {
+    this.assertRunning();
+    assertEntityId(entityId);
+    try {
+      const row = (await getJson(this.url, `/api/states/${entityId}`, {
+        token: this.#token,
+      })) as { state: string; attributes: Record<string, unknown> };
+      return { state: row.state, attributes: row.attributes };
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) return null;
+      throw error;
+    }
+  }
+
+  async callService(
+    domain: string,
+    service: string,
+    data: Record<string, unknown> = {},
+  ): Promise<void> {
+    this.assertRunning();
+    if (!SERVICE_PART.test(domain) || !SERVICE_PART.test(service)) {
+      throw new TypeError(
+        "`domain` and `service` must be lowercase names such as light and turn_on.",
+      );
+    }
+    await postJson(this.url, `/api/services/${domain}/${service}`, data, {
+      token: this.#token,
+      timeoutMs: 60_000,
+    });
+  }
+
+  private async companion<T = Record<string, never>>(
+    command: string,
+    payload: Record<string, unknown>,
+  ): Promise<T> {
+    this.assertRunning();
+    const socket = await HaSocket.connect(this.#wsUrl, this.#token);
+    try {
+      return await socket.command<T>(
+        { type: `domusops_sandbox/${command}`, ...payload },
+        TIME_COMMAND_TIMEOUT_MS,
+      );
+    } catch (error) {
+      if (error instanceof WsCommandError) {
+        throw new SandboxError("time_control_failed", error.message, {
+          secrets: [this.#token],
+        });
+      }
+      throw error;
+    } finally {
+      socket.close();
+    }
   }
 
   connection(): Connection {
@@ -156,5 +323,13 @@ export class SandboxHandle implements Sandbox {
         `The sandbox ${this.id} was stopped.`,
       );
     }
+  }
+}
+
+function assertEntityId(entityId: string): void {
+  if (typeof entityId !== "string" || !ENTITY_ID.test(entityId)) {
+    throw new TypeError(
+      `"${String(entityId)}" is not an entity id such as light.hall.`,
+    );
   }
 }
