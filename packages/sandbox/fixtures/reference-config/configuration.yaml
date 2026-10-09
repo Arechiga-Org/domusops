@@ -1,0 +1,7 @@
+# A small, self-contained configuration used to test the sandbox itself.
+# It is written for this repository and copies nothing from a real installation.
+homeassistant:
+  name: DomusOps Reference
+  packages: !include_dir_named packages
+
+default_config:

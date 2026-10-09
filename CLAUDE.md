@@ -22,9 +22,7 @@ specs/ — Spec Kit feature specs
 
 ## Current focus
 
-`ha_snapshot` (specs/001-ha-snapshot/) is done and merged. `ha_logbook_query`
-(specs/002-ha-logbook-query/, PR #3) and `ha_trace` (specs/003-ha-trace/, PR #4) are
-implemented and in review.
-Current feature: the `ha-bootstrap` skill (specs/004-ha-bootstrap/), backlog item 2 of
-docs/SEED.md §6: a skill in skills/ha-bootstrap/ backed by a new CLI package,
-packages/bootstrap. Nothing else lands until it works end to end.
+`ha_snapshot`, `ha_logbook_query`, `ha_trace` and the `ha-bootstrap` skill are merged.
+Current feature: `@domusops/sandbox` part 1, the ephemeral harness
+(specs/005-sandbox-harness/), backlog item 3 of docs/SEED.md §6. The scenario and assertion
+DSL is a later feature. Nothing else lands until the harness works end to end.

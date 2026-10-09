@@ -1,0 +1,12 @@
+# Turns on the light of the virtual device "Hall" every night at 03:00.
+# The entity id depends on how the virtual device integration names the device.
+automation:
+  - id: domusops_reference_hall_light_at_three
+    alias: Reference - Hall light at 03:00
+    triggers:
+      - trigger: time
+        at: "03:00:00"
+    actions:
+      - action: light.turn_on
+        target:
+          entity_id: light.hall

@@ -5,6 +5,7 @@ import type { Sandbox } from "../src/instance/handle.js";
 import type { SandboxListing } from "../src/instance/list.js";
 import type { StartOptions } from "../src/instance/start.js";
 import type { Removal } from "../src/runtime/reaper.js";
+import type { ConfigSummary } from "../src/types.js";
 
 const TOKEN = "tok-0123456789abcdef";
 
@@ -463,5 +464,108 @@ describe("cleanup", () => {
     const h = harness();
     await main(["cleanup"], h.deps);
     expect(h.out.join("")).toBe("nothing to clean up\n");
+  });
+});
+
+describe("start --config", () => {
+  const summary: ConfigSummary = {
+    source: "/work/ha-config",
+    files: 12,
+    excluded: [".storage/", "secrets.yaml"],
+    skippedLinks: ["leaves.yaml"],
+    secrets: "placeholders",
+    placeholderKeys: ["a", "b"],
+    userVirtualIntegration: true,
+  };
+
+  function withConfig(h: Harness): Partial<CliDeps> {
+    return {
+      start: async (options) => {
+        h.started.push(options);
+        return {
+          ...fakeSandbox(h.stopped, options.mode, h.reaped, h.detached),
+          config: { ...summary },
+        };
+      },
+    };
+  }
+
+  it("passes the directory and the secrets file as absolute paths", async () => {
+    const h = harness();
+    await main(
+      ["start", "--config", "ha", "--secrets-file", "own.yaml", "--", "true"],
+      h.deps,
+    );
+    const config = h.started[0]?.config;
+    expect(config?.dir).toBe(`${process.cwd()}/ha`);
+    expect(config?.secretsFile).toBe(`${process.cwd()}/own.yaml`);
+  });
+
+  it("starts without a configuration when none is given", async () => {
+    const h = harness();
+    await main(["start", "--", "true"], h.deps);
+    expect(h.started[0]?.config).toBeUndefined();
+  });
+
+  it("rejects --secrets-file without --config", async () => {
+    const h = harness();
+    expect(
+      await main(["start", "--secrets-file", "own.yaml", "--", "true"], h.deps),
+    ).toBe(2);
+    expect(h.started).toEqual([]);
+  });
+
+  it("rejects an empty --config or --secrets-file", async () => {
+    for (const args of [
+      ["start", "--config", "", "--", "true"],
+      ["start", "--config", "ha", "--secrets-file", "", "--", "true"],
+    ]) {
+      const h = harness();
+      expect(await main(args, h.deps)).toBe(2);
+      expect(h.started).toEqual([]);
+    }
+  });
+
+  it("says what was loaded, on stderr, before running the command", async () => {
+    const h = harness();
+    Object.assign(h.deps, withConfig(h));
+    await main(["start", "--config", "ha", "--", "true"], h.deps);
+    const err = h.err.join("");
+    expect(err).toContain("config /work/ha-config: 12 files");
+    expect(err).toContain("placeholders for 2 keys");
+    expect(err).toContain(".storage/, secrets.yaml");
+    expect(err).toContain("leaves.yaml");
+    expect(err).toContain("custom_components/virtual");
+    expect(h.out.join("")).toBe("");
+  });
+
+  it("says what was loaded on stdout for a background instance", async () => {
+    const h = harness();
+    Object.assign(h.deps, withConfig(h));
+    await main(["start", "--background", "--config", "ha"], h.deps);
+    expect(h.out.join("")).toContain("config /work/ha-config: 12 files");
+  });
+
+  it("includes the summary in the JSON and never the token", async () => {
+    const h = harness();
+    Object.assign(h.deps, withConfig(h));
+    await main(["start", "--background", "--json", "--config", "ha"], h.deps);
+    const parsed = JSON.parse(h.out.join("")) as {
+      config: { files: number };
+    };
+    expect(parsed.config.files).toBe(12);
+    expect(h.out.join("")).not.toContain(TOKEN);
+  });
+
+  it("exits 1 for a directory the sandbox cannot use", async () => {
+    const h = harness({
+      start: async () => {
+        throw new SandboxError("config_dir_invalid", "No configuration.yaml");
+      },
+    });
+    expect(await main(["start", "--config", "ha", "--", "true"], h.deps)).toBe(
+      1,
+    );
+    expect(h.err.join("")).toContain("config_dir_invalid");
   });
 });
