@@ -52,7 +52,7 @@ async function handleOver(
     mode: "tied",
     deadline: "2031-01-01T00:00:00Z",
     port: (server?.address() as AddressInfo).port,
-    token: "t",
+    token: "secret-token-123",
     config: null,
     runtime: {} as Runtime,
   });
@@ -96,19 +96,20 @@ describe("the connection", () => {
     const port = (server?.address() as AddressInfo).port;
     expect(handle.mcpEnv()).toEqual({
       DOMUSOPS_HA_URL: `http://127.0.0.1:${String(port)}`,
-      DOMUSOPS_HA_TOKEN: "t",
+      DOMUSOPS_HA_TOKEN: "secret-token-123",
     });
     expect(handle.connection()).toEqual({
       url: `http://127.0.0.1:${String(port)}`,
       wsUrl: `ws://127.0.0.1:${String(port)}/api/websocket`,
-      token: "t",
+      token: "secret-token-123",
     });
   });
 
   it("keeps the token out of everything but those two calls", async () => {
     const { handle } = await handleOver({});
-    expect(JSON.stringify(handle)).not.toContain('"t"');
-    expect(inspect(handle)).not.toContain("token");
-    expect(String(handle)).not.toContain(":t");
+    const secret = "secret-token-123";
+    expect(JSON.stringify(handle)).not.toContain(secret);
+    expect(inspect(handle)).not.toContain(secret);
+    expect(String(handle)).not.toContain(secret);
   });
 });

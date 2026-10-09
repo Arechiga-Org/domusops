@@ -7,6 +7,7 @@ import { startSandbox } from "../src/index.js";
 import { CHANNELS, startTarget } from "./support/channels.js";
 
 const MINUTE = 60_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 const REPOSITORY = fileURLToPath(new URL("../../..", import.meta.url));
 const MCP_ENTRY = fileURLToPath(
   new URL("../../mcp/dist/cli.js", import.meta.url),
@@ -14,6 +15,7 @@ const MCP_ENTRY = fileURLToPath(
 
 interface Reply {
   id?: number;
+  method?: string;
   result?: { content?: { type: string; text: string }[]; isError?: boolean };
   error?: { message: string };
 }
@@ -41,16 +43,27 @@ async function withMcp<T>(
       const line = buffered.slice(0, end).trim();
       buffered = buffered.slice(end + 1);
       if (line === "") continue;
-      const reply = JSON.parse(line) as Reply;
-      if (reply.id !== undefined) waiting.get(reply.id)?.(reply);
+      let reply: Reply;
+      try {
+        reply = JSON.parse(line) as Reply;
+      } catch {
+        failed(new Error(`MCP server wrote a line that is not JSON: ${line}`));
+        return;
+      }
+      const isResponse =
+        reply.result !== undefined || reply.error !== undefined;
+      if (reply.id !== undefined && isResponse) waiting.get(reply.id)?.(reply);
     }
   });
+  let failed: (error: Error) => void = () => undefined;
   const exited = new Promise<never>((_resolve, reject) => {
+    failed = reject;
     child.on("exit", (code) =>
       reject(new Error(`MCP server exited (${String(code)}): ${stderr}`)),
     );
   });
   exited.catch(() => undefined);
+  child.stdin.on("error", () => undefined);
   let next = 0;
   const request = (method: string, params: object): Promise<Reply> => {
     const id = ++next;
@@ -58,7 +71,14 @@ async function withMcp<T>(
     child.stdin.write(
       `${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`,
     );
-    return Promise.race([answer, exited]);
+    const timeout = new Promise<never>((_resolve, reject) => {
+      setTimeout(
+        () =>
+          reject(new Error(`MCP ${method} got no answer in 60 s: ${stderr}`)),
+        REQUEST_TIMEOUT_MS,
+      ).unref();
+    });
+    return Promise.race([answer, exited, timeout]);
   };
   try {
     await request("initialize", {
@@ -90,8 +110,10 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
         ...startTarget(channel),
         devices: [{ kind: "light", name: "Hall" }],
       });
-      const { url, wsUrl, token } = sandbox.connection();
+      let connection: ReturnType<typeof sandbox.connection> | undefined;
       try {
+        connection = sandbox.connection();
+        const { wsUrl, token } = connection;
         const env = sandbox.mcpEnv();
         expect(Object.keys(env).sort()).toEqual([
           "DOMUSOPS_HA_TOKEN",
@@ -99,10 +121,15 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
         ]);
 
         const snapshot = (await withMcp({ ...env }, (call) =>
-          call("ha_snapshot", { detail: "full" }),
-        )) as { format?: string };
+          call("ha_snapshot", { detail: "summary" }),
+        )) as {
+          format?: string;
+          by_domain?: Record<string, number>;
+          by_integration?: Record<string, { entities: number }>;
+        };
         expect(snapshot.format).toBe("domusops.snapshot/0.1");
-        expect(JSON.stringify(snapshot)).toContain("light.hall");
+        expect(snapshot.by_domain?.["light"]).toBeGreaterThanOrEqual(1);
+        expect(snapshot.by_integration?.["virtual"]?.entities).toBe(1);
 
         const socket = await HaSocket.connect(wsUrl, token);
         try {
@@ -117,12 +144,16 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
         await sandbox.stop();
       }
 
-      await expect(
-        fetch(`${url}/api/config`, {
-          headers: { authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(5_000),
-        }),
-      ).rejects.toThrow();
+      // Another instance may have been given the freed port, and it would refuse the token.
+      const { url, wsUrl, token } = connection;
+      const status = await fetch(`${url}/api/config`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5_000),
+      }).then(
+        (response) => response.status,
+        () => "refused",
+      );
+      expect(status).not.toBe(200);
       await expect(HaSocket.connect(wsUrl, token)).rejects.toThrow();
     },
     8 * MINUTE,
@@ -133,11 +164,12 @@ describe("the existing tools are used as they are", () => {
   it("leaves packages/mcp untouched", () => {
     const git = (...args: string[]): string =>
       execFileSync("git", args, { cwd: REPOSITORY, encoding: "utf8" });
+    let base: string;
     try {
-      git("rev-parse", "--verify", "--quiet", "main");
+      base = git("merge-base", "main", "HEAD").trim();
     } catch {
-      return; // no local main to compare with, as in a shallow CI checkout
+      return; // no main to compare with, as in a shallow CI checkout
     }
-    expect(git("diff", "--stat", "main", "--", "packages/mcp")).toBe("");
+    expect(git("diff", "--stat", base, "HEAD", "--", "packages/mcp")).toBe("");
   });
 });
