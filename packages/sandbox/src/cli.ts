@@ -393,6 +393,7 @@ function describeRun(result: RunResult): string {
   const lines = [
     `${result.channel} ${result.release ?? "(no release)"}: ${result.outcome}${result.failedStep === undefined ? "" : ` at ${result.failedStep}`}`,
   ];
+  if (result.message !== undefined) lines.push(`  ${result.message}`);
   for (const step of result.steps) {
     const message = step.message === undefined ? "" : `  ${step.message}`;
     lines.push(

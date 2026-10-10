@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { redact } from "../errors.js";
-import type { Channel } from "../release/versions.js";
+import { RELEASE_RE, type Channel } from "../release/versions.js";
 
 export const RESULT_FORMAT = "domusops.sandbox-result/0.1" as const;
 
@@ -37,6 +37,8 @@ export interface RunResult {
   release?: string;
   outcome: Outcome;
   failedStep?: StepName | EarlyStep;
+  /** Why a run could not start; only for `could-not-run`. */
+  message?: string;
   steps: StepResult[];
   startedAt: string;
   finishedAt: string;
@@ -101,6 +103,7 @@ export function writeResult(path: string, result: RunResult): void {
   writeFileSync(path, serializeResult(result));
 }
 
+const INSTANT_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const CHANNEL_VALUES = ["stable", "previous-stable", "beta", "exact"];
 const OUTCOME_VALUES = [
   "passed",
@@ -122,6 +125,9 @@ export function readResult(path: string): RunResult {
   const r = (
     typeof value === "object" && value !== null ? value : {}
   ) as Record<string, unknown>;
+  const text = (key: string, test: (value: string) => boolean): boolean =>
+    r[key] === undefined || (typeof r[key] === "string" && test(r[key]));
+  // Everything the table prints is checked here, so a corrupt artifact cannot write the README.
   const valid =
     r["format"] === RESULT_FORMAT &&
     typeof r["channel"] === "string" &&
@@ -130,6 +136,14 @@ export function readResult(path: string): RunResult {
     OUTCOME_VALUES.includes(r["outcome"]) &&
     Array.isArray(r["steps"]) &&
     typeof r["finishedAt"] === "string" &&
+    INSTANT_RE.test(r["finishedAt"]) &&
+    typeof r["startedAt"] === "string" &&
+    INSTANT_RE.test(r["startedAt"]) &&
+    text("release", (value) => RELEASE_RE.test(value)) &&
+    text("failedStep", (value) =>
+      [...STEP_NAMES, "resolve", "pull"].includes(value),
+    ) &&
+    text("message", (value) => value.length <= MAX_MESSAGE) &&
     (r["ciRunUrl"] === undefined ||
       (typeof r["ciRunUrl"] === "string" &&
         /^https:\/\/[^\s()<>[\]]+$/.test(r["ciRunUrl"])));

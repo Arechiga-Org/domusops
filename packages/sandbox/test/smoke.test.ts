@@ -295,6 +295,15 @@ describe("the smoke check", () => {
     },
   );
 
+  it("says why a run could not start", async () => {
+    const result = await runSmoke(
+      { channel: "stable" },
+      fake({ start: new SandboxError("image_unavailable", "no image") }).deps,
+    );
+    expect(result.message).toBe("no image");
+    expectValid(result);
+  });
+
   it("could not run when the channel cannot be resolved, with no release", async () => {
     const f = fake({
       resolve: new SandboxError("channel_unresolved", "offline"),

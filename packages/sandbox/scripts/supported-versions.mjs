@@ -63,12 +63,13 @@ function currentDocument() {
 
 function apply(results) {
   const doc = applyResults(currentDocument(), results);
-  writeFileSync(jsonPath, `${JSON.stringify(doc, null, 2)}\n`);
-  const readme = readFileSync(readmePath, "utf8");
-  writeFileSync(
-    readmePath,
-    replaceTableBlock(readme, renderSupportedVersions(doc)),
+  // Both outputs are computed before either file is written, so a bad README leaves both alone.
+  const readme = replaceTableBlock(
+    readFileSync(readmePath, "utf8"),
+    renderSupportedVersions(doc),
   );
+  writeFileSync(jsonPath, `${JSON.stringify(doc, null, 2)}\n`);
+  writeFileSync(readmePath, readme);
   process.stdout.write(`${renderSupportedVersions(doc)}\n`);
 }
 
@@ -92,7 +93,7 @@ if (chosen.length !== 1) {
 
 if (values.gate !== undefined) {
   const results = readResults(resolve(values.gate));
-  const { ok, problems } = gateVerdict(results);
+  const { ok, problems, warnings } = gateVerdict(results);
   process.stdout.write(
     `${renderSupportedVersions(
       applyResults(
@@ -104,6 +105,9 @@ if (values.gate !== undefined) {
     )}\n`,
   );
   for (const problem of problems) process.stderr.write(`${problem}\n`);
+  for (const warning of warnings) {
+    process.stderr.write(`::warning title=sandbox-gate::${warning}\n`);
+  }
   process.exit(ok ? 0 : 1);
 } else if (values.from !== undefined) {
   apply(readResults(resolve(values.from)));

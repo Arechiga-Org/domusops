@@ -41,6 +41,10 @@
         "teardown"
       ]
     },
+    "message": {
+      "type": "string",
+      "maxLength": 300
+    },
     "steps": {
       "type": "array",
       "items": {

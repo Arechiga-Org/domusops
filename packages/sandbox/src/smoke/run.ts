@@ -2,9 +2,11 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { SandboxError } from "../errors.js";
 import { postJson } from "../ha/rest.js";
 import { HaSocket } from "../ha/ws.js";
-import { listSandboxes, startSandbox } from "../index.js";
+import { listSandboxes } from "../instance/list.js";
+import { startSandboxWith } from "../instance/start.js";
 import { exactRelease, resolveChannel } from "../release/resolve.js";
 import type { Channel } from "../release/versions.js";
+import { createRuntime } from "../runtime/docker.js";
 import {
   RESULT_FORMAT,
   runContext,
@@ -34,8 +36,8 @@ export function defaultSmokeDeps(
 ): SmokeDeps {
   return {
     resolve: (channel) => resolveChannel(channel),
-    start: (options) => startSandbox(options),
-    list: () => listSandboxes(),
+    start: (options) => startSandboxWith(createRuntime(), options),
+    list: () => listSandboxes(createRuntime()),
     connectSocket: (wsUrl, token) => HaSocket.connect(wsUrl, token),
     checkConfig: async ({ url, token }) =>
       (await postJson(
@@ -139,6 +141,7 @@ export async function runSmoke(
         channel,
         outcome: "could-not-run",
         failedStep: "resolve",
+        message: stepMessage(error.message),
         steps: [],
       });
     }
@@ -187,6 +190,7 @@ export async function runSmoke(
       release,
       outcome: "could-not-run",
       failedStep: "pull",
+      message: stepMessage(failure.message, secrets()),
       steps: [],
     });
   }

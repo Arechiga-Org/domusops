@@ -161,6 +161,20 @@ describe("the run result schema", () => {
     expect(accepted({ ...base, steps: passed().steps })).toBe(false);
   });
 
+  it("accepts a could-not-run result with a reason, and rejects a long one", () => {
+    const base = {
+      ...passed(),
+      outcome: "could-not-run",
+      failedStep: "pull",
+      steps: [],
+      message: "image_unavailable",
+    };
+    expect(accepted(base)).toBe(true);
+    expect(accepted({ ...base, message: "x".repeat(MAX_MESSAGE + 1) })).toBe(
+      false,
+    );
+  });
+
   it("rejects a message longer than 300 characters", () => {
     const result = failedAt("time");
     const step = result.steps.find((s) => s.name === "time");
@@ -259,6 +273,26 @@ describe("reading a result file", () => {
     ["not an object", "[]"],
     ["another format", '{"format":"x"}'],
     ["no outcome", JSON.stringify({ ...passed(), outcome: undefined })],
+    [
+      "a release that is not a release",
+      JSON.stringify({ ...passed(), release: "| x |" }),
+    ],
+    [
+      "an unknown failed step",
+      JSON.stringify({ ...failedAt("time"), failedStep: "x|y" }),
+    ],
+    [
+      "a start that is not an instant",
+      JSON.stringify({ ...passed(), startedAt: "yesterday" }),
+    ],
+    [
+      "a finish that is not an instant",
+      JSON.stringify({ ...passed(), finishedAt: "2026-10-08" }),
+    ],
+    [
+      "a message that is too long",
+      JSON.stringify({ ...passed(), message: "x".repeat(MAX_MESSAGE + 1) }),
+    ],
     [
       "a link that breaks markdown",
       JSON.stringify({ ...passed(), ciRunUrl: "https://x.test/a)b" }),

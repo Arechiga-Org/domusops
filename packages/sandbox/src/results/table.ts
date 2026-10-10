@@ -149,6 +149,8 @@ export const REQUIRED_CHANNELS: readonly Channel[] = [
 export interface GateVerdict {
   ok: boolean;
   problems: string[];
+  /** Channels that may fail without failing the gate but should not go unnoticed. */
+  warnings: string[];
 }
 
 /** The merge gate: every required channel needs a result, and the result must have passed. */
@@ -164,5 +166,9 @@ export function gateVerdict(results: readonly RunResult[]): GateVerdict {
       problems.push(`${channel}: ${result.outcome}${where}.`);
     }
   }
-  return { ok: problems.length === 0, problems };
+  const warnings: string[] = [];
+  if (!results.some((candidate) => candidate.channel === "beta")) {
+    warnings.push("beta: no result was produced.");
+  }
+  return { ok: problems.length === 0, problems, warnings };
 }

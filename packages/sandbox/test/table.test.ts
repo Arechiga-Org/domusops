@@ -151,7 +151,20 @@ describe("the merge gate", () => {
         result({ channel: "previous-stable", release: "2026.9.3" }),
         result({ channel: "beta", outcome: "failed", failedStep: "time" }),
       ]),
-    ).toEqual({ ok: true, problems: [] });
+    ).toEqual({ ok: true, problems: [], warnings: [] });
+  });
+
+  it("passes with a warning when the beta produced no result", () => {
+    expect(
+      gateVerdict([
+        result(),
+        result({ channel: "previous-stable", release: "2026.9.3" }),
+      ]),
+    ).toEqual({
+      ok: true,
+      problems: [],
+      warnings: ["beta: no result was produced."],
+    });
   });
 
   it("fails for a stable channel that failed, could not run, or has no result", () => {
