@@ -105,7 +105,13 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           DOMUSOPS_SANDBOX_CHANNEL: ${{ matrix.channel }}
-        run: pnpm --filter @domusops/sandbox run test:container
+        run: |
+          # With no beta in progress there is nothing to start; the smoke result already says so.
+          if node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).outcome === "no-beta-in-progress" ? 0 : 1)' "sandbox-result-${{ matrix.channel }}.json" 2>/dev/null; then
+            echo "No beta is in progress; the container tests have nothing to run."
+            exit 0
+          fi
+          pnpm --filter @domusops/sandbox run test:container
 
   # One required check for branch protection: the matrix legs that must pass are stable and
   # previous-stable. The beta leg is informative. The table goes to the job summary.
