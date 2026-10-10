@@ -112,6 +112,21 @@ if (values.gate !== undefined) {
     process.stderr.write("--run needs a numeric run id.\n");
     process.exit(2);
   }
+  const run = JSON.parse(
+    execFileSync(
+      "gh",
+      ["run", "view", values.run, "--json", "headBranch,event"],
+      {
+        encoding: "utf8",
+      },
+    ),
+  );
+  if (run.headBranch !== "main" || run.event === "pull_request") {
+    process.stderr.write(
+      `Run ${values.run} is not a run of main; a pull request must not rewrite the published table.\n`,
+    );
+    process.exit(2);
+  }
   const directory = mkdtempSync(join(tmpdir(), "domusops-results-"));
   try {
     execFileSync(

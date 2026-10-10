@@ -40,6 +40,8 @@ interface Faults {
   checkConfig?: { result: string; errors: string };
   setStateKeeps?: boolean;
   snapshot?: string;
+  snapshotError?: string;
+  listError?: Error;
 }
 
 function fake(faults: Faults = {}): Fake {
@@ -52,11 +54,14 @@ function fake(faults: Faults = {}): Fake {
   const sandbox = {
     id: "sb-1",
     config: { source: "directory" },
-    connection: () => ({
-      url: "http://127.0.0.1:1",
-      wsUrl: "ws://127.0.0.1:1/api/websocket",
-      token: TOKEN,
-    }),
+    connection: () => {
+      if (stopped.length > 0) throw new Error("stopped");
+      return {
+        url: "http://127.0.0.1:1",
+        wsUrl: "ws://127.0.0.1:1/api/websocket",
+        token: TOKEN,
+      };
+    },
     mcpEnv: () => ({
       DOMUSOPS_HA_URL: "http://127.0.0.1:1",
       DOMUSOPS_HA_TOKEN: TOKEN,
@@ -145,6 +150,9 @@ function fake(faults: Faults = {}): Fake {
       return sandbox;
     },
     list: async () => {
+      if (faults.listError !== undefined && stopped.length > 0) {
+        throw faults.listError;
+      }
       if (stopped.length > 0) remaining.length = 0;
       return remaining as never;
     },
@@ -164,10 +172,11 @@ function fake(faults: Faults = {}): Fake {
         ],
       }));
       server.setRequestHandler(CallToolRequestSchema, async () => ({
-        content: [{ type: "text", text: snapshot }],
+        content: [{ type: "text", text: faults.snapshotError ?? snapshot }],
+        ...(faults.snapshotError === undefined ? {} : { isError: true }),
       }));
       void server.connect(serverSide);
-      return { transport: client, stderr: () => "" };
+      return { transport: client };
     },
     mcpEntry: () => "/fake/mcp/dist/cli.js",
     environment: {
@@ -294,6 +303,31 @@ describe("the smoke check", () => {
     expect(result.outcome).toBe("could-not-run");
     expect(result.failedStep).toBe("resolve");
     expect(result.release).toBeUndefined();
+    expectValid(result);
+  });
+
+  it("does not turn an unexpected resolve error into could-not-run", async () => {
+    const f = fake({ resolve: new TypeError("bug") });
+    await expect(runSmoke({ channel: "stable" }, f.deps)).rejects.toThrow(
+      TypeError,
+    );
+  });
+
+  it("keeps the token out of a teardown message even though the sandbox is stopped", async () => {
+    const f = fake({ listError: new Error(`refused ${TOKEN}`) });
+    const result = await runSmoke({ channel: "stable" }, f.deps);
+    expect(result.outcome).toBe("failed");
+    expect(result.failedStep).toBe("teardown");
+    expect(JSON.stringify(result)).not.toContain(TOKEN);
+    expectValid(result);
+  });
+
+  it("leaves what ha_snapshot said in an error out of the result", async () => {
+    const f = fake({ snapshotError: "light.hall is on at https://ha.example" });
+    const result = await runSmoke({ channel: "stable" }, f.deps);
+    expect(result.failedStep).toBe("mcp-snapshot");
+    expect(JSON.stringify(result)).not.toContain("light.hall");
+    expect(JSON.stringify(result)).not.toContain("ha.example");
     expectValid(result);
   });
 

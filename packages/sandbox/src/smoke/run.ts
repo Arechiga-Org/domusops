@@ -49,13 +49,9 @@ export function defaultSmokeDeps(
         command: launch.command,
         args: launch.args,
         env: launch.env,
-        stderr: "pipe",
+        stderr: "ignore",
       });
-      let stderr = "";
-      transport.stderr?.on("data", (chunk: Buffer) => {
-        stderr = (stderr + chunk.toString()).slice(-2000);
-      });
-      return { transport, stderr: () => stderr };
+      return { transport };
     },
     mcpEntry: resolveMcpEntry,
     environment,
@@ -136,6 +132,9 @@ export async function runSmoke(
       ) {
         return finish({ channel, outcome: "no-beta-in-progress", steps: [] });
       }
+      // Only a known failure (index unreachable, no such release) says the machine could not
+      // resolve; anything else is a bug and must not pass for an infrastructure flake.
+      if (!(error instanceof SandboxError)) throw error;
       return finish({
         channel,
         outcome: "could-not-run",
@@ -146,14 +145,17 @@ export async function runSmoke(
   }
 
   const context: SmokeContext = { deps, release, devices: [] };
+  // Remembered from the last time the sandbox could tell it: once stopped it throws.
+  let known: string[] = [];
   const secrets = (): string[] => {
     try {
-      return context.sandbox === undefined
-        ? []
-        : [context.sandbox.connection().token];
+      if (context.sandbox !== undefined) {
+        known = [context.sandbox.connection().token];
+      }
     } catch {
-      return [];
+      // keep what was known while the sandbox ran
     }
+    return known;
   };
 
   const steps: StepResult[] = [];

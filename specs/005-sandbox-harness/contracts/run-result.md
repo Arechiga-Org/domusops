@@ -55,3 +55,7 @@ rendered only from `docs/supported-versions.json`:
 
 Text outside the markers is never touched. `packages/sandbox/test/readme-table.test.ts` fails when
 the block differs from the rendering (FR-024).
+
+A row is replaced by the next result for its channel, except that a `could-not-run` result never
+replaces an existing row: it says nothing about the release, so the last real result stays. Only
+results of runs on `main` are applied (`sandbox:table --run` refuses any other run).

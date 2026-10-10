@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # New Home Assistant releases land without any change here; the matrix must still notice.
+  schedule:
+    - cron: "17 5 * * 1"
 
 jobs:
   verify:
@@ -126,3 +129,8 @@ jobs:
           merge-multiple: true
       - name: Check the matrix
         run: node packages/sandbox/scripts/supported-versions.mjs --gate sandbox-results >> "$GITHUB_STEP_SUMMARY"
+      - name: Require a successful matrix
+        if: ${{ always() && needs.sandbox-matrix.result != 'success' }}
+        run: |
+          echo "The sandbox-matrix job ended as ${{ needs.sandbox-matrix.result }}." >&2
+          exit 1

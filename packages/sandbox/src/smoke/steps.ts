@@ -33,8 +33,6 @@ export interface ConfigCheck {
 
 export interface McpConnection {
   transport: Transport;
-  /** What the server wrote to its error output so far. */
-  stderr(): string;
 }
 
 /** The outside world the steps touch; tests replace any of it. */
@@ -253,7 +251,7 @@ const mcpSnapshot: SmokeStep = {
   name: "mcp-snapshot",
   async run(context) {
     const sandbox = running(context);
-    const { transport, stderr } = context.deps.openMcp(
+    const { transport } = context.deps.openMcp(
       mcpLaunch(sandbox, context.deps.mcpEntry(), context.deps.environment),
     );
     const client = new Client({ name: "domusops-sandbox-smoke", version: "0" });
@@ -265,16 +263,19 @@ const mcpSnapshot: SmokeStep = {
         undefined,
         { timeout: MCP_TIMEOUT_MS },
       );
-      const first = (reply.content as { type: string; text?: string }[])[0];
-      text = first?.text ?? "";
+      const content: unknown = reply.content;
+      const first = Array.isArray(content)
+        ? (content[0] as { text?: unknown } | undefined)
+        : undefined;
+      text = typeof first?.text === "string" ? first.text : "";
       if (reply.isError === true) {
-        throw new StepFailure(`ha_snapshot answered with an error: ${text}`);
+        // The text may quote entity data; it stays out of the result.
+        throw new StepFailure("ha_snapshot answered with an error.");
       }
     } catch (error) {
       if (error instanceof StepFailure) throw error;
-      const detail = stderr().trim();
       throw new StepFailure(
-        `The MCP server did not answer: ${error instanceof Error ? error.message : String(error)}${detail === "" ? "" : ` (${detail})`}`,
+        `The MCP server did not answer: ${error instanceof Error ? error.message : String(error)}`,
       );
     } finally {
       await client.close().catch(() => undefined);

@@ -101,6 +101,38 @@ export function writeResult(path: string, result: RunResult): void {
   writeFileSync(path, serializeResult(result));
 }
 
+const CHANNEL_VALUES = ["stable", "previous-stable", "beta", "exact"];
+const OUTCOME_VALUES = [
+  "passed",
+  "failed",
+  "could-not-run",
+  "no-beta-in-progress",
+];
+
+/** Reads a result file and refuses anything that is not a well-formed result. */
 export function readResult(path: string): RunResult {
-  return JSON.parse(readFileSync(path, "utf8")) as RunResult;
+  let value: unknown;
+  try {
+    value = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(
+      `${path} is not a readable result file: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const r = (
+    typeof value === "object" && value !== null ? value : {}
+  ) as Record<string, unknown>;
+  const valid =
+    r["format"] === RESULT_FORMAT &&
+    typeof r["channel"] === "string" &&
+    CHANNEL_VALUES.includes(r["channel"]) &&
+    typeof r["outcome"] === "string" &&
+    OUTCOME_VALUES.includes(r["outcome"]) &&
+    Array.isArray(r["steps"]) &&
+    typeof r["finishedAt"] === "string" &&
+    (r["ciRunUrl"] === undefined ||
+      (typeof r["ciRunUrl"] === "string" &&
+        /^https:\/\/[^\s()<>[\]]+$/.test(r["ciRunUrl"])));
+  if (!valid) throw new Error(`${path} is not a ${RESULT_FORMAT} result.`);
+  return value as RunResult;
 }

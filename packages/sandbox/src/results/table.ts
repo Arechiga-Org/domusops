@@ -65,6 +65,10 @@ export function applyResults(
   );
   for (const result of results) {
     const row = rowFromResult(result);
+    // A run that could not start says nothing about the release, so it must not erase the last
+    // result that did.
+    const previous = byChannel.get(row.channel);
+    if (row.outcome === "could-not-run" && previous !== undefined) continue;
     byChannel.set(row.channel, row);
   }
   const rows = CHANNEL_NAMES.flatMap((channel) => {

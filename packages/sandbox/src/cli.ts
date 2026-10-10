@@ -368,10 +368,25 @@ async function runSmokeCommand(own: string[], deps: CliDeps): Promise<number> {
   }
 
   const result = await deps.smoke(target);
-  if (values.result !== undefined) writeResult(values.result, result);
   deps.out(describeRun(result));
-  if (result.outcome === "failed") return EXIT_FAILURE;
-  return result.outcome === "could-not-run" ? EXIT_COULD_NOT_RUN : EXIT_OK;
+  const code =
+    result.outcome === "failed"
+      ? EXIT_FAILURE
+      : result.outcome === "could-not-run"
+        ? EXIT_COULD_NOT_RUN
+        : EXIT_OK;
+  if (values.result !== undefined) {
+    try {
+      writeResult(values.result, result);
+    } catch (error) {
+      // The run's outcome was already printed; a bad path must not replace it.
+      deps.err(
+        `Could not write ${values.result}: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return code === EXIT_OK ? EXIT_FAILURE : code;
+    }
+  }
+  return code;
 }
 
 function describeRun(result: RunResult): string {

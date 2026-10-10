@@ -97,6 +97,18 @@ describe("the supported-versions table", () => {
     ]);
   });
 
+  it("keeps the last real result when a later run could not start", () => {
+    const before = applyResults(emptySupportedVersions(), [result()]);
+    const after = applyResults(before, [
+      result({ outcome: "could-not-run", failedStep: "pull", steps: [] }),
+    ]);
+    expect(after).toEqual(before);
+    const first = applyResults(emptySupportedVersions(), [
+      result({ outcome: "could-not-run", failedStep: "pull", steps: [] }),
+    ]);
+    expect(renderSupportedVersions(first)).toContain("Could not run (pull)");
+  });
+
   it("refuses a result that cannot back a published claim", () => {
     const local = Object.fromEntries(
       Object.entries(result()).filter(([name]) => name !== "ciRunUrl"),

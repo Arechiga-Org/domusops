@@ -760,6 +760,22 @@ describe("smoke", () => {
     expect(await main(["smoke", "--channel", "beta"], h.deps)).toBe(0);
   });
 
+  it("keeps the run's exit code when the result file cannot be written", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "domusops-smoke-"));
+    try {
+      const h = harness();
+      const code = await main(
+        ["smoke", "--result", join(dir, "missing", "result.json")],
+        h.deps,
+      );
+      expect(h.out.join("")).toContain("passed");
+      expect(h.err.join("")).toContain("Could not write");
+      expect(code).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("writes the result file when asked", async () => {
     const dir = mkdtempSync(join(tmpdir(), "domusops-smoke-"));
     try {

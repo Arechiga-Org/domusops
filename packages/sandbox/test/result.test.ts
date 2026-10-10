@@ -1,10 +1,13 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Ajv } from "ajv";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   MAX_MESSAGE,
   RESULT_FORMAT,
   STEP_NAMES,
+  readResult,
   runContext,
   stepMessage,
   type RunResult,
@@ -227,5 +230,44 @@ describe("the run context", () => {
     const context = runContext({});
     expect(context.sandboxVersion).toMatch(/^\d+\.\d+\.\d+/);
     expect(context.runner).toBe(`${process.platform}-${process.arch}`);
+  });
+});
+
+const directories: string[] = [];
+afterEach(() => {
+  for (const dir of directories.splice(0)) {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+describe("reading a result file", () => {
+  const write = (text: string): string => {
+    const dir = mkdtempSync(join(tmpdir(), "domusops-read-"));
+    directories.push(dir);
+    const file = join(dir, "r.json");
+    writeFileSync(file, text);
+    return file;
+  };
+
+  it("returns a well-formed result", () => {
+    const run = passed();
+    expect(readResult(write(JSON.stringify(run)))).toEqual(run);
+  });
+
+  it.each([
+    ["not JSON", "{"],
+    ["not an object", "[]"],
+    ["another format", '{"format":"x"}'],
+    ["no outcome", JSON.stringify({ ...passed(), outcome: undefined })],
+    [
+      "a link that breaks markdown",
+      JSON.stringify({ ...passed(), ciRunUrl: "https://x.test/a)b" }),
+    ],
+    [
+      "a link that is not https",
+      JSON.stringify({ ...passed(), ciRunUrl: "javascript:alert(1)" }),
+    ],
+  ])("refuses %s", (_label, text) => {
+    expect(() => readResult(write(text))).toThrow(/result/);
   });
 });
