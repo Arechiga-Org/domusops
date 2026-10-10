@@ -206,7 +206,7 @@ Reaping only on the next invocation: misses FR-030 when nobody runs the sandbox 
 
 ## R7 — Virtual devices
 
-**Decision**: Reuse `twrecked/hass-virtual` (domain `virtual`), pinned to `v0.9.3` by tarball
+**Decision**: Reuse `twrecked/hass-virtual` (domain `virtual`), pinned to `v0.9.4` by tarball
 SHA-256, downloaded once into the user cache (`$XDG_CACHE_HOME/domusops/sandbox/`, or
 `~/.cache/…`) and copied into each instance as `custom_components/virtual/`. Supported kinds:
 `switch`, `binary_sensor`, `sensor`, `light`, `lock`, `fan`, `cover`, `valve`, `device_tracker`.

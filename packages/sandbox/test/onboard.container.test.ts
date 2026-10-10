@@ -7,6 +7,7 @@ import { startSandbox } from "../src/index.js";
 import { createRuntime } from "../src/runtime/docker.js";
 import { containerName } from "../src/runtime/labels.js";
 import { CHANNELS, startTarget } from "./support/channels.js";
+import { leftBehind } from "./support/containers.js";
 
 const runtime = createRuntime();
 const MINUTE = 60_000;
@@ -98,7 +99,7 @@ describe("failure paths", () => {
       const error = caught as SandboxError;
       expect(error.code).toBe("not_ready");
       expect((error.logs ?? []).length).toBeLessThanOrEqual(50);
-      expect(await runtime.list()).toHaveLength(before.length);
+      expect(await leftBehind(runtime, before)).toEqual([]);
     },
     5 * MINUTE,
   );

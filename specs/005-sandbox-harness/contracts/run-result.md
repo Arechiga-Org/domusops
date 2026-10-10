@@ -35,10 +35,11 @@ Written by `domusops-sandbox smoke --result <file>`; validated by
 }
 ```
 
-Rules: `release` is absent only for `no-beta-in-progress`. `failedStep` is present exactly when
+Rules: `release` is absent for `no-beta-in-progress` and for a `could-not-run` at `resolve`, where no release was found. `failedStep` is present exactly when
 the outcome is `failed` or `could-not-run` (then `resolve` or `pull`). `steps` is empty for
-`could-not-run` and `no-beta-in-progress`. `message` is English, at most 300 characters, and
-never contains a token, a secret, or entity states.
+`could-not-run` and `no-beta-in-progress`. A `could-not-run` result carries a top-level `message`
+saying why the run could not start. Every `message`, top-level or on a step, is English, at most
+300 characters, and never contains a token, a secret, or entity states.
 
 ## README block
 
@@ -55,3 +56,7 @@ rendered only from `docs/supported-versions.json`:
 
 Text outside the markers is never touched. `packages/sandbox/test/readme-table.test.ts` fails when
 the block differs from the rendering (FR-024).
+
+A row is replaced by the next result for its channel, except that a `could-not-run` result never
+replaces an existing row: it says nothing about the release, so the last real result stays. Only
+results of runs on `main` are applied (`sandbox:table --run` refuses any other run).

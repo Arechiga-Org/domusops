@@ -29,6 +29,23 @@ export type { StartOptions } from "./instance/start.js";
 export type { ConfigSource } from "./config/pack.js";
 export type { SandboxListing } from "./instance/list.js";
 export type { Removal, ReapReason } from "./runtime/reaper.js";
+export { runSmoke, type SmokeTarget } from "./smoke/run.js";
+export {
+  RESULT_FORMAT,
+  STEP_NAMES,
+  readResult,
+  type RunResult,
+  type StepResult,
+} from "./results/result.js";
+export {
+  SUPPORTED_VERSIONS_FORMAT,
+  applyResults,
+  emptySupportedVersions,
+  gateVerdict,
+  renderSupportedVersions,
+  replaceTableBlock,
+  type SupportedVersions,
+} from "./results/table.js";
 export type { ConfigSummary, LifecycleState, SandboxMode } from "./types.js";
 
 export function startSandbox(options: StartOptions = {}): Promise<Sandbox> {

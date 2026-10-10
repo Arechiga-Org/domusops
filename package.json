@@ -13,7 +13,8 @@
     "typecheck": "tsc -b --pretty && tsc -p packages/schema/tsconfig.test.json && tsc -p packages/mcp/tsconfig.test.json && tsc -p packages/bootstrap/tsconfig.test.json && tsc -p packages/sandbox/tsconfig.test.json",
     "test": "vitest run",
     "build": "pnpm -r --filter=./packages/* build",
-    "release": "pnpm build && changeset publish"
+    "release": "pnpm build && changeset publish",
+    "sandbox:table": "pnpm --filter @domusops/sandbox... build && node packages/sandbox/scripts/supported-versions.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.0",
