@@ -16,6 +16,7 @@ import { SandboxError } from "../src/errors.js";
 import { startSandbox } from "../src/index.js";
 import { createRuntime } from "../src/runtime/docker.js";
 import { startTarget } from "./support/channels.js";
+import { leftBehind } from "./support/containers.js";
 
 const runtime = createRuntime();
 const MINUTE = 60_000;
@@ -195,7 +196,7 @@ describe("a configuration that does not pass", () => {
       expect(caught).toBeInstanceOf(SandboxError);
       expect((caught as SandboxError).code).toBe("config_invalid");
       expect((caught as SandboxError).message.length).toBeGreaterThan(40);
-      expect(await runtime.list()).toHaveLength(before.length);
+      expect(await leftBehind(runtime, before)).toEqual([]);
     },
     8 * MINUTE,
   );
@@ -208,6 +209,6 @@ describe("a configuration that does not pass", () => {
         config: { dir: join(tmpdir(), "domusops-does-not-exist") },
       }),
     ).rejects.toMatchObject({ code: "config_dir_invalid" });
-    expect(await runtime.list()).toHaveLength(before.length);
+    expect(await leftBehind(runtime, before)).toEqual([]);
   });
 });

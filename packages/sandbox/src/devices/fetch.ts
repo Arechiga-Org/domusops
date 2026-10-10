@@ -12,9 +12,9 @@ import { Parser } from "tar";
 import { SandboxError } from "../errors.js";
 
 /** The virtual-device integration the sandbox reuses (research R7), pinned by content. */
-export const VIRTUAL_VERSION = "0.9.3";
+export const VIRTUAL_VERSION = "0.9.4";
 export const VIRTUAL_SHA256 =
-  "78d25f0d886aeaaba69909a5279632600e80e0a1c29a33cfeca272afe94e2e0b";
+  "ff292ec4ffb17257301da8c5579d6d0146dfe8c8e1a67f57650c777eac4cceeb";
 export const VIRTUAL_URL = `https://github.com/twrecked/hass-virtual/archive/refs/tags/v${VIRTUAL_VERSION}.tar.gz`;
 
 const DOWNLOAD_TIMEOUT_MS = 60_000;
