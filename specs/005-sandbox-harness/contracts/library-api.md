@@ -25,7 +25,8 @@ listSandboxes(): Promise<SandboxListing[]>         // labelled containers only
 stopSandbox(id: string): Promise<void>             // idempotent for ids it owns; not_a_sandbox otherwise
 cleanup(): Promise<{ removed: Removal[] }>         // reaper, research R6; Removal = { id, containerId, reason }
 
-runSmoke(options: { channel?; release?; ciRunUrl?: string }): Promise<RunResult>
+runSmoke(target: { channel } | { release }): Promise<RunResult>
+// the CI run URL is read from the GitHub Actions environment, never passed in
 // never throws for instance failures: they become the result's outcome
 
 renderSupportedVersions(doc: SupportedVersionsDocument): string  // README block body

@@ -178,10 +178,10 @@ description: "Task list for the @domusops/sandbox ephemeral harness (part 1 of 2
 ## Phase 9: Polish & cross-cutting
 
 - [X] T071 [P] Update `CLAUDE.md` "Current focus": `ha_snapshot`, `ha_logbook_query`, `ha_trace` and `ha-bootstrap` are merged; the current feature is `@domusops/sandbox` part 1
-- [ ] T072 [P] Complete `packages/sandbox/README.md`: library and CLI usage, the supported-versions pointer, the security notes (never a real instance, token never printed except by `env`), trademark-safe wording
-- [ ] T073 Run the quickstart scenarios 1–10 from `specs/005-sandbox-harness/quickstart.md` and record any deviation in `specs/005-sandbox-harness/research.md`; run the concurrency case with `DOMUSOPS_SANDBOX_PAIRS=10` (SC-008) and record the measured SC-001 and SC-004 times
-- [ ] T074 Run `pnpm lint && pnpm typecheck && pnpm test` and `pnpm --filter @domusops/sandbox run test:container` (not `DOMUSOPS_CONTAINER_TESTS=1 pnpm test`, which also runs `bootstrap`'s container test and needs `sops` and `age`); every file in the diff is English (§1); no hand edit in the README block
-- [ ] T075 Mark all tasks `[X]`; show the diff and wait for the maintainer's confirmation before any commit or push (the maintainer runs force pushes and merges), then mention that `sandbox-gate` must be added to the required checks on `main`
+- [X] T072 [P] Complete `packages/sandbox/README.md`: library and CLI usage, the supported-versions pointer, the security notes (never a real instance, token never printed except by `env`), trademark-safe wording
+- [X] T073 Run the quickstart scenarios 1–10 from `specs/005-sandbox-harness/quickstart.md` and record any deviation in `specs/005-sandbox-harness/research.md`; run the concurrency case with `DOMUSOPS_SANDBOX_PAIRS=10` (SC-008) and record the measured SC-001 and SC-004 times
+- [X] T074 Run `pnpm lint && pnpm typecheck && pnpm test` and `pnpm --filter @domusops/sandbox run test:container` (not `DOMUSOPS_CONTAINER_TESTS=1 pnpm test`, which also runs `bootstrap`'s container test and needs `sops` and `age`); every file in the diff is English (§1); no hand edit in the README block
+- [X] T075 Mark all tasks `[X]`; show the diff and wait for the maintainer's confirmation before any commit or push (the maintainer runs force pushes and merges), then mention that `sandbox-gate` must be added to the required checks on `main`
 
 ---
 

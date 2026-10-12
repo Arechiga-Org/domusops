@@ -45,12 +45,12 @@ plaintext file, and with one whose `configuration.yaml` is invalid: the latter e
 ## 5. Virtual devices, states, and time (US4, SC-004)
 
 ```sh
-sbx start --background --device binary_sensor:Hall:motion --device light:Hall
-eval "$(sbx env <id>)"
+sbx start --background --config packages/sandbox/fixtures/reference-config --device binary_sensor:"Hall motion":motion --device light:Hall
+set -a; eval "$(sbx env <id>)"; set +a
 ```
 
 Then, with the library (a short script, or the container test `time.container.test.ts`): set
-`binary_sensor.hall` to `on`, read it back; freeze at 02:59:50, advance 20 s; the reference
+`binary_sensor.hall_motion` to `on`, read it back; freeze at 02:59:50, advance 20 s; the reference
 automation's light is `on` and the automation ran once. Under 10 s of real time. Finish with
 `sbx stop <id>`.
 
@@ -72,7 +72,7 @@ down the other.
 
 ## 9. Never a real instance (FR-019, SC-007)
 
-`sbx stop not-a-sandbox`, `sbx env 000000000000`: both `not_a_sandbox`, nothing changes. Export a
+`sbx stop not-a-sandbox` answers `not_a_sandbox`; `sbx env 000000000000` answers `instance_gone`; a container that exists but is not a sandbox is refused with `not_a_sandbox` and left running. Export a
 real-looking `DOMUSOPS_HA_URL=http://192.0.2.1:8123` and run `sbx smoke`: no connection is ever
 attempted to that address (the MCP step's environment is built from scratch).
 

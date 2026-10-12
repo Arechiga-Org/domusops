@@ -34,11 +34,11 @@ Each date links to the run that produced the row.
 
 <!-- domusops:supported-versions:start -->
 
-| Channel         | Release | Result          | Checked |
-| --------------- | ------- | --------------- | ------- |
-| Current stable  | —       | Not yet checked | —       |
-| Previous stable | —       | Not yet checked | —       |
-| Current beta    | —       | Not yet checked | —       |
+| Channel         | Release   | Result              | Checked                                                                         |
+| --------------- | --------- | ------------------- | ------------------------------------------------------------------------------- |
+| Current stable  | 2026.10.0 | Passed              | [2026-10-10](https://github.com/Arechiga-Org/domusops/actions/runs/38025703929) |
+| Previous stable | 2026.9.4  | Passed              | [2026-10-10](https://github.com/Arechiga-Org/domusops/actions/runs/38025703929) |
+| Current beta    | —         | No beta in progress | [2026-10-10](https://github.com/Arechiga-Org/domusops/actions/runs/38025703929) |
 
 <!-- domusops:supported-versions:end -->
 

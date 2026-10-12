@@ -1,4 +1,26 @@
 {
   "format": "domusops.supported-versions/0.1",
-  "rows": []
+  "rows": [
+    {
+      "channel": "stable",
+      "release": "2026.10.0",
+      "outcome": "passed",
+      "checkedAt": "2026-10-10T04:56:19Z",
+      "ciRunUrl": "https://github.com/Arechiga-Org/domusops/actions/runs/38025703929"
+    },
+    {
+      "channel": "previous-stable",
+      "release": "2026.9.4",
+      "outcome": "passed",
+      "checkedAt": "2026-10-10T04:56:19Z",
+      "ciRunUrl": "https://github.com/Arechiga-Org/domusops/actions/runs/38025703929"
+    },
+    {
+      "channel": "beta",
+      "release": null,
+      "outcome": "no-beta-in-progress",
+      "checkedAt": "2026-10-10T04:55:11Z",
+      "ciRunUrl": "https://github.com/Arechiga-Org/domusops/actions/runs/38025703929"
+    }
+  ]
 }

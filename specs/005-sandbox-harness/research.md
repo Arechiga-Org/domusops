@@ -383,3 +383,35 @@ step names and counts.
 `@domusops/schema` is removed: the harness does not use it; feature 006 adds it back with the
 assertion DSL. Description changed to "Ephemeral test harness for Home Assistant: throwaway
 instances, virtual devices, time control" (§6: nominative use only).
+
+## R17 — Quickstart validation (T073)
+
+Run on 2026-10-10 on macOS (12 CPUs, 7.6 GiB for the container VM) against stable 2026.10.0 and
+previous stable 2026.9.4; no beta was in progress. All ten scenarios pass.
+
+**Measured**
+
+- SC-001: a tied instance starts, answers and is removed in 14 s with the image present.
+- SC-002: after `kill -9` of the CLI the container was gone in 17 s (limit 25 s). A background
+  instance with `--max-lifetime 1` was gone 48 s after it reported ready.
+- SC-004: freeze at 02:59:50, advance 20 s: the reference automation ran and the light was `on`
+  within 12 ms of real time (limit 10 s).
+- SC-008: 10 concurrent pairs (20 instances, `DOMUSOPS_SANDBOX_PAIRS=10`) started on distinct
+  ports in 110 s, peaked at 6.2 GiB of container memory, and left nothing behind. An idle
+  instance uses about 300 MiB. The run fit in a 7.6 GiB container VM that also held about
+  0.7 GiB of unrelated containers, so 10 pairs need roughly 7 GiB free; five pairs take 71 s.
+- A cold pull of the previous stable image made its `start` step take 113 s. With the image
+  present every channel takes under 20 s.
+
+**Deviations**
+
+- Scenario 5 was wrong as written: it asked for `binary_sensor:Hall` and `light:Hall`, but device
+  names are unique across kinds (R7), so the second is refused. The quickstart now uses
+  `Hall motion` and `--config` with the reference configuration, which the 03:00 automation
+  needs. The refusal message now says that uniqueness spans all kinds.
+- Scenario 9: `env 000000000000` answers `instance_gone`, not `not_a_sandbox`, because an id of
+  the right shape with no container is a sandbox that is gone. A container that exists but is not
+  a sandbox is refused with `not_a_sandbox` by both `env` and `stop` and is left running.
+- A secret placeholder is a string, so a typed field such as `latitude: !secret lat` fails the
+  configuration check unless a `--secrets-file` supplies the value or `secrets.sops.yaml` declares
+  the type (R8). This is expected; the failure names the field.
