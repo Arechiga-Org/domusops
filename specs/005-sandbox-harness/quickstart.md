@@ -46,7 +46,7 @@ plaintext file, and with one whose `configuration.yaml` is invalid: the latter e
 
 ```sh
 sbx start --background --config packages/sandbox/fixtures/reference-config --device binary_sensor:"Hall motion":motion --device light:Hall
-eval "$(sbx env <id>)"
+set -a; eval "$(sbx env <id>)"; set +a
 ```
 
 Then, with the library (a short script, or the container test `time.container.test.ts`): set

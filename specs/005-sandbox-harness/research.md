@@ -398,8 +398,8 @@ previous stable 2026.9.4; no beta was in progress. All ten scenarios pass.
   within 12 ms of real time (limit 10 s).
 - SC-008: 10 concurrent pairs (20 instances, `DOMUSOPS_SANDBOX_PAIRS=10`) started on distinct
   ports in 110 s, peaked at 6.2 GiB of container memory, and left nothing behind. An idle
-  instance uses about 300 MiB, so 10 pairs need a container VM of 8 GiB or more; five pairs
-  take 71 s.
+  instance uses about 300 MiB. The run fit in a 7.6 GiB container VM that also held about
+  0.7 GiB of unrelated containers, so 10 pairs need roughly 7 GiB free; five pairs take 71 s.
 - A cold pull of the previous stable image made its `start` step take 113 s. With the image
   present every channel takes under 20 s.
 

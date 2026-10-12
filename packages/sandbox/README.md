@@ -16,7 +16,8 @@ the connection details. The scenario and assertion DSL that drives them is a lat
 ## Requirements
 
 - Node.js 22 or newer.
-- Docker (or Podman). The official Home Assistant image is pulled on first use.
+- Docker (or Podman). The official Home Assistant image is pulled on first use. With both
+  installed, Docker is used; set `DOMUSOPS_CONTAINER=podman` to choose Podman.
 
 ## Library
 
@@ -41,22 +42,23 @@ try {
 }
 ```
 
-| Call                      | Does                                                                           |
-| ------------------------- | ------------------------------------------------------------------------------ |
-| `startSandbox(options)`   | Starts an instance and resolves when it is ready                               |
-| `resolveChannel(channel)` | Names the concrete release a channel points to                                 |
-| `attachSandbox(id)`       | Re-attaches to a background instance                                           |
-| `listSandboxes()`         | Lists the instances this package created                                       |
-| `stopSandbox(id)`         | Stops one of them; idempotent                                                  |
-| `cleanup()`               | Removes instances whose owner is gone or whose lifetime ran out                |
-| `runSmoke(options)`       | Runs the eight-step smoke check and returns a result; never throws on failures |
+| Call                      | Does                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `startSandbox(options)`   | Starts an instance and resolves when it is ready                                                  |
+| `resolveChannel(channel)` | Names the concrete release a channel points to                                                    |
+| `attachSandbox(id)`       | Re-attaches to a background instance                                                              |
+| `listSandboxes()`         | Lists the instances this package created                                                          |
+| `stopSandbox(id)`         | Stops one of them; idempotent                                                                     |
+| `cleanup()`               | Removes instances whose owner is gone or whose lifetime ran out                                   |
+| `runSmoke({ channel })`   | Runs the eight-step smoke check (or `{ release }`) and returns a result; never throws on failures |
 
 On a handle: `setState`, `getState`, `callService`, `addDevices`, `time.freeze|advance|resume|now`,
 `connection()`, `mcpEnv()`, `detach()` and `stop()`. The full contract is in
 [`specs/005-sandbox-harness/contracts/library-api.md`](../../specs/005-sandbox-harness/contracts/library-api.md).
 
 Virtual devices reuse a community integration; the kinds are `switch`, `binary_sensor`, `sensor`,
-`light`, `lock`, `fan`, `cover`, `valve` and `device_tracker`. That integration is downloaded once,
+`light`, `lock`, `fan`, `cover`, `valve` and `device_tracker`. Device names must be unique across
+all kinds, so a light and a sensor cannot both be called "Hall". That integration is downloaded once,
 pinned to an exact version and verified against a SHA-256 before use, and cached under
 `XDG_CACHE_HOME`.
 
@@ -72,7 +74,7 @@ client.
 domusops-sandbox start --channel stable --config ./my-ha-config -- pnpm test
 domusops-sandbox start --background --device switch:Porch --device binary_sensor:Door:door
 domusops-sandbox list
-eval "$(domusops-sandbox env <id>)"   # sets DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN
+set -a; eval "$(domusops-sandbox env <id>)"; set +a   # exports DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN
 domusops-sandbox stop <id>            # or: stop --all [--force]
 domusops-sandbox cleanup
 domusops-sandbox resolve beta
@@ -89,6 +91,11 @@ the command exits, and exits with the command's own code. `resolve`, `start`, `l
 | 1         | Failure; for `smoke`, `failed`                                                                               |
 | 2         | Usage error                                                                                                  |
 | 3         | Could not run: no container runtime, channel not resolvable, image unavailable; for `smoke`, `could-not-run` |
+
+These codes are the CLI's own. `start -- <command>` exits with the command's code instead, which
+can be any value, so check the command's meaning of it, not this table. `resolve beta` with no
+beta in progress prints that and exits 0. `smoke` reads the CI run URL from the GitHub Actions
+environment when there is one.
 
 The CLI never reads `DOMUSOPS_HA_URL` or `DOMUSOPS_HA_TOKEN` from its own environment. The full
 contract is in [`specs/005-sandbox-harness/contracts/cli.md`](../../specs/005-sandbox-harness/contracts/cli.md).
