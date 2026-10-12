@@ -29,7 +29,7 @@ Python toolchain on the host.
 `@domusops/mcp` (workspace) and `@modelcontextprotocol/sdk` for the smoke check's MCP step
 (R12). Node built-ins: `fetch`, `WebSocket`, `node:child_process`, `node:crypto`. External
 programs: `docker` or `podman` only (FR-021). Reused integration: `twrecked/hass-virtual`
-`v0.9.3`, downloaded and SHA-256-verified (R7). The `@domusops/schema` dependency of the stub is
+`v0.9.4`, downloaded and SHA-256-verified (R7). The `@domusops/schema` dependency of the stub is
 removed (R16).
 
 **Storage**: None persistent beyond the device-integration cache (`$XDG_CACHE_HOME/domusops/sandbox`)
@@ -205,7 +205,7 @@ continuing.
 4. **A companion integration in Python** (R6). It is the only way to get deterministic time
    control and self-teardown without a host daemon. Time control relies on instance internals; the
    matrix catches breakage per release. Recorder timestamps keep real time.
-5. **`hass-virtual` pinned at v0.9.3** (R7), last released 2025-08-13. Whether it loads on the
+5. **`hass-virtual` pinned at v0.9.4** (R7), last released 2025-08-13. Whether it loads on the
    2026 releases is exactly what the first container test answers.
 6. **Branch length (§9).** Order tasks so US1 + US2 (start, onboard, teardown, crash safety) are a
    mergeable increment; US3–US6 follow.

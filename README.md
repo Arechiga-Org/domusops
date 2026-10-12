@@ -36,9 +36,9 @@ Each date links to the run that produced the row.
 
 | Channel         | Release   | Result              | Checked                                                                         |
 | --------------- | --------- | ------------------- | ------------------------------------------------------------------------------- |
-| Current stable  | 2026.10.0 | Passed              | [2026-10-10](https://github.com/Arechiga-Org/domusops/actions/runs/38025703929) |
-| Previous stable | 2026.9.4  | Passed              | [2026-10-10](https://github.com/Arechiga-Org/domusops/actions/runs/38025703929) |
-| Current beta    | —         | No beta in progress | [2026-10-10](https://github.com/Arechiga-Org/domusops/actions/runs/38025703929) |
+| Current stable  | 2026.10.1 | Passed              | [2026-10-12](https://github.com/Arechiga-Org/domusops/actions/runs/38197796869) |
+| Previous stable | 2026.9.4  | Passed              | [2026-10-12](https://github.com/Arechiga-Org/domusops/actions/runs/38197796869) |
+| Current beta    | —         | No beta in progress | [2026-10-12](https://github.com/Arechiga-Org/domusops/actions/runs/38197796869) |
 
 <!-- domusops:supported-versions:end -->
 
