@@ -93,7 +93,7 @@ export function validateDevices(
     }
     if (seen.has(slugOf(name))) {
       throw new TypeError(
-        `${where}.name "${name}" is already used by another device in this instance (names are compared by the entity id they produce, so "Hall Light" and "hall-light" collide).`,
+        `${where}.name "${name}" is already used by another device in this instance (names must be unique across all device kinds and are compared by the id they produce, so "Hall Light" and "hall-light" collide, and so do a light and a sensor both named "Hall").`,
       );
     }
     seen.add(slugOf(name));
