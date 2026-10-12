@@ -1,6 +1,6 @@
 {
   "name": "@domusops/bootstrap",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "CLI behind the ha-bootstrap skill: brings an existing Home Assistant configuration directory to a GitOps baseline",
   "license": "Apache-2.0",
   "type": "module",
