@@ -1,6 +1,6 @@
 {
   "name": "@domusops/sandbox",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Ephemeral test harness for Home Assistant: throwaway instances, virtual devices, time control",
   "license": "Apache-2.0",
   "type": "module",
