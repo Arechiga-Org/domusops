@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { ToolError } from "../src/errors.js";
+import { errors, ToolError } from "../src/errors.js";
 import { HaClient } from "../src/ha/client.js";
-import { getTraces, MAX_IN_FLIGHT, type TraceRef } from "../src/ha/trace.js";
+import {
+  getTraces,
+  listTraces,
+  MAX_IN_FLIGHT,
+  type TraceRef,
+} from "../src/ha/trace.js";
 import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
 import { FAKE_TOKEN, startFakeHa, type FakeHa } from "./support/fake-ha.js";
 
@@ -69,5 +74,32 @@ describe("getTraces after a failed read (spec FR-001, SC-001)", () => {
     expect(records.map((record) => record.run_id)).toEqual(
       refs.map((ref) => ref.run_id),
     );
+  });
+});
+
+describe("listTraces when several domains fail", () => {
+  it("reports the first domain's error, whichever failed first", async () => {
+    const stub = {
+      haVersion: "2026.10.1",
+      command: (type: string, params?: { domain?: string }) =>
+        params?.domain === "automation"
+          ? // Fails later, with "the trace integration is missing".
+            new Promise((_, reject) =>
+              setTimeout(
+                () =>
+                  reject(errors.retrievalFailed(type, "unknown_command: nope")),
+                60,
+              ),
+            )
+          : // Fails at once, as a user who is not an administrator would.
+            Promise.reject(errors.retrievalFailed(type, "unauthorized: no")),
+    } as unknown as HaClient;
+    let error: unknown;
+    try {
+      await listTraces(stub, ["automation", "script"]);
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toMatchObject({ kind: "traces_unavailable" });
   });
 });
