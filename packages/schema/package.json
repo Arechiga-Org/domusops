@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "Snapshot and assertion contract shared across DomusOps packages",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Arechiga-Org/domusops.git",
+    "directory": "packages/schema"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
