@@ -212,6 +212,8 @@ export const errors = {
     bytes: number,
     limit: number,
     detail: "summary" | "standard",
+    /** The size is that of the runs read so far: the whole result is at least that large. */
+    atLeast = false,
   ): ToolError {
     const narrow =
       detail === "standard"
@@ -219,7 +221,7 @@ export const errors = {
         : "narrow the query with fewer entities or a shorter window";
     return new ToolError(
       "too_large",
-      `The result has ${runs} runs and would be ${bytes} bytes, above the limit of ${limit} bytes`,
+      `The result has ${runs} runs and would be ${bytes} bytes${atLeast ? " or more" : ""}, above the limit of ${limit} bytes`,
       `To fit it, ${narrow}; to allow larger results, raise DOMUSOPS_TRACE_MAX_BYTES`,
     );
   },

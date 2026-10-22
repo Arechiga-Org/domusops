@@ -19,8 +19,13 @@ import {
   TRACES_EMPTY,
   type TraceFixture,
 } from "./fixtures/generate-traces.js";
-import { FAKE_TOKEN, startFakeHa, type FakeHa } from "./support/fake-ha.js";
-import { sortKeys } from "./support/trace-helpers.js";
+import {
+  FAKE_TOKEN,
+  startFakeHa,
+  type FakeHa,
+  type FakeHaOptions,
+} from "./support/fake-ha.js";
+import { encodeRecords, sortKeys } from "./support/trace-helpers.js";
 
 const running: FakeHa[] = [];
 afterEach(async () => {
@@ -505,6 +510,115 @@ describe("detail and the window (spec User Story 4)", () => {
     expect(text).toContain("standard");
     expect(text).not.toContain("domusops.trace/0.1");
     expect(ha.received.some((c) => c.startsWith("trace/"))).toBe(false);
+  });
+});
+
+const ENV = { DOMUSOPS_HA_TOKEN: FAKE_TOKEN };
+
+/** Runs the tool against a fake that records what it receives; the error, if any, is returned. */
+async function attempt(
+  fixture: TraceFixture,
+  options: Parameters<typeof runTrace>[1],
+  env: Record<string, string>,
+  fake: Partial<Omit<FakeHaOptions, "fixture">> = {},
+): Promise<{ ha: FakeHa; text?: string; error?: unknown; ms: number }> {
+  const ha = await startFakeHa({ fixture, ...fake });
+  running.push(ha);
+  const started = Date.now();
+  try {
+    const text = await runTrace(
+      { ...ENV, DOMUSOPS_HA_URL: ha.url, ...env },
+      { now: fixture.windowEnd * 1000, ...options },
+    );
+    return { ha, text, ms: Date.now() - started };
+  } catch (error) {
+    return { ha, error, ms: Date.now() - started };
+  }
+}
+
+describe("independent reads run together (spec FR-003, SC-003)", () => {
+  it("takes the longest chain of dependent reads, not the sum of every read", async () => {
+    const DELAY = 300;
+    // A run request reads the user, then the config; the registry and states; both trace lists; and
+    // one trace. Read one after another that is six rounds; run together it is four: the user and
+    // then the config (while the registry and states are read), the lists, and the trace.
+    const { ms, error } = await attempt(
+      REFERENCE_TRACES,
+      { run: REFERENCE_TRACES.traces[0]?.run_id as string },
+      { DOMUSOPS_TRACE_MAX_BYTES: "10000000" },
+      { delayMs: DELAY },
+    );
+    expect(error).toBeUndefined();
+    // Four rounds, and a little over for the work around them; six rounds would be 1800 ms.
+    expect(ms).toBeLessThan(DELAY * 5);
+  });
+
+  it("settles the other reads and closes when one of them fails, leaving nothing unhandled", async () => {
+    const { ha, error } = await attempt(
+      REFERENCE_TRACES,
+      { detail: "summary" },
+      { DOMUSOPS_TRACE_MAX_BYTES: "10000000" },
+      {
+        delayMs: 100,
+        failCommand: { type: "config/entity_registry/list" },
+      },
+    );
+    expect(error).toMatchObject({ kind: "retrieval_failed" });
+    // Anything still waiting is settled by the close, not left to time out.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(ha.received.filter((type) => type === "trace/get")).toEqual([]);
+  });
+});
+
+describe("a standard result that cannot fit is refused early (spec FR-004, SC-004)", () => {
+  const sizeOf = (text: string): number => Buffer.byteLength(text, "utf8");
+
+  it("builds the 500-run fixture so that every run alone encodes to at least 500 bytes", () => {
+    expect(PERFORMANCE_TRACES.traces).toHaveLength(500);
+    for (const record of PERFORMANCE_TRACES.traces) {
+      expect(
+        sizeOf(encodeRecords([record], PERFORMANCE_TRACES).text),
+      ).toBeGreaterThanOrEqual(500);
+    }
+  });
+
+  it("refuses 500 runs above the default limit after reading fewer than half of them", async () => {
+    const { ha, error } = await attempt(
+      PERFORMANCE_TRACES,
+      {},
+      { DOMUSOPS_TRACE_MAX_BYTES: "100000" },
+    );
+    expect(error).toMatchObject({ kind: "too_large" });
+    expect(String((error as Error).message)).toContain("500 runs");
+    expect(String((error as Error).message)).toContain("limit of 100000 bytes");
+    expect(String((error as Error).message)).toMatch(/would be \d+ bytes/);
+    expect(
+      ha.received.filter((type) => type === "trace/get").length,
+    ).toBeLessThan(250);
+  });
+
+  it("returns a result that fits, identical, even when it is exactly the limit, and refuses one byte less", async () => {
+    const request = { entities: ["automation.*"] };
+    const whole = await attempt(REFERENCE_TRACES, request, {
+      DOMUSOPS_TRACE_MAX_BYTES: "10000000",
+    });
+    expect(whole.error).toBeUndefined();
+    const exact = sizeOf(whole.text as string);
+    // The selection spans several chunks of reads, so a partial result is checked on the way.
+    expect(
+      whole.ha.received.filter((type) => type === "trace/get").length,
+    ).toBeGreaterThan(8);
+
+    const atLimit = await attempt(REFERENCE_TRACES, request, {
+      DOMUSOPS_TRACE_MAX_BYTES: String(exact),
+    });
+    expect(atLimit.error).toBeUndefined();
+    expect(atLimit.text).toBe(whole.text);
+
+    const below = await attempt(REFERENCE_TRACES, request, {
+      DOMUSOPS_TRACE_MAX_BYTES: String(exact - 1),
+    });
+    expect(below.error).toMatchObject({ kind: "too_large" });
   });
 });
 

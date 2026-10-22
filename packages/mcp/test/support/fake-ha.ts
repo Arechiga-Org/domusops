@@ -26,6 +26,10 @@ export interface FakeHaOptions {
   traceNotAdmin?: boolean;
   /** A run ID that `trace/list` returns but `trace/get` no longer finds (evicted meanwhile). */
   evictOnGet?: string;
+  /** Milliseconds every reply after authentication is held back. */
+  delayMs?: number;
+  /** A run ID whose `trace/get` fails at once, while every other reply waits for `delayMs`. */
+  failTraceGet?: string;
 }
 
 export interface FakeHa {
@@ -37,6 +41,8 @@ export interface FakeHa {
   receivedParams: Record<string, unknown>[];
   /** Parameters of every `trace/*` command received, in order (feature 003). */
   receivedTraceParams: Record<string, unknown>[];
+  /** When each `trace/get` was received, in order (milliseconds since the epoch). */
+  traceGetsAt: number[];
   /** Whether an `auth` message (which carries the token) was ever received. */
   authReceived: boolean;
   close(): Promise<void>;
@@ -175,6 +181,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
     received: [],
     receivedParams: [],
     receivedTraceParams: [],
+    traceGetsAt: [],
     authReceived: false,
     close: () =>
       new Promise<void>((resolve) => {
@@ -217,13 +224,36 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
       }
       const type = message.type ?? "";
       fake.received.push(type);
+      if (type === "trace/get") fake.traceGetsAt.push(Date.now());
+      // A reply is held back by `delayMs`, except the immediate failure of `failTraceGet`.
+      const immediate =
+        type === "trace/get" && options.failTraceGet === message.run_id;
+      const out = (text: string): void => {
+        const delay = immediate ? 0 : (options.delayMs ?? 0);
+        if (delay === 0) socket.send(text);
+        else
+          setTimeout(() => {
+            if (socket.readyState === socket.OPEN) socket.send(text);
+          }, delay);
+      };
+      if (immediate) {
+        out(
+          JSON.stringify({
+            id: message.id,
+            type: "result",
+            success: false,
+            error: { code: "unknown_error", message: "simulated failure" },
+          }),
+        );
+        return;
+      }
       if (options.dropAfter === type) {
         socket.terminate();
         return;
       }
       if (options.stall === type) return;
       if (options.failCommand?.type === type) {
-        socket.send(
+        out(
           JSON.stringify({
             id: message.id,
             type: "result",
@@ -245,7 +275,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
           ),
         );
         const reply = traceReply(type, message, options);
-        socket.send(
+        out(
           JSON.stringify(
             "error" in reply
               ? {
@@ -277,7 +307,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
         );
         const reply = logbookResult(message, options);
         const send = (): void =>
-          socket.send(
+          out(
             JSON.stringify(
               "error" in reply
                 ? {
@@ -306,7 +336,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
           ? "not the expected shape"
           : resultFor(type, options);
       if (result === undefined) {
-        socket.send(
+        out(
           JSON.stringify({
             id: message.id,
             type: "result",
@@ -319,7 +349,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
         );
         return;
       }
-      socket.send(
+      out(
         JSON.stringify({
           id: message.id,
           type: "result",

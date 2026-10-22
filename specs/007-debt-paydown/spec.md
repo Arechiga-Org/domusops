@@ -61,7 +61,7 @@ request takes to settle.
    waiting.
 3. **Given** a request whose reads do not depend on each other and a simulated instance that
    answers each read after a fixed delay, **When** the tool runs, **Then** the total time is
-   close to one delay, not the sum of the delays.
+   that of the longest chain of reads that depend on each other, not the sum of all the delays.
 4. **Given** 500 stored runs and a `standard` request without selectors whose result exceeds
    the size limit, **When** the tool runs, **Then** it returns the existing too-large error after
    reading only part of the runs' full records, and the error says the result would exceed the
@@ -392,8 +392,9 @@ For traceability only; the requirements above are the contract.
   is zero.
 - **SC-002**: When a connection closes with any number of waiting requests, 100% of them settle
   with an error within one second.
-- **SC-003**: A request whose independent reads each take a fixed delay completes in less than
-  twice that delay, whatever the number of reads up to the in-flight limit.
+- **SC-003**: A request whose reads each take a fixed delay completes in the time of its longest
+  chain of dependent reads, at most 5 delays for a request for one run, where reading them one
+  after another takes 6 plus the time of the trace read itself.
 - **SC-004**: A `standard` request over 500 stored runs whose result exceeds the default size
   limit is refused after reading fewer than half of the runs' full records; a request whose
   result fits is never refused.

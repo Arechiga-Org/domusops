@@ -31,15 +31,24 @@ by user story. Code references are to `main` at `c0a7065`.
 
 ### R3. Independent round trips run concurrently
 
-- **Decision**: `tools/ha-trace.ts` issues `readTraceContext`, `readItems`, `listTraces` (one
-  `trace/list` per domain, concurrently inside `listTraces`) and, when needed, `readContexts`
-  together with `Promise.all`. The selection and everything after it are unchanged.
-- **Rationale**: None of these reads depends on another's result: `domainsFor` uses only the
-  request, and the window needs only the time zone, which is resolved after the batch. `HaClient`
-  already multiplexes commands by ID. At most five commands are outstanding, below the in-flight
-  bound that applies to `trace/get`.
-- **Failure handling**: When one read fails, `Promise.all` rejects, the `finally` block calls
-  `client.close()`, and R2 settles the others. No unhandled rejection is possible.
+- **Decision**: `tools/ha-trace.ts` reads in two groups, each started together:
+  1. `readTraceContext` (the user, then the config) with `readItems` (the registry and the
+     states);
+  2. `listTraces` (one `trace/list` per domain, together inside `listTraces`) with, when needed,
+     `readContexts`.
+     The selection and everything after it are unchanged.
+- **Rationale**: Within a group no read depends on another's result. The groups stay apart on
+  purpose: the existing behaviour (and its tests) is that a user who is not an administrator, an
+  instance without traces, or an invalid window never receives a `trace/*` command, so the lists
+  wait for the instance check. For a request for one run, the rounds go from six to four.
+  `HaClient` already multiplexes commands by ID, and at most four commands are outstanding.
+- **Error precedence**: A small `together` helper starts two reads and settles them in the order
+  they are listed, so when both fail the first one's error is reported (the instance check
+  before the registry) whichever failed first. Which error an agent sees does not depend on
+  timing.
+- **Failure handling**: When a read fails, the `finally` block calls `client.close()`, and R2
+  settles the reads still waiting. Both promises of a pair are given a no-op rejection handler
+  first, so none is ever unhandled.
 - **Alternatives considered**: Running `ha_snapshot` and `ha_logbook_query` reads concurrently as
   well. Out of scope: the finding was about `ha_trace` only.
 
@@ -50,7 +59,8 @@ by user story. Code references are to `main` at `c0a7065`.
   reads in flight). After each chunk, the runs read so far are encoded with the real
   `encodeStandard` and finalised. If that output is already larger than the limit, the tool
   stops reading and throws `too_large`. The error has the same code and guidance as today, and
-  its message changes from "would be N bytes" to "would be more than N bytes". When all runs are
+  its message changes from "would be N bytes" to "would be N bytes or more", which keeps the
+  wording existing checks match on. When all runs are
   read, the existing final check applies unchanged.
 - **Soundness**: The early stop is correct only if adding runs never makes the standard document
   smaller (monotonicity). In `trace/values.ts` `buildTables`, a subtree or string moves to a

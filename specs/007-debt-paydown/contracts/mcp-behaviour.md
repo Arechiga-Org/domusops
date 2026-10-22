@@ -20,7 +20,7 @@ no tool output for the same instance state changes (FR-005, FR-027).
 - The refusal can now come before every selected run has been read (R4). Its text:
 
   ```text
-  too_large: The result has <runs> runs and would be more than <bytes> bytes, above the limit of <limit> bytes
+  too_large: The result has <runs> runs and would be <bytes> bytes or more, above the limit of <limit> bytes
   ```
 
   - `<runs>` is the number of runs selected, not the number read.
