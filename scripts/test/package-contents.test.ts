@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, normalize, posix } from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 /**
  * What each package puts on the registry (specs/007-debt-paydown FR-010, FR-011, FR-012): a README,
@@ -45,8 +45,14 @@ describe("what each package publishes", () => {
   });
 
   describe.each(names)("%s", (name) => {
-    const { files } = pack(name);
-    const listed = new Set(files);
+    // Packed once for the package's tests, when they run: a filtered run that skips this file packs
+    // nothing, and a missing dist/ fails these tests with its own message instead of the whole file.
+    let files: string[] = [];
+    let listed = new Set<string>();
+    beforeAll(() => {
+      files = pack(name).files;
+      listed = new Set(files);
+    });
 
     it("ships a README", () => {
       expect(listed.has("README.md")).toBe(true);

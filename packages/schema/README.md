@@ -15,15 +15,18 @@ package you need.
 npm install @domusops/schema
 ```
 
-An ES module with bundled type declarations. Node 22 or later.
+An ES module with bundled type declarations.
 
 ## Formats
 
-| Document                     | Identifier              | Detail levels         | Reference decoder                                      |
-| ---------------------------- | ----------------------- | --------------------- | ------------------------------------------------------ |
-| Snapshot of an instance      | `domusops.snapshot/0.1` | `standard`, `summary` | `expand`, with the record types `RawRecords` and so on |
-| Logbook of an instance       | `domusops.logbook/0.1`  | `standard`, `summary` | `expandLogbook`                                        |
-| Automation and script traces | `domusops.trace/0.1`    | `standard`, `summary` | `expandTrace`                                          |
+| Document                     | Identifier              | Detail levels                 | Reference decoder (reads)                  |
+| ---------------------------- | ----------------------- | ----------------------------- | ------------------------------------------ |
+| Snapshot of an instance      | `domusops.snapshot/0.1` | `summary`, `standard`, `full` | `expand` (`standard` and `full` documents) |
+| Logbook of an instance       | `domusops.logbook/0.1`  | `summary`, `standard`         | `expandLogbook` (`standard` documents)     |
+| Automation and script traces | `domusops.trace/0.1`    | `summary`, `standard`         | `expandTrace` (`standard` documents)       |
+
+A `summary` document counts and lists what exists but does not carry the rows, so it has nothing to
+decode: check `document.detail` before calling a decoder.
 
 For each format the package exports:
 
@@ -43,9 +46,11 @@ import {
 } from "@domusops/schema";
 
 function runsOf(text: string) {
-  const document = JSON.parse(text) as TraceStandardDocument;
+  const document = JSON.parse(text) as { format?: string; detail?: string };
   if (document.format !== TRACE_FORMAT) throw new Error("not a trace document");
-  return expandTrace(document);
+  if (document.detail !== "standard")
+    throw new Error("only standard documents carry runs");
+  return expandTrace(document as TraceStandardDocument);
 }
 ```
 
