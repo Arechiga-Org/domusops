@@ -195,9 +195,18 @@ export async function listTraces(
   client: HaClient,
   domains: readonly TraceDomain[],
 ): Promise<TraceShortRecord[]> {
+  // One list per domain, asked together. They are settled in the order of `domains`, so when more
+  // than one fails the error reported is the first domain's, whichever failed first.
+  const settled = await Promise.allSettled(
+    domains.map((domain) => traceCommand(client, "trace/list", { domain })),
+  );
+  const lists: unknown[] = [];
+  for (const outcome of settled) {
+    if (outcome.status === "rejected") throw outcome.reason;
+    lists.push(outcome.value);
+  }
   const out: TraceShortRecord[] = [];
-  for (const domain of domains) {
-    const result = await traceCommand(client, "trace/list", { domain });
+  for (const result of lists) {
     if (!Array.isArray(result)) {
       throw errors.protocolError(
         "the trace list was not a list",
@@ -279,7 +288,8 @@ async function getOne(
 
 /**
  * Reads the extended record of each trace, at most `MAX_IN_FLIGHT` at a time, in the order of
- * `refs`. Any failure fails the whole call: no subset is returned.
+ * `refs`. Any failure fails the whole call: no subset is returned, and once a read has failed no
+ * further read is started (reads already in flight finish and are discarded).
  */
 export async function getTraces(
   client: HaClient,
@@ -287,12 +297,18 @@ export async function getTraces(
 ): Promise<TraceExtendedRecord[]> {
   const out = new Array<TraceExtendedRecord>(refs.length);
   let next = 0;
+  let failed = false;
   const worker = async (): Promise<void> => {
-    for (;;) {
+    while (!failed) {
       const index = next++;
       const ref = refs[index];
       if (ref === undefined) return;
-      out[index] = await getOne(client, ref);
+      try {
+        out[index] = await getOne(client, ref);
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
     }
   };
   await Promise.all(

@@ -9,6 +9,7 @@ import { readConfig, readTraceLimit } from "../ha/config.js";
 import {
   getTraces,
   listTraces,
+  MAX_IN_FLIGHT,
   readContexts,
   readItems,
   readTraceContext,
@@ -24,6 +25,7 @@ import {
   type TraceEncodeContext,
 } from "../trace/encode-standard.js";
 import { encodeSummary } from "../trace/encode-summary.js";
+import { sizeFloor } from "../trace/size.js";
 import { resolveItems } from "../trace/items.js";
 import { domainsFor, parseRequest, selectTraces } from "../trace/select.js";
 
@@ -38,6 +40,17 @@ export interface TraceOptions {
   timeouts?: Partial<Timeouts>;
   /** The time of the call, in epoch milliseconds. Defaults to the clock; tests pin it. */
   now?: number;
+}
+
+/**
+ * Starts two reads together and settles them in the order they are listed: when both fail, the
+ * first one's error is the one reported, whichever failed first, so which error an agent sees does
+ * not depend on timing.
+ */
+async function together<A, B>(a: Promise<A>, b: Promise<B>): Promise<[A, B]> {
+  a.catch(() => undefined);
+  b.catch(() => undefined);
+  return [await a, await b];
 }
 
 /**
@@ -67,18 +80,26 @@ export async function runTrace(
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
   });
   try {
-    const instance = await readTraceContext(client);
+    // The instance check comes first, so a user who is not an administrator, or an instance
+    // without traces, never gets a trace command. The registry read does not depend on it.
+    const [instance, known] = await together(
+      readTraceContext(client),
+      readItems(client),
+    );
     const window =
       request.window === undefined
         ? null
         : resolveWindow(request.window, now, instance.timeZone);
-    const items = resolveItems(await readItems(client));
+    const items = resolveItems(known);
     const domains = domainsFor(request);
-    const short = domains.length === 0 ? [] : await listTraces(client, domains);
-    const contexts =
+    const [short, contexts] = await together(
+      domains.length === 0
+        ? Promise.resolve<TraceShortRecord[]>([])
+        : listTraces(client, domains),
       request.context !== undefined || detail === "summary"
-        ? await readContexts(client)
-        : new Map<string, ContextEntry>();
+        ? readContexts(client)
+        : Promise.resolve(new Map<string, ContextEntry>()),
+    );
     const selection = await selectTraces({
       request,
       items,
@@ -130,6 +151,45 @@ export async function runTrace(
         selection.extended.set(record.run_id, record);
       }
     };
+    // The runs are read in growing chunks. As soon as the runs read so far already encode above the
+    // limit, the result cannot fit and the runs still unread are not read (spec 007 FR-004,
+    // research R4). Each run is redacted once, as it is read.
+    const readStandard = async (
+      shorts: readonly TraceShortRecord[],
+    ): Promise<{
+      records: TraceExtendedRecord[];
+      redacted: TraceExtendedRecord[];
+    }> => {
+      const records: TraceExtendedRecord[] = [];
+      const redacted: TraceExtendedRecord[] = [];
+      let from = 0;
+      let chunk = MAX_IN_FLIGHT;
+      while (from < shorts.length) {
+        const slice = shorts.slice(from, from + chunk);
+        await readMissing(slice);
+        const read = slice.map(
+          (record) =>
+            selection.extended.get(record.run_id) as TraceExtendedRecord,
+        );
+        records.push(...read);
+        redacted.push(...redactRows(read, redaction));
+        from += chunk;
+        chunk *= 2;
+        if (from < shorts.length) {
+          const floor = sizeFloor(encodeStandard(redacted, context));
+          if (floor > limit) {
+            throw errors.tooLargeRuns(
+              shorts.length,
+              floor,
+              limit,
+              detail,
+              true,
+            );
+          }
+        }
+      }
+      return { records, redacted };
+    };
     let text: string;
     if (detail === "summary") {
       // The context of a run comes from the context map when it points at that run, and from the
@@ -166,18 +226,11 @@ export async function runTrace(
         rawBytes,
       );
     } else {
-      await readMissing(selection.shorts);
-      const records = selection.shorts.map(
-        (record) =>
-          selection.extended.get(record.run_id) as TraceExtendedRecord,
-      );
+      const { records, redacted } = await readStandard(selection.shorts);
       // The raw size is measured on the data as returned; everything after this point is
       // redacted.
       const rawBytes = measureRowsBytes(records);
-      text = finalize(
-        encodeStandard(redactRows(records, redaction), context),
-        rawBytes,
-      );
+      text = finalize(encodeStandard(redacted, context), rawBytes);
     }
     // A result above the limit is an error, never a truncated result (spec FR-018, FR-020).
     const bytes = byteLength(text);

@@ -364,8 +364,8 @@ export class HaClient {
 
   close(): void {
     this.closed = true;
-    for (const pending of this.pending.values()) clearTimeout(pending.timer);
-    this.pending.clear();
+    // Every command still waiting ends with an error, never in silence.
+    this.abort(null);
     try {
       this.socket.close();
     } catch {

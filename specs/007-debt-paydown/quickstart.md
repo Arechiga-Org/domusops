@@ -16,8 +16,9 @@ Expected:
   counts no `trace/get` received after the failure (SC-001).
 - `HaClient.close()` with three pending commands: all three reject within one second with "the
   connection closed before a reply arrived" (SC-002).
-- Independent reads with a 200 ms simulated delay: `ha_trace` finishes in under 400 ms (SC-003).
-- 500 stored runs, `detail=standard`, default limit: `too_large` with "would be more than", and
+- Reads with a 300 ms simulated delay: a request for one run finishes in under 1500 ms, where
+  reading them one after another takes about 1900 ms (SC-003).
+- 500 stored runs, `detail=standard`, default limit: `too_large` with "bytes or more", and
   fewer than 250 `trace/get` received (SC-004).
 - The monotonicity property test of research R4 passes.
 - Every existing `ha_trace` output test passes unedited (FR-005).

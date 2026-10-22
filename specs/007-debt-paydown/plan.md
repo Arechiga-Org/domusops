@@ -74,7 +74,8 @@ Six independent fixes, one pull request each:
 
 **Performance Goals**:
 
-- `ha_trace` with independent reads takes about one round trip instead of the sum (SC-003).
+- `ha_trace` takes the time of its longest chain of dependent reads, four rounds for a request
+  for one run instead of six (SC-003).
 - A `standard` request whose result is too large is refused after reading fewer than half of the
   selected runs (SC-004).
 - Connection close settles everything within one second (SC-002).
@@ -82,7 +83,7 @@ Six independent fixes, one pull request each:
 **Constraints**:
 
 - No `@domusops/schema` format or export changes (FR-032).
-- No tool output changes from US1 or US5, except the too-large wording "would be more than"
+- No tool output changes from US1 or US5, except the too-large wording "would be … bytes or more"
   when the refusal is early (contracts/mcp-behaviour.md).
 - Never contact a real instance (FR-033).
 - Patch bumps only (R22), so the `~0.1` skill pin holds.
@@ -148,7 +149,7 @@ packages/mcp/src/
 ├── ha/client.ts                 # US1: close() settles pending; US5: COMMANDS table, haCode
 ├── ha/trace.ts                  # US1: getTraces stop flag; US5: exported refOf
 ├── ha/logbook.ts                # US5: unknown_command by haCode
-├── errors.ts                    # US1: "would be more than"; US5: ToolError.haCode
+├── errors.ts                    # US1: "would be … bytes or more"; US5: ToolError.haCode
 ├── tools/ha-trace.ts            # US1: concurrent reads, chunked standard reads with early stop
 ├── trace/select.ts              # US5: shared refOf, dead branch removed
 ├── trace/context-id.ts          # US5: one pattern in parseContextId
