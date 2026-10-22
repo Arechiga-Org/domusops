@@ -433,3 +433,42 @@ describe("HaClient trace commands (feature 003, FR-017)", () => {
     expect(got.map((r) => r.run_id)).toEqual(picks.map((t) => t.run_id));
   });
 });
+
+describe("HaClient.close (spec FR-002, SC-002)", () => {
+  it("rejects every command still waiting, with the connection-closed error", async () => {
+    const ha = await fake({ delayMs: 5_000 });
+    const client = await connect(ha);
+    const waiting = ["get_config", "get_states", "config_entries/get"].map(
+      (type) =>
+        failure(() =>
+          client.command(
+            type as "get_config" | "get_states" | "config_entries/get",
+          ),
+        ),
+    );
+    // Let the three commands reach the socket before it is closed.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const closedAt = Date.now();
+    client.close();
+    const errors = await Promise.all(waiting);
+    expect(Date.now() - closedAt).toBeLessThan(1000);
+    for (const error of errors) {
+      expect(kindOf(error)).toBe("retrieval_failed");
+      expect(error.message).toContain(
+        "the connection closed before a reply arrived",
+      );
+    }
+  });
+
+  it("is harmless when called twice, and later commands fail at once", async () => {
+    const ha = await fake({ delayMs: 5_000 });
+    const client = await connect(ha);
+    const waiting = failure(() => client.command("get_config"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    client.close();
+    client.close();
+    expect(kindOf(await waiting)).toBe("retrieval_failed");
+    const later = await failure(() => client.command("get_states"));
+    expect(kindOf(later)).toBe("retrieval_failed");
+  });
+});

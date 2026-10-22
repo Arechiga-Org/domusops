@@ -70,6 +70,9 @@ trace data. No runs are returned with an error.
 - Automations without an `id` in their configuration are not traced; they are listed as
   `untraceable`.
 - Not-triggered traces exist from Home Assistant 2026.7.
+- A `standard` result that cannot fit the size limit may be refused before every selected run is
+  read, with "would be N bytes or more". See
+  [007 mcp-behaviour.md](../../007-debt-paydown/contracts/mcp-behaviour.md).
 
 ## Versioning
 

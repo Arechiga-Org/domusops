@@ -31,15 +31,24 @@ by user story. Code references are to `main` at `c0a7065`.
 
 ### R3. Independent round trips run concurrently
 
-- **Decision**: `tools/ha-trace.ts` issues `readTraceContext`, `readItems`, `listTraces` (one
-  `trace/list` per domain, concurrently inside `listTraces`) and, when needed, `readContexts`
-  together with `Promise.all`. The selection and everything after it are unchanged.
-- **Rationale**: None of these reads depends on another's result: `domainsFor` uses only the
-  request, and the window needs only the time zone, which is resolved after the batch. `HaClient`
-  already multiplexes commands by ID. At most five commands are outstanding, below the in-flight
-  bound that applies to `trace/get`.
-- **Failure handling**: When one read fails, `Promise.all` rejects, the `finally` block calls
-  `client.close()`, and R2 settles the others. No unhandled rejection is possible.
+- **Decision**: `tools/ha-trace.ts` reads in two groups, each started together:
+  1. `readTraceContext` (the user, then the config) with `readItems` (the registry and the
+     states);
+  2. `listTraces` (one `trace/list` per domain, together inside `listTraces`) with, when needed,
+     `readContexts`.
+     The selection and everything after it are unchanged.
+- **Rationale**: Within a group no read depends on another's result. The groups stay apart on
+  purpose: the existing behaviour (and its tests) is that a user who is not an administrator, an
+  instance without traces, or an invalid window never receives a `trace/*` command, so the lists
+  wait for the instance check. For a request for one run, the rounds go from six to four.
+  `HaClient` already multiplexes commands by ID, and at most four commands are outstanding.
+- **Error precedence**: A small `together` helper starts two reads and settles them in the order
+  they are listed, so when both fail the first one's error is reported (the instance check
+  before the registry) whichever failed first. Which error an agent sees does not depend on
+  timing.
+- **Failure handling**: When a read fails, the `finally` block calls `client.close()`, and R2
+  settles the reads still waiting. Both promises of a pair are given a no-op rejection handler
+  first, so none is ever unhandled.
 - **Alternatives considered**: Running `ha_snapshot` and `ha_logbook_query` reads concurrently as
   well. Out of scope: the finding was about `ha_trace` only.
 
@@ -50,18 +59,20 @@ by user story. Code references are to `main` at `c0a7065`.
   reads in flight). After each chunk, the runs read so far are encoded with the real
   `encodeStandard` and finalised. If that output is already larger than the limit, the tool
   stops reading and throws `too_large`. The error has the same code and guidance as today, and
-  its message changes from "would be N bytes" to "would be more than N bytes". When all runs are
+  its message changes from "would be N bytes" to "would be N bytes or more", which keeps the
+  wording existing checks match on. When all runs are
   read, the existing final check applies unchanged.
-- **Soundness**: The early stop is correct only if adding runs never makes the standard document
-  smaller (monotonicity). In `trace/values.ts` `buildTables`, a subtree or string moves to a
-  shared table only when it occurs at least twice. Moving it replaces an inline copy with a
-  reference plus one table entry at least as long as the inline copy it replaces, and a run never
-  removes envelope, item or `configs` content. A property test over the trace fixtures checks
-  that `size(encode(S)) <= size(encode(S ∪ T))` for random subsets. If the property test finds a
-  counterexample, the fallback is the conservative floor of R4a.
-- **R4a fallback**: Stop only when the sum of a per-run lower bound exceeds the limit. The lower
-  bound is the bytes every encoded run emits inline (run ID, timestamps, state), measured from
-  the fixtures.
+- **Soundness**: The early stop is correct only if no larger set of runs can emit a document
+  smaller than what the partial result proves. The plain size is not monotonic: in
+  `trace/values.ts` `buildTables`, string indexes follow descending count, so adding runs can move
+  a string to a lower index, and a reference to a lower index can be one digit shorter. The check
+  therefore uses `sizeFloor` (`trace/size.ts`): the partial document measured with its ratio at 0,
+  minus the widest possible shrink, which is (digits of the largest index − 1) bytes for each
+  reference in it. A reference that a larger set adds costs at least as much as it can save, so the
+  floor never exceeds the document finally emitted. `trace-monotonic.test.ts` checks that for
+  every prefix, at the chunk boundaries of the 500-run set, and for random subsets and supersets.
+  The first version of the check used the plain size; review of the pull request found that it
+  assumed monotonicity `buildTables` does not guarantee, and the floor replaced it.
 - **Cost**: With doubling chunks, a request re-encodes at most about twice the final document,
   which is negligible next to the network reads it saves.
 - **Coupling**: SC-004's "fewer than half" relies on the chunk schedule: the first five chunks
