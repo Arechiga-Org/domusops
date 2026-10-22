@@ -1,5 +1,6 @@
 import type { TraceExtendedRecord } from "@domusops/schema";
 import { describe, expect, it } from "vitest";
+import { MAX_IN_FLIGHT } from "../src/ha/trace.js";
 import { sizeFloor } from "../src/trace/size.js";
 import {
   EDGE_TRACES,
@@ -51,10 +52,20 @@ describe("the floor of a partial standard result never exceeds the emitted whole
     });
   });
 
-  it("holds for every prefix of the 500-run set, at the chunk boundaries the tool checks", () => {
+  it("holds at every boundary of the chunks the tool reads, for the 500-run set", () => {
     const fixture = PERFORMANCE_TRACES;
     const whole = emittedBytes(fixture.traces, fixture);
-    for (const n of [8, 24, 56, 120, 248]) {
+    // The tool checks after the first chunk of MAX_IN_FLIGHT runs and after each chunk twice the
+    // size of the one before, while runs are left to read.
+    const boundaries: number[] = [];
+    let read = 0;
+    for (let chunk = MAX_IN_FLIGHT; read + chunk < fixture.traces.length;) {
+      read += chunk;
+      chunk *= 2;
+      boundaries.push(read);
+    }
+    expect(boundaries.length).toBeGreaterThan(3);
+    for (const n of boundaries) {
       expect(floorOf(fixture.traces.slice(0, n), fixture)).toBeLessThanOrEqual(
         whole,
       );

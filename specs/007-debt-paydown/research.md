@@ -46,6 +46,8 @@ by user story. Code references are to `main` at `c0a7065`.
   they are listed, so when both fail the first one's error is reported (the instance check
   before the registry) whichever failed first. Which error an agent sees does not depend on
   timing.
+  The two trace lists are settled the same way inside `listTraces`: when both fail, the first
+  domain's error is reported.
 - **Failure handling**: When a read fails, the `finally` block calls `client.close()`, and R2
   settles the reads still waiting. Both promises of a pair are given a no-op rejection handler
   first, so none is ever unhandled.

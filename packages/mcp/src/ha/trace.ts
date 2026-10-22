@@ -195,10 +195,16 @@ export async function listTraces(
   client: HaClient,
   domains: readonly TraceDomain[],
 ): Promise<TraceShortRecord[]> {
-  // One list per domain, asked together and joined in the order of `domains`.
-  const lists = await Promise.all(
+  // One list per domain, asked together. They are settled in the order of `domains`, so when more
+  // than one fails the error reported is the first domain's, whichever failed first.
+  const settled = await Promise.allSettled(
     domains.map((domain) => traceCommand(client, "trace/list", { domain })),
   );
+  const lists: unknown[] = [];
+  for (const outcome of settled) {
+    if (outcome.status === "rejected") throw outcome.reason;
+    lists.push(outcome.value);
+  }
   const out: TraceShortRecord[] = [];
   for (const result of lists) {
     if (!Array.isArray(result)) {
