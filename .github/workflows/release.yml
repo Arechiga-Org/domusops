@@ -25,7 +25,8 @@ jobs:
           publish: pnpm release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Prefer OIDC trusted publishing over a long-lived NPM_TOKEN —
-          # npm is restricting 2FA-bypassing tokens (account changes Aug 2026,
-          # publishing Jan 2027). See 00-BOOTSTRAP-RUNBOOK.md Phase 4.5.
+          # setup-node writes an .npmrc that reads NODE_AUTH_TOKEN; NPM_TOKEN alone is not enough.
+          # Replace with OIDC trusted publishing once the packages exist on npm (it is configured
+          # per package) and the runner's npm is new enough.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
