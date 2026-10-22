@@ -62,16 +62,17 @@ by user story. Code references are to `main` at `c0a7065`.
   its message changes from "would be N bytes" to "would be N bytes or more", which keeps the
   wording existing checks match on. When all runs are
   read, the existing final check applies unchanged.
-- **Soundness**: The early stop is correct only if adding runs never makes the standard document
-  smaller (monotonicity). In `trace/values.ts` `buildTables`, a subtree or string moves to a
-  shared table only when it occurs at least twice. Moving it replaces an inline copy with a
-  reference plus one table entry at least as long as the inline copy it replaces, and a run never
-  removes envelope, item or `configs` content. A property test over the trace fixtures checks
-  that `size(encode(S)) <= size(encode(S ∪ T))` for random subsets. If the property test finds a
-  counterexample, the fallback is the conservative floor of R4a.
-- **R4a fallback**: Stop only when the sum of a per-run lower bound exceeds the limit. The lower
-  bound is the bytes every encoded run emits inline (run ID, timestamps, state), measured from
-  the fixtures.
+- **Soundness**: The early stop is correct only if no larger set of runs can emit a document
+  smaller than what the partial result proves. The plain size is not monotonic: in
+  `trace/values.ts` `buildTables`, string indexes follow descending count, so adding runs can move
+  a string to a lower index, and a reference to a lower index can be one digit shorter. The check
+  therefore uses `sizeFloor` (`trace/size.ts`): the partial document measured with its ratio at 0,
+  minus the widest possible shrink, which is (digits of the largest index − 1) bytes for each
+  reference in it. A reference that a larger set adds costs at least as much as it can save, so the
+  floor never exceeds the document finally emitted. `trace-monotonic.test.ts` checks that for
+  every prefix, at the chunk boundaries of the 500-run set, and for random subsets and supersets.
+  The first version of the check used the plain size; review of the pull request found that it
+  assumed monotonicity `buildTables` does not guarantee, and the floor replaced it.
 - **Cost**: With doubling chunks, a request re-encodes at most about twice the final document,
   which is negligible next to the network reads it saves.
 - **Coupling**: SC-004's "fewer than half" relies on the chunk schedule: the first five chunks

@@ -537,11 +537,25 @@ async function attempt(
 }
 
 describe("independent reads run together (spec FR-003, SC-003)", () => {
-  it("takes the longest chain of dependent reads, not the sum of every read", async () => {
+  it("starts the reads that do not depend on each other at the same time", async () => {
     const DELAY = 300;
-    // A run request reads the user, then the config; the registry and states; both trace lists; and
-    // one trace. Read one after another that is six rounds; run together it is four: the user and
-    // then the config (while the registry and states are read), the lists, and the trace.
+    const { ha, error } = await attempt(
+      REFERENCE_TRACES,
+      { run: REFERENCE_TRACES.traces[0]?.run_id as string },
+      { DOMUSOPS_TRACE_MAX_BYTES: "10000000" },
+      { delayMs: DELAY },
+    );
+    expect(error).toBeUndefined();
+    const at = (type: string, nth = 0): number =>
+      ha.receivedAt.filter((entry) => entry.type === type)[nth]?.at as number;
+    // The registry is read while the instance check is still waiting for its second read, and the
+    // two trace lists go out together. One after another, each would be a full delay behind.
+    expect(at("config/entity_registry/list")).toBeLessThan(at("get_config"));
+    expect(at("trace/list", 1) - at("trace/list", 0)).toBeLessThan(DELAY / 2);
+  });
+
+  it("takes the time of the longest chain of reads that depend on each other", async () => {
+    const DELAY = 300;
     const { ms, error } = await attempt(
       REFERENCE_TRACES,
       { run: REFERENCE_TRACES.traces[0]?.run_id as string },
@@ -549,8 +563,10 @@ describe("independent reads run together (spec FR-003, SC-003)", () => {
       { delayMs: DELAY },
     );
     expect(error).toBeUndefined();
-    // Four rounds, and a little over for the work around them; six rounds would be 1800 ms.
-    expect(ms).toBeLessThan(DELAY * 5);
+    // Four rounds (the user, then the config; the lists; the trace) is 1200 ms; reading every
+    // request one after another would be six rounds, 1800 ms. The bound leaves room for a slow
+    // machine without letting the sequential order pass.
+    expect(ms).toBeLessThan(DELAY * 5.5);
   });
 
   it("settles the other reads and closes when one of them fails, leaving nothing unhandled", async () => {

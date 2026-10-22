@@ -43,6 +43,8 @@ export interface FakeHa {
   receivedTraceParams: Record<string, unknown>[];
   /** When each `trace/get` was received, in order (milliseconds since the epoch). */
   traceGetsAt: number[];
+  /** When each command was received, in order (milliseconds since the epoch). */
+  receivedAt: { type: string; at: number }[];
   /** Whether an `auth` message (which carries the token) was ever received. */
   authReceived: boolean;
   close(): Promise<void>;
@@ -182,6 +184,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
     receivedParams: [],
     receivedTraceParams: [],
     traceGetsAt: [],
+    receivedAt: [],
     authReceived: false,
     close: () =>
       new Promise<void>((resolve) => {
@@ -224,6 +227,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
       }
       const type = message.type ?? "";
       fake.received.push(type);
+      fake.receivedAt.push({ type, at: Date.now() });
       if (type === "trace/get") fake.traceGetsAt.push(Date.now());
       // A reply is held back by `delayMs`, except the immediate failure of `failTraceGet`.
       const immediate =

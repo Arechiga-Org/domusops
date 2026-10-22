@@ -25,6 +25,7 @@ import {
   type TraceEncodeContext,
 } from "../trace/encode-standard.js";
 import { encodeSummary } from "../trace/encode-summary.js";
+import { sizeFloor } from "../trace/size.js";
 import { resolveItems } from "../trace/items.js";
 import { domainsFor, parseRequest, selectTraces } from "../trace/select.js";
 
@@ -150,37 +151,36 @@ export async function runTrace(
         selection.extended.set(record.run_id, record);
       }
     };
-    // The runs are read in growing chunks. A run never makes the document smaller, so as soon as
-    // the runs read so far already encode above the limit, the result cannot fit and the runs
-    // still unread are not read (spec 007 FR-004, research R4). The document is measured with its
-    // ratio at 0, which is never longer than the document finally emitted.
+    // The runs are read in growing chunks. As soon as the runs read so far already encode above the
+    // limit, the result cannot fit and the runs still unread are not read (spec 007 FR-004,
+    // research R4). Each run is redacted once, as it is read.
     const readStandard = async (
       shorts: readonly TraceShortRecord[],
-    ): Promise<TraceExtendedRecord[]> => {
+    ): Promise<{
+      records: TraceExtendedRecord[];
+      redacted: TraceExtendedRecord[];
+    }> => {
       const records: TraceExtendedRecord[] = [];
+      const redacted: TraceExtendedRecord[] = [];
       let from = 0;
       let chunk = MAX_IN_FLIGHT;
       while (from < shorts.length) {
         const slice = shorts.slice(from, from + chunk);
         await readMissing(slice);
-        for (const record of slice) {
-          records.push(
+        const read = slice.map(
+          (record) =>
             selection.extended.get(record.run_id) as TraceExtendedRecord,
-          );
-        }
+        );
+        records.push(...read);
+        redacted.push(...redactRows(read, redaction));
         from += chunk;
         chunk *= 2;
         if (from < shorts.length) {
-          const partial = byteLength(
-            JSON.stringify({
-              ...encodeStandard(redactRows(records, redaction), context),
-              compression_ratio: 0,
-            }),
-          );
-          if (partial > limit) {
+          const floor = sizeFloor(encodeStandard(redacted, context));
+          if (floor > limit) {
             throw errors.tooLargeRuns(
               shorts.length,
-              partial,
+              floor,
               limit,
               detail,
               true,
@@ -188,7 +188,7 @@ export async function runTrace(
           }
         }
       }
-      return records;
+      return { records, redacted };
     };
     let text: string;
     if (detail === "summary") {
@@ -226,14 +226,11 @@ export async function runTrace(
         rawBytes,
       );
     } else {
-      const records = await readStandard(selection.shorts);
+      const { records, redacted } = await readStandard(selection.shorts);
       // The raw size is measured on the data as returned; everything after this point is
       // redacted.
       const rawBytes = measureRowsBytes(records);
-      text = finalize(
-        encodeStandard(redactRows(records, redaction), context),
-        rawBytes,
-      );
+      text = finalize(encodeStandard(redacted, context), rawBytes);
     }
     // A result above the limit is an error, never a truncated result (spec FR-018, FR-020).
     const bytes = byteLength(text);
