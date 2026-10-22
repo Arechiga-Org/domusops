@@ -26,7 +26,7 @@ instance version the workflow validates against.
 1. **Preview first, always.** Run:
 
    ```sh
-   npx --yes @domusops/bootstrap@~0.0 init --dir <configuration directory> --json
+   npx --yes @domusops/bootstrap@~0.1 init --dir <configuration directory> --json
    ```
 
    This changes nothing. Read its `elements` list, `findings`, and `stop` (if any).
@@ -50,7 +50,7 @@ instance version the workflow validates against.
 4. **Apply:**
 
    ```sh
-   npx --yes @domusops/bootstrap@~0.0 init --dir <configuration directory> --apply --json
+   npx --yes @domusops/bootstrap@~0.1 init --dir <configuration directory> --apply --json
    ```
 
 5. **Report the result and its `next_steps` in plain language.** If a key was just created
@@ -63,19 +63,19 @@ instance version the workflow validates against.
 
 ## After the baseline is in place
 
-- Editing secrets: `npx --yes @domusops/bootstrap@~0.0 secrets decrypt` (add `--force` to overwrite local edits
+- Editing secrets: `npx --yes @domusops/bootstrap@~0.1 secrets decrypt` (add `--force` to overwrite local edits
   that differ) to get a plaintext `secrets.yaml`, edit it, then
-  `npx --yes @domusops/bootstrap@~0.0 secrets encrypt` to put it back. Never suggest committing the plaintext
+  `npx --yes @domusops/bootstrap@~0.1 secrets encrypt` to put it back. Never suggest committing the plaintext
   file; the pre-commit hook blocks that on its own regardless.
 - Adding a second machine that should be able to decrypt secrets (typically the instance's own
   host): generate an age key there, then run
-  `npx --yes @domusops/bootstrap@~0.0 secrets add-key <its public key>` from the repository. `remove-key` works
+  `npx --yes @domusops/bootstrap@~0.1 secrets add-key <its public key>` from the repository. `remove-key` works
   the same way and refuses to remove the last recipient; tell the user that the removed key can
   still read every earlier version of the file in git history, so the secrets themselves must be
   rotated if that person should no longer know them.
 - Checking the current state again without changing anything: re-run the preview (step 1). A
   second run with nothing to do reports every element `"current"` and changes no file.
-- Validating the full configuration locally (needs Docker or Podman): `npx --yes @domusops/bootstrap@~0.0
+- Validating the full configuration locally (needs Docker or Podman): `npx --yes @domusops/bootstrap@~0.1
 validate`. The same check runs in the generated GitHub Actions workflow on every push.
 
 ## Constraints this skill respects
