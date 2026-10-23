@@ -236,7 +236,13 @@ describe("init — User Story 2 (secrets encryption)", () => {
     expect(first.key?.created).toBe(true);
     // Re-running with the same XDG_CONFIG_HOME finds the key it just created.
     const second = jsonSummary(dir);
-    expect(second.key).toBeNull(); // sops-config is already current; no key resolution needed
+    // The recipients already exist, and init still says whose key this machine has (FR-022).
+    expect(second.key).toEqual({
+      found: true,
+      created: false,
+      path: first.key?.path,
+      public: first.key?.public,
+    });
   });
 
   it("stops with secrets_exposed and creates neither file when secrets.yaml is tracked (FR-014)", () => {

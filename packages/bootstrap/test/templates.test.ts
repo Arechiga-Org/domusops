@@ -20,11 +20,12 @@ const RENDERERS: [name: string, render: () => string][] = [
   [
     "sops config",
     () =>
-      renderSopsConfig([
-        "age1exampleexampleexampleexampleexampleexampleexamplex",
-      ]),
+      renderSopsConfig(
+        ["age1exampleexampleexampleexampleexampleexampleexamplex"],
+        "0.1.0",
+      ),
   ],
-  ["placeholders", () => renderPlaceholders()],
+  ["placeholders", () => renderPlaceholders("0.1.0")],
   ["hook", () => renderHook("0.1.0")],
   ["workflow", () => renderWorkflow("0.1.0")],
 ];
@@ -48,6 +49,27 @@ describe("templates are deterministic and English-only (research R12, FR-024)", 
       if (/Home Assistant/.test(text)) {
         expect(text).toMatch(/for Home Assistant/);
       }
+    },
+  );
+});
+
+describe("commands named in generated files are pinned (FR-020)", () => {
+  it.each(RENDERERS)("%s never names the bare command", (_name, render) => {
+    expect(render()).not.toMatch(/domusops-bootstrap/);
+  });
+
+  it.each(RENDERERS)(
+    "%s runs the package only at the release that generated it",
+    (_name, render) => {
+      expect(render()).not.toMatch(/@domusops\/bootstrap(?!@0\.1\.0\b)/);
+    },
+  );
+
+  it.each(["sops config", "placeholders"])(
+    "%s tells the user to run the pinned form",
+    (name) => {
+      const render = RENDERERS.find(([n]) => n === name)?.[1];
+      expect(render?.()).toContain("npx --yes @domusops/bootstrap@0.1.0 ");
     },
   );
 });

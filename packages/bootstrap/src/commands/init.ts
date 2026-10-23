@@ -54,7 +54,7 @@ import {
   secretsExposedStop,
   ENCRYPTED_FILE,
 } from "../baseline/secrets.js";
-import { resolveOrCreateKey } from "../baseline/key.js";
+import { lookupKey, resolveOrCreateKey } from "../baseline/key.js";
 import { renderHook, renderWorkflow } from "../baseline/templates.js";
 import { computeSkillFile, applySkillFile } from "../baseline/skill-file.js";
 import {
@@ -132,6 +132,7 @@ export function runInit(args: CliArgs): number {
   };
   const elements: ElementReport[] = [];
   let key: KeyInfo | null = null;
+  let membership: Membership | undefined;
 
   for (const id of APPLY_ORDER) {
     const report = computeElement(
@@ -153,6 +154,7 @@ export function runInit(args: CliArgs): number {
     if (report.entry !== undefined) newEntries[id] = report.entry;
     else if (report.removeEntry === true) delete newEntries[id];
     if (report.key !== undefined) key = report.key;
+    if (report.membership !== undefined) membership = report.membership;
     // An element-scope stop (data-model §1.2) is carried by its own `state: "blocked"` and a
     // `reason` that starts with the stop code; only a run-scope stop fills the top-level `stop`.
   }
@@ -180,7 +182,7 @@ export function runInit(args: CliArgs): number {
     }
   }
 
-  const nextSteps = buildNextSteps(elements, findings, mode, key);
+  const nextSteps = buildNextSteps(elements, findings, mode, key, membership);
   const summary = buildSummary(
     mode,
     packageVersion(),
@@ -202,6 +204,48 @@ interface ComputedElement {
   removeEntry?: boolean;
   stop?: RunStop | undefined;
   key?: KeyInfo | undefined;
+  /**
+   * Set when `.sops.yaml` already lists recipients: the local public key (null when this machine
+   * has no age key yet) and whether it is one of them.
+   */
+  membership?: Membership | undefined;
+}
+
+interface Membership {
+  localKey: string | null;
+  isRecipient: boolean;
+}
+
+/** The key of this machine as the summary reports it. */
+function keyInfoOf(resolved: {
+  publicKey: string;
+  created: boolean;
+  path: string;
+}): KeyInfo {
+  return {
+    found: !resolved.created,
+    created: resolved.created,
+    path: resolved.path,
+    public: resolved.publicKey,
+  };
+}
+
+/**
+ * Who this machine is among the recipients that `.sops.yaml` already lists. With `apply` the key is
+ * created when there is none; in a preview it is only looked up (FR-022).
+ */
+function membershipOf(
+  recipients: readonly string[],
+  apply: boolean,
+): { key: KeyInfo | null; membership: Membership } {
+  const resolved = apply ? resolveOrCreateKey() : lookupKey();
+  return {
+    key: resolved === null ? null : keyInfoOf(resolved),
+    membership: {
+      localKey: resolved?.publicKey ?? null,
+      isRecipient: resolved !== null && recipients.includes(resolved.publicKey),
+    },
+  };
 }
 
 function computeElement(
@@ -300,25 +344,15 @@ function computeElement(
             stop: secretsExposedStop(),
           };
         }
-        const result = computeSopsConfig(dir, existingRecipients, record);
-        return {
-          element: {
-            id,
-            path: SOPS_CONFIG_FILE,
-            state: result.state,
-            reason: result.reason,
-          },
-        };
-      }
-      if (existingRecipients.length > 0) {
-        const result = applySopsConfig(dir, existingRecipients, record);
-        const entry =
-          result.state === "outdated"
-            ? {
-                path: SOPS_CONFIG_FILE,
-                sha256: sha256(renderSopsConfig(existingRecipients)),
-                release: packageVersion(),
-              }
+        const result = computeSopsConfig(
+          dir,
+          existingRecipients,
+          record,
+          packageVersion(),
+        );
+        const who =
+          existingRecipients.length > 0
+            ? membershipOf(existingRecipients, false)
             : undefined;
         return {
           element: {
@@ -327,7 +361,38 @@ function computeElement(
             state: result.state,
             reason: result.reason,
           },
+          key: who?.key ?? undefined,
+          membership: who?.membership,
+        };
+      }
+      if (existingRecipients.length > 0) {
+        const result = applySopsConfig(
+          dir,
+          existingRecipients,
+          record,
+          packageVersion(),
+        );
+        const entry =
+          result.state === "outdated"
+            ? {
+                path: SOPS_CONFIG_FILE,
+                sha256: sha256(
+                  renderSopsConfig(existingRecipients, packageVersion()),
+                ),
+                release: packageVersion(),
+              }
+            : undefined;
+        const who = membershipOf(existingRecipients, true);
+        return {
+          element: {
+            id,
+            path: SOPS_CONFIG_FILE,
+            state: result.state,
+            reason: result.reason,
+          },
           entry,
+          key: who.key ?? undefined,
+          membership: who.membership,
         };
       }
       if (checkExposure(dir)) {
@@ -342,13 +407,13 @@ function computeElement(
         };
       }
       const resolved = resolveOrCreateKey();
-      const key: KeyInfo = {
-        found: !resolved.created,
-        created: resolved.created,
-        path: resolved.path,
-        public: resolved.publicKey,
-      };
-      const result = applySopsConfig(dir, [resolved.publicKey], record);
+      const key = keyInfoOf(resolved);
+      const result = applySopsConfig(
+        dir,
+        [resolved.publicKey],
+        record,
+        packageVersion(),
+      );
       return {
         element: {
           id,
@@ -358,7 +423,9 @@ function computeElement(
         },
         entry: {
           path: SOPS_CONFIG_FILE,
-          sha256: sha256(renderSopsConfig([resolved.publicKey])),
+          sha256: sha256(
+            renderSopsConfig([resolved.publicKey], packageVersion()),
+          ),
           release: packageVersion(),
         },
         key,
@@ -506,7 +573,9 @@ function computeElement(
       };
     }
     case "placeholders": {
-      const result = apply ? applyPlaceholders(dir) : computePlaceholders(dir);
+      const result = apply
+        ? applyPlaceholders(dir, packageVersion())
+        : computePlaceholders(dir, packageVersion());
       return {
         element: {
           id,
@@ -521,21 +590,38 @@ function computeElement(
   }
 }
 
+/** What a contributor whose key is not a recipient yet needs to do (FR-022); never a stop. */
+function membershipSteps(membership: Membership | undefined): string[] {
+  if (membership === undefined || membership.isRecipient) return [];
+  if (membership.localKey === null) {
+    return [
+      "You have no age key yet; init --apply creates one so a recipient can add you.",
+    ];
+  }
+  return [
+    `Your key cannot decrypt secrets.sops.yaml yet. Ask an existing recipient to run: npx --yes @domusops/bootstrap@${packageVersion()} secrets add-key ${membership.localKey}`,
+  ];
+}
+
 function buildNextSteps(
   elements: ElementReport[],
   findings: Findings,
   mode: "preview" | "apply",
   key: KeyInfo | null,
+  membership: Membership | undefined,
 ): string[] {
-  if (mode === "preview") {
-    return ["Run again with --apply once you are happy with this preview."];
-  }
   const steps: string[] = [];
+  if (mode === "preview") {
+    steps.push("Run again with --apply once you are happy with this preview.");
+    steps.push(...membershipSteps(membership));
+    return steps;
+  }
   if (key !== null && key.created) {
     steps.push(
       `Back up the new key file at ${key.path}: losing it means losing access to the encrypted secrets.`,
     );
   }
+  steps.push(...membershipSteps(membership));
   const anyChange = elements.some(
     (e) => e.state === "missing" || e.state === "outdated",
   );
