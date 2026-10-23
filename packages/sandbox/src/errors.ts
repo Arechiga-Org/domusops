@@ -10,7 +10,8 @@ export type SandboxErrorCode =
   | "unsupported_device_kind"
   | "not_a_sandbox"
   | "instance_gone"
-  | "time_control_failed";
+  | "time_control_failed"
+  | "time_unavailable";
 
 // A long-lived access token is a JWT; a bearer header carries one. Both are scrubbed even when
 // the caller did not name the secret.

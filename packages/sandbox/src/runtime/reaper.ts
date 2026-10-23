@@ -1,6 +1,7 @@
 import type { Runtime } from "./docker.js";
 import { parseLabels, type SandboxLabels } from "./labels.js";
 import { hostname } from "node:os";
+import { readMachineId } from "./machine-id.js";
 
 export type ReapReason = "deadline passed" | "owner process gone";
 
@@ -13,6 +14,8 @@ export interface Removal {
 export interface ReapOptions {
   now?: () => number;
   host?: string;
+  /** This machine's identifier; null when there is none. Read from the state file when omitted. */
+  machine?: string | null;
   isAlive?: (pid: number) => boolean;
 }
 
@@ -27,17 +30,24 @@ export function processAlive(pid: number): boolean {
 }
 
 /**
- * True for a tied instance whose owner may still be using it: alive on this host, or on another
- * host, where nothing can be checked.
+ * True for a tied instance whose owner may still be using it: alive on this machine, or on another
+ * one, where nothing can be checked. An instance that records its machine is compared by that
+ * identifier, which survives a change of host name; one that does not (started by 0.1.0, or where
+ * no identifier could be kept) is compared by host name, as 0.1.0 did (data-model §2).
  */
 export function ownerMayBeAlive(
   instance: Pick<SandboxLabels, "mode" | "owner">,
   host: string,
   isAlive: (pid: number) => boolean,
+  machine: string | null = null,
 ): boolean {
   const { mode, owner } = instance;
   if (mode !== "tied" || owner === null) return false;
-  return owner.host !== host || isAlive(owner.pid);
+  const here =
+    owner.machine !== undefined
+      ? machine !== null && owner.machine === machine
+      : owner.host === host;
+  return !here || isAlive(owner.pid);
 }
 
 /** The data-model decision table, for one labelled container. Null means keep. */
@@ -46,12 +56,13 @@ export function decide(
   now: number,
   host: string,
   isAlive: (pid: number) => boolean,
+  machine: string | null = null,
 ): ReapReason | null {
   if (Date.parse(labels.deadline) <= now) return "deadline passed";
   if (
     labels.mode === "tied" &&
     labels.owner !== null &&
-    !ownerMayBeAlive(labels, host, isAlive)
+    !ownerMayBeAlive(labels, host, isAlive, machine)
   ) {
     return "owner process gone";
   }
@@ -70,11 +81,14 @@ export async function reap(
   const now = (options.now ?? Date.now)();
   const host = options.host ?? hostname();
   const isAlive = options.isAlive ?? processAlive;
+  // Only read, never created: no instance can name a machine this one has no identifier for.
+  const machine =
+    options.machine !== undefined ? options.machine : readMachineId();
   const removed: Removal[] = [];
   for (const container of await runtime.list()) {
     const labels = parseLabels(container.labels);
     if (labels === null) continue;
-    const reason = decide(labels, now, host, isAlive);
+    const reason = decide(labels, now, host, isAlive, machine);
     if (reason === null) continue;
     try {
       await runtime.remove(container.id);

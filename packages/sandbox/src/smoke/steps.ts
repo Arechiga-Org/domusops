@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { VirtualDevice } from "../devices/spec.js";
+import { SandboxError } from "../errors.js";
 import type { HaSocket } from "../ha/ws.js";
 import type { Connection, Sandbox } from "../instance/handle.js";
 import type { SandboxListing } from "../instance/list.js";
@@ -208,8 +209,18 @@ const time: SmokeStep = {
       entity_id: "light.hall",
     });
     // No zone: the instance reads it in its own, which is what the automation's 03:00 means.
-    await sandbox.time.freeze("2031-03-04T02:59:50");
-    await sandbox.time.advance(20);
+    try {
+      await sandbox.time.freeze("2031-03-04T02:59:50");
+      await sandbox.time.advance(20);
+    } catch (error) {
+      // A release without the internals time control replaces is not a supported release.
+      if (error instanceof SandboxError && error.code === "time_unavailable") {
+        throw new StepFailure(
+          `time control unavailable on ${sandbox.release.release}`,
+        );
+      }
+      throw error;
+    }
     const lit = await pollUntil(
       async () => (await sandbox.getState("light.hall"))?.state === "on",
       10_000,

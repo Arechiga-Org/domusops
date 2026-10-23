@@ -1,10 +1,13 @@
 /** A command the instance answered with `success: false`. */
 export class WsCommandError extends Error {
   readonly code: string;
+  /** The instance's own message, without the command and code the error text adds. */
+  readonly detail: string;
   constructor(command: string, code: string, message: string) {
     super(`${command} failed (${code}): ${message}`);
     this.name = "WsCommandError";
     this.code = code;
+    this.detail = message;
   }
 }
 

@@ -6,19 +6,24 @@ export const LABEL_MODE = "io.domusops.sandbox.mode";
 export const LABEL_DEADLINE = "io.domusops.sandbox.deadline";
 export const LABEL_OWNER_HOST = "io.domusops.sandbox.owner-host";
 export const LABEL_OWNER_PID = "io.domusops.sandbox.owner-pid";
+export const LABEL_OWNER_MACHINE = "io.domusops.sandbox.owner-machine";
 export const LABEL_RELEASE = "io.domusops.sandbox.release";
 
 export type Mode = "tied" | "background";
 
 export const ID_RE = /^[0-9a-f]{12}$/;
+const MACHINE_RE = /^[0-9a-f]{32}$/;
 
 export interface SandboxLabels {
   id: string;
   mode: Mode;
   /** ISO 8601 UTC. */
   deadline: string;
-  /** Tied mode only. */
-  owner: { host: string; pid: number } | null;
+  /**
+   * Tied mode only. `machine` is the identifier of the machine that started the instance; it is
+   * absent on instances started by 0.1.0 and when no identifier could be kept.
+   */
+  owner: { host: string; pid: number; machine?: string } | null;
   release: string;
 }
 
@@ -41,6 +46,9 @@ export function buildLabels(labels: SandboxLabels): Record<string, string> {
   if (labels.owner !== null) {
     out[LABEL_OWNER_HOST] = labels.owner.host;
     out[LABEL_OWNER_PID] = String(labels.owner.pid);
+    if (labels.owner.machine !== undefined) {
+      out[LABEL_OWNER_MACHINE] = labels.owner.machine;
+    }
   }
   return out;
 }
@@ -68,7 +76,12 @@ export function parseLabels(
     const pid = Number(labels[LABEL_OWNER_PID]);
     if (host === undefined || host === "") return null;
     if (!Number.isInteger(pid) || pid <= 0) return null;
-    owner = { host, pid };
+    // A malformed machine value is read as absent, so the container is still handled (0.1.0 rule).
+    const machine = labels[LABEL_OWNER_MACHINE];
+    owner =
+      machine !== undefined && MACHINE_RE.test(machine)
+        ? { host, pid, machine }
+        : { host, pid };
   }
   return { id, mode, deadline, owner, release };
 }

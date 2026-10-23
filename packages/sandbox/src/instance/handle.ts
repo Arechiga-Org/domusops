@@ -117,6 +117,8 @@ export interface HandleInit {
   virtual?: VirtualDevices;
   /** The devices the instance started with. */
   devices?: readonly VirtualDevice[];
+  /** Why this handle cannot add devices, when the generic reason is not the one. */
+  noDevicesReason?: string;
   /** Run once, in order, when this process lets go of the instance: detach or stop. */
   onRelease?: (() => void | Promise<void>)[];
   /** Called once the container is removed, never before: until then the exit guard stays armed. */
@@ -142,6 +144,7 @@ export class SandboxHandle implements Sandbox {
   readonly #releaseGuard: (() => void) | undefined;
   readonly #onProgress: ((state: LifecycleState) => void) | undefined;
   readonly #virtual: VirtualDevices | undefined;
+  readonly #noDevicesReason: string | undefined;
   readonly #devices: VirtualDevice[];
   #stopping: Promise<void> | null = null;
   #detached: Promise<void> | null = null;
@@ -162,6 +165,7 @@ export class SandboxHandle implements Sandbox {
     this.#releaseGuard = init.releaseGuard;
     this.#onProgress = init.onProgress;
     this.#virtual = init.virtual;
+    this.#noDevicesReason = init.noDevicesReason;
     this.#devices = [...(init.devices ?? [])];
     this.time = {
       freeze: async (at) => {
@@ -201,7 +205,8 @@ export class SandboxHandle implements Sandbox {
     if (this.#virtual === undefined) {
       throw new SandboxError(
         "virtual_unavailable",
-        "This handle cannot add devices: the instance was started without `devices`, or this process only reattached to it.",
+        this.#noDevicesReason ??
+          "This instance was started without virtual-device support. Start it with `devices` (an empty list is enough) to add devices later.",
       );
     }
     const created = await this.#virtual.add(devices);
@@ -274,6 +279,14 @@ export class SandboxHandle implements Sandbox {
       );
     } catch (error) {
       if (error instanceof WsCommandError) {
+        // The release lacks an internal that time control replaces; the instance itself is fine.
+        if (error.code === "time_unavailable") {
+          throw new SandboxError(
+            "time_unavailable",
+            `Time control is unavailable on Home Assistant ${this.release.release}: ${error.detail}. Other operations still work.`,
+            { secrets: [this.#token] },
+          );
+        }
         throw new SandboxError("time_control_failed", error.message, {
           secrets: [this.#token],
         });

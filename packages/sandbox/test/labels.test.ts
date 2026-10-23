@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ID_RE,
   LABEL_MARKER,
+  LABEL_OWNER_MACHINE,
   LABEL_OWNER_PID,
   buildLabels,
   containerName,
@@ -77,4 +78,31 @@ describe("labels", () => {
     delete rest["io.domusops.sandbox.owner-host"];
     expect(parseLabels(rest)).toBeNull();
   });
+});
+
+describe("the owner's machine", () => {
+  const machine = "0123456789abcdef0123456789abcdef";
+  const withMachine: SandboxLabels = {
+    ...tied,
+    owner: { host: "build-1", pid: 4242, machine },
+  };
+
+  it("round-trips when the instance records one", () => {
+    expect(buildLabels(withMachine)[LABEL_OWNER_MACHINE]).toBe(machine);
+    expect(parseLabels(buildLabels(withMachine))).toEqual(withMachine);
+  });
+
+  it("writes no machine label for an instance without one, or a background instance", () => {
+    expect(LABEL_OWNER_MACHINE in buildLabels(tied)).toBe(false);
+    expect(LABEL_OWNER_MACHINE in buildLabels(background)).toBe(false);
+  });
+
+  it.each(["", "short", "NOT-HEX-NOT-HEX-NOT-HEX-NOT-HEX--"])(
+    "reads a malformed machine value (%j) as absent, without rejecting the container",
+    (value) => {
+      const built = buildLabels(withMachine);
+      built[LABEL_OWNER_MACHINE] = value;
+      expect(parseLabels(built)).toEqual(tied);
+    },
+  );
 });

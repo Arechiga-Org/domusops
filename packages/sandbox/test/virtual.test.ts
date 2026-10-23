@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -13,8 +12,7 @@ import { create } from "tar";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { packConfig } from "../src/config/pack.js";
 import {
-  VIRTUAL_SHA256,
-  VIRTUAL_VERSION,
+  VIRTUAL_COMMIT,
   ensureVirtualIntegration,
   extractIntegration,
 } from "../src/devices/fetch.js";
@@ -285,15 +283,12 @@ describe("fetching the integration", () => {
   it("refuses a download that does not match the pinned checksum, and caches nothing", async () => {
     const cacheDir = scratch();
     const tarball = await releaseTarball();
-    expect(createHash("sha256").update(tarball).digest("hex")).not.toBe(
-      VIRTUAL_SHA256,
-    );
     await expect(
       ensureVirtualIntegration({ cacheDir, download: async () => tarball }),
     ).rejects.toMatchObject({ code: "virtual_unavailable" });
-    expect(
-      existsSync(join(cacheDir, `hass-virtual-${VIRTUAL_VERSION}.tar.gz`)),
-    ).toBe(false);
+    expect(existsSync(join(cacheDir, `hass-virtual-${VIRTUAL_COMMIT}`))).toBe(
+      false,
+    );
   });
 
   it("reports a failed download as virtual_unavailable", async () => {
@@ -329,10 +324,13 @@ describe("fetching the integration", () => {
     }
   });
 
-  it("ignores a cached tarball that no longer matches the pin", async () => {
+  it("ignores a cached copy that no longer matches the pin", async () => {
     const cacheDir = scratch();
+    mkdirSync(join(cacheDir, `hass-virtual-${VIRTUAL_COMMIT}`), {
+      recursive: true,
+    });
     writeFileSync(
-      join(cacheDir, `hass-virtual-${VIRTUAL_VERSION}.tar.gz`),
+      join(cacheDir, `hass-virtual-${VIRTUAL_COMMIT}`, "manifest.json"),
       "corrupt",
     );
     await expect(

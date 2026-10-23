@@ -59,8 +59,14 @@ On a handle: `setState`, `getState`, `callService`, `addDevices`, `time.freeze|a
 Virtual devices reuse a community integration; the kinds are `switch`, `binary_sensor`, `sensor`,
 `light`, `lock`, `fan`, `cover`, `valve` and `device_tracker`. Device names must be unique across
 all kinds, so a light and a sensor cannot both be called "Hall". That integration is downloaded once,
-pinned to an exact version and verified against a SHA-256 before use, and cached under
-`XDG_CACHE_HOME`.
+by an exact commit, and checked against a digest of its files before anything is installed or
+cached (a download that does not match fails with `virtual_unavailable`). The verified files are
+kept under `XDG_CACHE_HOME` and checked again on every use.
+
+A process that attaches to a background instance with `attachSandbox(id)` can keep adding devices
+to it, if the instance was started with `devices` (an empty list is enough). Two processes adding
+devices to the same instance at the same time is not supported: the one that is behind fails with
+`virtual_unavailable` and must attach again.
 
 ### Using it with `@domusops/mcp`
 
@@ -115,9 +121,17 @@ edited by hand. The result format is documented in
 - The configuration directory is mounted from a copy; nothing writes to the directory you pass.
 - The instance is published on the loopback interface only.
 - Instances are labelled with their owner process and a deadline (default 120 minutes, at most
-  1440). Run `domusops-sandbox cleanup` to remove any that outlived their owner.
+  1440). Run `domusops-sandbox cleanup` to remove any that outlived their owner. A tied instance
+  also records a random identifier of the machine that started it, kept in
+  `$XDG_STATE_HOME/domusops/machine-id` (default `~/.local/state/domusops/machine-id`), so a change
+  of host name does not make a live owner look gone or an orphan look alive. Instances started by
+  0.1.0 have no such label and are compared by host name, as before; on another machine only their
+  deadline removes them.
 - Time control patches Home Assistant's own time helpers, so it depends on internals that can
-  change between releases; the smoke check exercises it on every channel for that reason.
+  change between releases; the smoke check exercises it on every channel for that reason. On a
+  release that lacks one of them, `time.freeze` and `time.advance` fail with `time_unavailable`,
+  naming the internal that is missing; the rest of the instance keeps working, and the smoke check
+  reports the release as failed.
 
 ## License
 

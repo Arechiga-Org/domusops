@@ -1,4 +1,5 @@
 import { hostname } from "node:os";
+import { ensureMachineId } from "../runtime/machine-id.js";
 import { SandboxError } from "../errors.js";
 import { packConfig, type ConfigSource } from "../config/pack.js";
 import {
@@ -141,6 +142,16 @@ export function validateOptions(options: StartOptions): ValidOptions {
   };
 }
 
+/** Who owns a tied instance: this process, on this host, and on this machine when it has an identifier. */
+function ownerOfThisProcess(): NonNullable<SandboxLabels["owner"]> {
+  const machine = ensureMachineId();
+  return {
+    host: hostname(),
+    pid: process.pid,
+    ...(machine === null ? {} : { machine }),
+  };
+}
+
 /** Anything that is not already a typed error is reported as a failed start, with its message. */
 function asSandboxError(
   error: unknown,
@@ -231,8 +242,7 @@ async function launch(
     id,
     mode: valid.mode,
     deadline,
-    owner:
-      valid.mode === "tied" ? { host: hostname(), pid: process.pid } : null,
+    owner: valid.mode === "tied" ? ownerOfThisProcess() : null,
     release: release.release,
   };
 
@@ -316,6 +326,7 @@ async function launch(
         containerId,
         baseUrl,
         token,
+        sandboxId: id,
       });
       created = await virtualDevices.initialise(valid.devices);
     }
