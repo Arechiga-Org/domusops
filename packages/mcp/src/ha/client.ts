@@ -116,7 +116,8 @@ function paramProblem(
   type: AllowedCommand,
   params: CommandParams | undefined,
 ): string | null {
-  const keys = (COMMANDS[type] as CommandSpec).params;
+  const spec: CommandSpec = COMMANDS[type];
+  const keys = spec.params;
   if (keys === null) {
     return params === undefined
       ? null
@@ -283,16 +284,12 @@ export class HaClient {
           code?: unknown;
           message?: unknown;
         };
-        const code =
-          typeof details.code === "string" ? details.code : "unknown_error";
+        const haCode = typeof details.code === "string" ? details.code : null;
+        const code = haCode ?? "unknown_error";
         const text =
           typeof details.message === "string" ? details.message : "no message";
         pending.reject(
-          errors.retrievalFailed(
-            pending.command,
-            `${code}: ${text}`,
-            typeof details.code === "string" ? details.code : null,
-          ),
+          errors.retrievalFailed(pending.command, `${code}: ${text}`, haCode),
         );
       }
     });

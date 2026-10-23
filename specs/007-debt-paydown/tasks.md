@@ -172,7 +172,7 @@ description: "Task list for the debt paydown after the 0.1.0 release"
 ### Tests for User Story 5
 
 - [X] T059 [P] [US5] In `packages/mcp/test/client.test.ts`, add a test that a `logbook/get_events` error with the instance code `unknown_command` yields `history_unavailable`, that the same words in a message with another code do not, and that the result text is unchanged (FR-025)
-- [X] T060 [P] [US5] In `packages/mcp/test/selectors.test.ts` (extend or create), add a test that `selectRows` calls the selector matcher once per distinct `entity_id` for 1000 rows over 10 entities, and that its output equals the previous behaviour (FR-026)
+- [X] T060 [P] [US5] In `packages/mcp/test/logbook-selectors.test.ts` (extend), add a test that `selectRows` calls the selector matcher once per distinct `entity_id` for 1000 rows over 10 entities, and that its output equals the previous behaviour (FR-026)
 - [X] T061 [P] [US5] In `packages/mcp/test/client.test.ts`, add a test that `ALLOWED_COMMANDS` is exactly the keys of the new command table in the same order as today, and that parameter validation and the overall-budget rule for `logbook/get_events` behave as before
 
 ### Implementation for User Story 5

@@ -152,7 +152,7 @@ packages/mcp/src/
 ├── errors.ts                    # US1: "would be … bytes or more"; US5: ToolError.haCode
 ├── tools/ha-trace.ts            # US1: concurrent reads, chunked standard reads with early stop
 ├── trace/select.ts              # US5: shared refOf, dead branch removed
-├── trace/context-id.ts          # US5: one pattern in parseContextId
+├── trace/context-id.ts          # US5: no redundant ULID test in parseContextId
 ├── trace/values.ts              # US5: shared comparator and isObject
 ├── logbook/selectors.ts         # US5: per-entity memo in selectRows
 ├── logbook/encode-standard.ts   # US5: shared comparator and pad; paired comment on the escape check
