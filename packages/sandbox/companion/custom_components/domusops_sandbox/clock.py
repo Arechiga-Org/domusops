@@ -7,7 +7,10 @@ way, in order, the way Home Assistant's own test helper does. Timers of anything
 left on real time, so controlling the clock cannot break the harness.
 
 This relies on Home Assistant internals (`helpers.event.time_tracker_*`, the loop's timer heap).
-Those are covered by the container tests that run against every supported release.
+Those are covered by the container tests that run against every supported release. They are looked
+up when the clock is first controlled, not when this module is imported, so a release that removed
+one still loads the companion (which also ends the instance at its deadline) and only time control
+reports `time_unavailable`.
 """
 
 from __future__ import annotations
@@ -15,15 +18,14 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 import heapq
+import importlib
 import logging
 import time as real_time
 from typing import Any
 
 from homeassistant import core as ha_core
+from homeassistant.const import __version__ as HA_VERSION
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity as ha_entity
-from homeassistant.helpers import event as ha_event
-from homeassistant.helpers import script as ha_script
 from homeassistant.util import dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ MAX_FIRED = 100_000
 SETTLE_SECONDS = 0.5
 # Timers that follow the clock: the event helper's (time triggers, patterns, intervals,
 # `async_call_later`) and the script engine's `delay` / `wait` timeouts.
-_TIMER_MODULES = {ha_event.__name__, ha_script.__name__}
+_TIMER_MODULES = {"homeassistant.helpers.event", "homeassistant.helpers.script"}
 
 
 class ClockError(Exception):
@@ -44,6 +46,38 @@ class ClockError(Exception):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
+
+
+def _unavailable(what: str) -> ClockError:
+    return ClockError(
+        "time_unavailable", f"{what} is missing in Home Assistant {HA_VERSION}"
+    )
+
+
+def _probe() -> tuple[Any, Any, Any]:
+    """The Home Assistant internals time control replaces, or a `time_unavailable` error naming the
+    first one this release no longer has. Returns the entity, event and script helper modules."""
+    loaded = []
+    for name in ("entity", "event", "script"):
+        module_name = f"homeassistant.helpers.{name}"
+        try:
+            loaded.append(importlib.import_module(module_name))
+        except ImportError as error:
+            raise _unavailable(module_name) from error
+    ha_entity, ha_event, _ = loaded
+    required = (
+        (dt_util, "utcnow"),
+        (dt_util, "now"),
+        (dt_util, "DEFAULT_TIME_ZONE"),
+        (ha_event, "time_tracker_utcnow"),
+        (ha_event, "time_tracker_timestamp"),
+        (ha_core, "time"),
+        (ha_entity, "timer"),
+    )
+    for module, attribute in required:
+        if not hasattr(module, attribute):
+            raise _unavailable(f"{module.__name__}.{attribute}")
+    return ha_entity, ha_event, loaded[2]
 
 
 def _is_event_timer(handle: Any) -> bool:
@@ -85,6 +119,7 @@ class Clock:
         self.hass = hass
         self._now: datetime | None = None
         self._original: dict[str, Any] | None = None
+        self._internals: tuple[Any, Any, Any] | None = None
         self._lock = asyncio.Lock()
 
     @property
@@ -106,9 +141,17 @@ class Clock:
         assert self._now is not None
         return self._now.timestamp()
 
+    def _helpers(self) -> tuple[Any, Any, Any]:
+        """The entity, event and script helper modules, probed on first use (a failure is not kept,
+        so the next call probes again)."""
+        if self._internals is None:
+            self._internals = _probe()
+        return self._internals
+
     def _install(self) -> None:
         if self._original is not None:
             return
+        ha_entity, ha_event, _ = self._helpers()
         self._original = {
             "utcnow": dt_util.utcnow,
             "now": dt_util.now,
@@ -128,6 +171,7 @@ class Clock:
         original = self._original
         if original is None:
             return
+        ha_entity, ha_event, _ = self._helpers()
         dt_util.utcnow = original["utcnow"]
         dt_util.now = original["now"]
         ha_event.time_tracker_utcnow = original["tracker_utcnow"]
@@ -169,6 +213,8 @@ class Clock:
             return await self._freeze(at, rearm=rearm)
 
     async def _freeze(self, at: datetime, *, rearm: bool = True) -> datetime:
+        # Probe before anything changes, so an unsupported release leaves the clock as it was.
+        self._helpers()
         self._now = at
         self._install()
         if rearm:
@@ -208,6 +254,8 @@ class Clock:
             await self._freeze(dt_util.utcnow(), rearm=False)
         assert self._now is not None
         loop = self.hass.loop
+        if not hasattr(loop, "_scheduled"):
+            raise _unavailable("the event loop's timer queue")
         target = self._now + timedelta(seconds=seconds)
         target_ts = target.timestamp()
         start_ts = self._now.timestamp()

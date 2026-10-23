@@ -16,6 +16,9 @@ import { mcpLaunch, type SmokeDeps } from "../src/smoke/steps.js";
 
 const TOKEN =
   "eyJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzbW9rZTEyMzQ1NiJ9.c2lnbmF0dXJlMTIzNDU2";
+// Neither shaped like a JWT nor behind `Bearer`, so only redaction of the instance's own token
+// removes it from a message (specs/007-debt-paydown FR-019).
+const PLAIN_TOKEN = "plain-instance-token-0123456789abcdef";
 
 const validate = new Ajv({ allErrors: true, strict: false }).compile(
   JSON.parse(
@@ -42,6 +45,10 @@ interface Faults {
   snapshot?: string;
   snapshotError?: string;
   listError?: Error;
+  /** The instance's token; a JWT-shaped one by default. */
+  token?: string;
+  /** Time control reports that this release lacks what it replaces. */
+  timeUnavailable?: boolean;
 }
 
 function fake(faults: Faults = {}): Fake {
@@ -50,21 +57,23 @@ function fake(faults: Faults = {}): Fake {
   const states = new Map<string, EntityState>();
   const remaining: { id: string }[] = [];
   let triggered = false;
+  const token = faults.token ?? TOKEN;
 
   const sandbox = {
     id: "sb-1",
+    release: { channel: "stable", release: "2026.10.1", beta: false },
     config: { source: "directory" },
     connection: () => {
       if (stopped.length > 0) throw new Error("stopped");
       return {
         url: "http://127.0.0.1:1",
         wsUrl: "ws://127.0.0.1:1/api/websocket",
-        token: TOKEN,
+        token,
       };
     },
     mcpEnv: () => ({
       DOMUSOPS_HA_URL: "http://127.0.0.1:1",
-      DOMUSOPS_HA_TOKEN: TOKEN,
+      DOMUSOPS_HA_TOKEN: token,
     }),
     addDevices: async () => {
       states.set("light.hall", { state: "off", attributes: {} });
@@ -91,7 +100,14 @@ function fake(faults: Faults = {}): Fake {
       states.set("light.hall", { state: "off", attributes: {} });
     },
     time: {
-      freeze: async () => undefined,
+      freeze: async () => {
+        if (faults.timeUnavailable === true) {
+          throw new SandboxError(
+            "time_unavailable",
+            "Time control is unavailable on Home Assistant 2026.10.1: homeassistant.helpers.event.time_tracker_utcnow is missing. Other operations still work.",
+          );
+        }
+      },
       advance: async () => {
         triggered = true;
         states.set("light.hall", { state: "on", attributes: {} });
@@ -323,11 +339,30 @@ describe("the smoke check", () => {
   });
 
   it("keeps the token out of a teardown message even though the sandbox is stopped", async () => {
-    const f = fake({ listError: new Error(`refused ${TOKEN}`) });
+    const f = fake({
+      token: PLAIN_TOKEN,
+      listError: new Error(`refused ${PLAIN_TOKEN}`),
+    });
     const result = await runSmoke({ channel: "stable" }, f.deps);
     expect(result.outcome).toBe("failed");
     expect(result.failedStep).toBe("teardown");
-    expect(JSON.stringify(result)).not.toContain(TOKEN);
+    // The token is not shaped like a JWT, so only the redaction of the instance's own token, which
+    // the run keeps after the sandbox is stopped, can have removed it.
+    expect(JSON.stringify(result)).not.toContain(PLAIN_TOKEN);
+    expectValid(result);
+  });
+
+  it("fails a release whose time control is unavailable, saying so, with the usual result format", async () => {
+    const f = fake({ timeUnavailable: true });
+    const result = await runSmoke({ channel: "stable" }, f.deps);
+    expect(result.outcome).toBe("failed");
+    expect(result.failedStep).toBe("time");
+    expect(result.release).toBe("2026.10.1");
+    expect(result.steps.find((step) => step.name === "time")).toMatchObject({
+      status: "failed",
+      message: "time control unavailable on 2026.10.1",
+    });
+    expect(f.stopped).toEqual(["sb-1"]);
     expectValid(result);
   });
 

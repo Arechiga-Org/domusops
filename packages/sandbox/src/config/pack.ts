@@ -141,6 +141,9 @@ export interface PackResult {
 }
 
 const ROOT_DIRECTORIES = new Set([
+  // Written by the sandbox itself after loading (specs/007-debt-paydown data-model §3); a
+  // configuration can neither supply nor overwrite it.
+  ".domusops_sandbox",
   ".storage",
   ".cloud",
   "deps",

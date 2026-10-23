@@ -170,6 +170,9 @@ export async function runSmoke(
       continue;
     }
     const { result, error } = await timed(step, context, secrets);
+    // Taken after every step, while the instance can still tell it, so a message written once it
+    // is stopped (a failed teardown) can still have the token removed.
+    secrets();
     steps.push(result);
     if (result.status === "failed") {
       failedStep = result;

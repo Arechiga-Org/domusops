@@ -23,6 +23,7 @@ import {
   type Removal,
 } from "./runtime/reaper.js";
 import { validateOptions, type StartOptions } from "./instance/start.js";
+import { readMachineId } from "./runtime/machine-id.js";
 import { resolveChannel } from "./release/resolve.js";
 import { writeResult, type RunResult } from "./results/result.js";
 import { defaultSmokeDeps, runSmoke, type SmokeTarget } from "./smoke/run.js";
@@ -540,7 +541,8 @@ if (isEntryPoint(process.argv[1])) {
     resolve: (channel) => resolveChannel(channel),
     attach: attachSandbox,
     list: listSandboxes,
-    held: (listing) => ownerMayBeAlive(listing, hostname(), processAlive),
+    held: (listing) =>
+      ownerMayBeAlive(listing, hostname(), processAlive, readMachineId()),
     stop: stopSandbox,
     cleanup,
     smoke: (target) => runSmoke(target, defaultSmokeDeps(process.env)),

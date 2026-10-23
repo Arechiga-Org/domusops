@@ -7,6 +7,7 @@ import { reap, type Removal } from "../runtime/reaper.js";
 import { verifyCompanion } from "./companion.js";
 import { SandboxHandle, type Sandbox } from "./handle.js";
 import { readToken } from "./onboard.js";
+import { VirtualDevices, type Resumed } from "../devices/virtual.js";
 
 interface Found {
   containerId: string;
@@ -64,6 +65,15 @@ export async function attachSandboxWith(
   } finally {
     socket.close();
   }
+  // Devices added by the process that started the instance, or by an earlier attach, can be added
+  // to from here; an instance started without `devices` has nothing to resume.
+  const resumed = await VirtualDevices.resume({
+    runtime,
+    containerId: found.containerId,
+    baseUrl: `http://127.0.0.1:${String(port)}`,
+    token,
+    sandboxId: id,
+  }).catch((): Resumed => ({ kind: "none" }));
   return new SandboxHandle({
     id,
     containerId: found.containerId,
@@ -74,6 +84,15 @@ export async function attachSandboxWith(
     token,
     config: null,
     runtime,
+    ...(resumed.kind === "resumed"
+      ? { virtual: resumed.virtual, devices: resumed.devices }
+      : {}),
+    ...(resumed.kind === "entry-gone"
+      ? {
+          noDevicesReason:
+            "The virtual-device integration of this instance is no longer loaded, so devices cannot be added. Start a new instance with `devices`.",
+        }
+      : {}),
   });
 }
 

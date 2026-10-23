@@ -270,6 +270,9 @@ by user story. Code references are to `main` at `c0a7065`.
 - **Rationale**: Imports at module level would make the whole companion fail to load on a
   release that removed one helper, which would also break self-teardown. The probe keeps the
   companion loadable and confines the failure to time control (FR-016).
+- **Tested without a container**: `companion-probe.test.ts` runs the probe in Python against a
+  stand-in `homeassistant` package with one internal removed at a time (skipped when `python3` is
+  not installed), and checks the clock is left unfrozen when the probe fails.
 - **Alternatives considered**: Predicting availability from the release number. Rejected: it
   goes stale, and the spec's assumption is detection at first use.
 

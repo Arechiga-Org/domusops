@@ -23,9 +23,9 @@ Existing labels are unchanged. One label is added to tied instances:
 | ----------------------------------- | ----------------------- | ---------------------------------------------- |
 | `io.domusops.sandbox.owner-machine` | machine identifier (§1) | `mode = tied` and the identifier is not `null` |
 
-`parseLabels` returns `owner: { host, pid, machine: string | null }`. A malformed
-`owner-machine` value is treated as absent, which applies the legacy rule; it does not reject the
-container.
+`parseLabels` returns `owner: { host, pid }`, with `machine` added only when the label is present
+and well formed (32 lowercase hex characters). A malformed `owner-machine` value is read as absent,
+which applies the legacy rule; it does not reject the container.
 
 ### Ownership decision (replaces `ownerMayBeAlive`)
 

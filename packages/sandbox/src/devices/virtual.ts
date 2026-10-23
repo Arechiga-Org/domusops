@@ -5,6 +5,7 @@ import { getJson, postJson } from "../ha/rest.js";
 import type { Runtime } from "../runtime/docker.js";
 import {
   DEVICE_FILE,
+  DEVICE_KINDS,
   renderDeviceFile,
   validateDevices,
   type VirtualDevice,
@@ -14,6 +15,21 @@ import {
 const HANDLER = "virtual";
 const GROUP_NAME = "domusops";
 const FILE_IN_CONTAINER = posix.join("/", CONFIG_ROOT, DEVICE_FILE);
+/**
+ * What a process that attaches later needs to keep adding devices: the specs, the devices created
+ * and the integration's configuration entry, written by the sandbox after every change
+ * (specs/007-debt-paydown data-model §3). It sits in a dot directory the configuration packer
+ * skips, so a loaded configuration can neither supply nor overwrite it.
+ */
+export const STATE_FORMAT = "domusops.sandbox-devices/0.1";
+export const STATE_DIRECTORY = ".domusops_sandbox";
+const STATE_FILE = "devices.json";
+const STATE_IN_CONTAINER = posix.join(
+  "/",
+  CONFIG_ROOT,
+  STATE_DIRECTORY,
+  STATE_FILE,
+);
 const FLOW = "/api/config/config_entries/flow";
 const ENTRY = "/api/config/config_entries/entry";
 const APPEAR_TIMEOUT_MS = 30_000;
@@ -25,7 +41,74 @@ export interface DeviceContext {
   containerId: string;
   baseUrl: string;
   token: string;
+  /** The sandbox's id, named in the message when the device list changed under a handle. */
+  sandboxId: string;
 }
+
+export interface DeviceState {
+  format: typeof STATE_FORMAT;
+  /** Starts at 1 and goes up with every successful write. */
+  revision: number;
+  entryId: string;
+  specs: VirtualDeviceSpec[];
+  devices: VirtualDevice[];
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const KINDS: readonly string[] = DEVICE_KINDS;
+
+function isSpec(value: unknown): value is VirtualDeviceSpec {
+  return (
+    isRecord(value) &&
+    typeof value["name"] === "string" &&
+    typeof value["kind"] === "string" &&
+    KINDS.includes(value["kind"]) &&
+    (value["class"] === undefined || typeof value["class"] === "string") &&
+    (value["initial"] === undefined || typeof value["initial"] === "string")
+  );
+}
+
+/** The state file's content, or null when it is not a valid file of this format. */
+export function parseDeviceState(text: string): DeviceState | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!isRecord(value) || value["format"] !== STATE_FORMAT) return null;
+  const { revision, entryId, specs, devices } = value;
+  if (typeof revision !== "number" || !Number.isInteger(revision)) return null;
+  if (revision < 1) return null;
+  if (typeof entryId !== "string" || entryId === "") return null;
+  if (!Array.isArray(specs) || !specs.every(isSpec)) return null;
+  if (
+    !Array.isArray(devices) ||
+    !devices.every(
+      (device) =>
+        isSpec(device) &&
+        typeof (device as unknown as Record<string, unknown>)["entityId"] ===
+          "string",
+    )
+  ) {
+    return null;
+  }
+  return {
+    format: STATE_FORMAT,
+    revision,
+    entryId,
+    specs: specs as VirtualDeviceSpec[],
+    devices: devices as VirtualDevice[],
+  };
+}
+
+/** What a process that attaches to a running instance finds of its virtual devices. */
+export type Resumed =
+  | { kind: "resumed"; virtual: VirtualDevices; devices: VirtualDevice[] }
+  | { kind: "none" }
+  | { kind: "entry-gone" };
 
 interface StateRow {
   entity_id: string;
@@ -56,9 +139,40 @@ export class VirtualDevices {
   #entryId: string | null = null;
   #queue: Promise<unknown> = Promise.resolve();
   #known: VirtualDevice[] = [];
+  /** The revision of the state file this handle last read or wrote. */
+  #revision = 0;
 
   constructor(context: DeviceContext) {
     this.#context = context;
+  }
+
+  /**
+   * Takes over the devices of a running instance from the state file its starting process left.
+   * `none` when there is no valid file, which means the instance was started without `devices`;
+   * `entry-gone` when the file is valid but the integration's entry is no longer loaded.
+   */
+  static async resume(context: DeviceContext): Promise<Resumed> {
+    const read = await context.runtime.exec(context.containerId, [
+      "cat",
+      STATE_IN_CONTAINER,
+    ]);
+    const state = read.status === 0 ? parseDeviceState(read.stdout) : null;
+    if (state === null) return { kind: "none" };
+    const entries = (await getJson(context.baseUrl, ENTRY, {
+      token: context.token,
+    })) as { entry_id?: unknown; state?: unknown }[];
+    const loaded =
+      Array.isArray(entries) &&
+      entries.some(
+        (entry) => entry.entry_id === state.entryId && entry.state === "loaded",
+      );
+    if (!loaded) return { kind: "entry-gone" };
+    const virtual = new VirtualDevices(context);
+    virtual.#specs = [...state.specs];
+    virtual.#entryId = state.entryId;
+    virtual.#known = [...state.devices];
+    virtual.#revision = state.revision;
+    return { kind: "resumed", virtual, devices: [...state.devices] };
   }
 
   /** Creates the configuration entry for the device file the instance started with. */
@@ -71,6 +185,8 @@ export class VirtualDevices {
         const existing = await this.#entityIds();
         await this.#createEntry();
         this.#known = await this.#appear(specs, existing);
+        await this.#writeState(1, this.#known);
+        this.#revision = 1;
         return [...this.#known];
       } catch (error) {
         throw this.#asFailure(error);
@@ -91,6 +207,7 @@ export class VirtualDevices {
         this.#specs.map((spec) => spec.name),
       );
       if (valid.length === 0) return [];
+      await this.#checkRevision();
       const previous = this.#specs;
       const entryId = this.#entryId;
       let existing: Set<string>;
@@ -107,7 +224,10 @@ export class VirtualDevices {
         await this.#reload(entryId);
         const created = await this.#appear(valid, existing);
         await this.#restore(before);
-        this.#known.push(...created);
+        const devices = [...this.#known, ...created];
+        await this.#writeState(this.#revision + 1, devices);
+        this.#revision += 1;
+        this.#known = devices;
         return created;
       } catch (error) {
         this.#specs = previous;
@@ -185,6 +305,45 @@ export class VirtualDevices {
         { token: this.#context.token },
       );
     }
+  }
+
+  /** Refuses to go on when another process changed the device list since this handle last saw it. */
+  async #checkRevision(): Promise<void> {
+    const read = await this.#context.runtime.exec(this.#context.containerId, [
+      "cat",
+      STATE_IN_CONTAINER,
+    ]);
+    const stored = read.status === 0 ? parseDeviceState(read.stdout) : null;
+    if (stored === null || stored.revision !== this.#revision) {
+      throw new SandboxError(
+        "virtual_unavailable",
+        `The device list of sandbox ${this.#context.sandboxId} changed in another process. Attach again to continue.`,
+      );
+    }
+  }
+
+  async #writeState(
+    revision: number,
+    devices: readonly VirtualDevice[],
+  ): Promise<void> {
+    if (this.#entryId === null) throw new Error("no configuration entry");
+    const state: DeviceState = {
+      format: STATE_FORMAT,
+      revision,
+      entryId: this.#entryId,
+      specs: this.#specs,
+      devices: [...devices],
+    };
+    const builder = new TarBuilder();
+    builder.addDirectory(posix.join(CONFIG_ROOT, STATE_DIRECTORY));
+    builder.addFile(
+      posix.join(CONFIG_ROOT, STATE_DIRECTORY, STATE_FILE),
+      `${JSON.stringify(state)}\n`,
+    );
+    await this.#context.runtime.copyIn(
+      this.#context.containerId,
+      await builder.finish(),
+    );
   }
 
   async #writeFile(): Promise<void> {
