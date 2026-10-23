@@ -195,8 +195,8 @@ description: "Task list for the debt paydown after the 0.1.0 release"
 
 **Branch**: `007-us6-housekeeping` | **Files**: `CLAUDE.md` | **Changeset**: none
 
-- [ ] T071 [US6] In `CLAUDE.md`, rewrite "Current focus" to say that the four packages are published at 0.1.x, that the current feature is this debt paydown (`specs/007-debt-paydown/`), and that the next feature is the scenario and assertion DSL (006); remove "Nothing else lands until the harness works end to end" (R21, FR-028)
-- [ ] T072 [US6] Run `node_modules/.bin/prettier --check CLAUDE.md packages/sandbox/package.json`; both pass already on `main`, so this verifies FR-029 and needs no edit. Run the gate, then follow the per-story closing steps in the header
+- [X] T071 [US6] In `CLAUDE.md`, rewrite "Current focus" to say that the four packages are published at 0.1.x, that the current feature is this debt paydown (`specs/007-debt-paydown/`), and that the next feature is the scenario and assertion DSL (006); remove "Nothing else lands until the harness works end to end" (R21, FR-028)
+- [X] T072 [US6] Run `node_modules/.bin/prettier --check CLAUDE.md packages/sandbox/package.json`; both pass already on `main`, so this verifies FR-029 and needs no edit. Run the gate, then follow the per-story closing steps in the header
 
 ---
 
