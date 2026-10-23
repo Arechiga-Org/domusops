@@ -1,3 +1,4 @@
+import { packageVersion } from "../src/cli-support.js";
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,6 +9,8 @@ import {
   secretsExposedStop,
 } from "../src/baseline/secrets.js";
 import { resolveOrCreateKey } from "../src/baseline/key.js";
+import { writeRecord } from "../src/baseline/record.js";
+import { sha256 } from "../src/baseline/templates.js";
 import { runSecrets } from "../src/commands/secrets.js";
 import {
   writeSopsConfig,
@@ -97,7 +100,7 @@ describe("encryptWithRoundtrip / decryptToPlaintext (FR-012, FR-013)", () => {
     const { keyFile, publicKey } = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [publicKey]);
+    writeSopsConfig(dir, [publicKey], packageVersion());
     writeFileSync(
       join(dir, "secrets.yaml"),
       "wifi_password: fake-value-1\nport: 8080\n",
@@ -117,7 +120,7 @@ describe("encryptWithRoundtrip / decryptToPlaintext (FR-012, FR-013)", () => {
     const { keyFile, publicKey } = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [publicKey]);
+    writeSopsConfig(dir, [publicKey], packageVersion());
 
     const result = encryptWithRoundtrip(dir);
     expect(result.ok).toBe(true);
@@ -131,7 +134,7 @@ describe("encryptWithRoundtrip / decryptToPlaintext (FR-012, FR-013)", () => {
     const stranger = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = stranger.keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [recipient.publicKey]);
+    writeSopsConfig(dir, [recipient.publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-6\n");
     writeFileSync(join(dir, "secrets.sops.yaml"), "previous: kept\n");
 
@@ -148,7 +151,7 @@ describe("encryptWithRoundtrip / decryptToPlaintext (FR-012, FR-013)", () => {
     const stranger = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = stranger.keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [recipient.publicKey]);
+    writeSopsConfig(dir, [recipient.publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-7\n");
 
     expect(encryptWithRoundtrip(dir).ok).toBe(false);
@@ -160,7 +163,7 @@ describe("encryptWithRoundtrip / decryptToPlaintext (FR-012, FR-013)", () => {
     const { keyFile, publicKey } = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [publicKey]);
+    writeSopsConfig(dir, [publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-2\n");
     encryptWithRoundtrip(dir);
     const code = runSecrets("decrypt", [], args(dir, { force: true }));
@@ -214,7 +217,7 @@ describe("secrets add-key / remove-key (spec FR-028)", () => {
     const key2 = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [key1.publicKey]);
+    writeSopsConfig(dir, [key1.publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-3\n");
     encryptWithRoundtrip(dir);
 
@@ -232,7 +235,7 @@ describe("secrets add-key / remove-key (spec FR-028)", () => {
     const key1 = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [key1.publicKey]);
+    writeSopsConfig(dir, [key1.publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-4\n");
     encryptWithRoundtrip(dir);
 
@@ -247,7 +250,7 @@ describe("secrets add-key / remove-key (spec FR-028)", () => {
     const key2 = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [key1.publicKey, key2.publicKey]);
+    writeSopsConfig(dir, [key1.publicKey, key2.publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-5\n");
     encryptWithRoundtrip(dir);
 
@@ -263,7 +266,7 @@ describe("secrets add-key / remove-key (spec FR-028)", () => {
     const stranger = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
     const dir = fixtureDir();
-    writeSopsConfig(dir, [key1.publicKey]);
+    writeSopsConfig(dir, [key1.publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-8\n");
     encryptWithRoundtrip(dir);
     const before = readFileSync(join(dir, ".sops.yaml"), "utf8");
@@ -273,6 +276,142 @@ describe("secrets add-key / remove-key (spec FR-028)", () => {
     const code = runSecrets("add-key", [key2.publicKey], args(dir));
     expect(code).toBe(EXIT_PROBLEMS);
     expect(readFileSync(join(dir, ".sops.yaml"), "utf8")).toBe(before);
+    expect(readRecipients(dir)).toEqual([key1.publicKey]);
+  });
+});
+
+describe("secrets add-key / remove-key on a .sops.yaml edited by hand (FR-021)", () => {
+  const REFUSAL =
+    ".sops.yaml was changed outside DomusOps, so it is left as it is. To change its recipients, edit the `age` list in .sops.yaml by hand, then run: sops updatekeys secrets.sops.yaml";
+
+  /** A configuration with two recipients, a record, and a `.sops.yaml` that has been edited. */
+  function editedFixture(): {
+    dir: string;
+    key1: ReturnType<typeof makeThrowawayAgeKey>;
+    key2: ReturnType<typeof makeThrowawayAgeKey>;
+    files: () => Record<string, string>;
+  } {
+    saveEnv();
+    const key1 = makeThrowawayAgeKey();
+    const key2 = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [key1.publicKey, key2.publicKey], packageVersion());
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-9\n");
+    encryptWithRoundtrip(dir);
+    // The record says what init wrote.
+    const content = readFileSync(join(dir, ".sops.yaml"), "utf8");
+    writeRecord(dir, {
+      format: "domusops.bootstrap/0.1",
+      release: packageVersion(),
+      elements: {
+        "sops-config": {
+          path: ".sops.yaml",
+          sha256: sha256(content),
+          release: packageVersion(),
+        },
+      },
+    });
+    // The user then adds a rule of their own.
+    writeFileSync(
+      join(dir, ".sops.yaml"),
+      `${content}  - path_regex: (^|/)extra\\.sops\\.yaml$\n    age: ${key1.publicKey}\n`,
+    );
+    const files = (): Record<string, string> => ({
+      sops: readFileSync(join(dir, ".sops.yaml"), "utf8"),
+      encrypted: readFileSync(join(dir, "secrets.sops.yaml"), "utf8"),
+      record: readFileSync(join(dir, ".domusops", "generated.json"), "utf8"),
+    });
+    return { dir, key1, key2, files };
+  }
+
+  function captureError(run: () => number): { code: number; stderr: string } {
+    const lines: string[] = [];
+    const original = console.error;
+    console.error = (message: string) => lines.push(message);
+    try {
+      return { code: run(), stderr: lines.join("\n") };
+    } finally {
+      console.error = original;
+    }
+  }
+
+  it("add-key refuses, says why, and changes nothing", () => {
+    const { dir, key1, files } = editedFixture();
+    const stranger = makeThrowawayAgeKey();
+    const before = files();
+    const result = captureError(() =>
+      runSecrets("add-key", [stranger.publicKey], args(dir)),
+    );
+    expect(result.code).toBe(EXIT_PROBLEMS);
+    expect(result.stderr).toBe(REFUSAL);
+    expect(files()).toEqual(before);
+    expect(readRecipients(dir)).toContain(key1.publicKey);
+  });
+
+  it("remove-key refuses, says why, and changes nothing", () => {
+    const { dir, key2, files } = editedFixture();
+    const before = files();
+    const result = captureError(() =>
+      runSecrets("remove-key", [key2.publicKey], args(dir)),
+    );
+    expect(result.code).toBe(EXIT_PROBLEMS);
+    expect(result.stderr).toBe(REFUSAL);
+    expect(files()).toEqual(before);
+  });
+
+  it("proceeds on an unedited file whose record is from an earlier release", () => {
+    saveEnv();
+    const key1 = makeThrowawayAgeKey();
+    const key2 = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [key1.publicKey], "0.0.1");
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-10\n");
+    encryptWithRoundtrip(dir);
+    writeRecord(dir, {
+      format: "domusops.bootstrap/0.1",
+      release: "0.0.1",
+      elements: {
+        "sops-config": {
+          path: ".sops.yaml",
+          sha256: sha256(readFileSync(join(dir, ".sops.yaml"), "utf8")),
+          release: "0.0.1",
+        },
+      },
+    });
+    expect(runSecrets("add-key", [key2.publicKey], args(dir))).toBe(EXIT_OK);
+    expect(readRecipients(dir)).toEqual([key1.publicKey, key2.publicKey]);
+  });
+
+  it("proceeds with no record when the file is what DomusOps would write", () => {
+    saveEnv();
+    const key1 = makeThrowawayAgeKey();
+    const key2 = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [key1.publicKey], packageVersion());
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-11\n");
+    encryptWithRoundtrip(dir);
+    expect(runSecrets("add-key", [key2.publicKey], args(dir))).toBe(EXIT_OK);
+  });
+
+  it("refuses with no record when the file differs from what DomusOps would write", () => {
+    saveEnv();
+    const key1 = makeThrowawayAgeKey();
+    const key2 = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = key1.keyFile;
+    const dir = fixtureDir();
+    writeSopsConfig(dir, [key1.publicKey], packageVersion());
+    writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-12\n");
+    encryptWithRoundtrip(dir);
+    const before = readFileSync(join(dir, ".sops.yaml"), "utf8");
+    writeFileSync(join(dir, ".sops.yaml"), `# mine\n${before}`);
+    const result = captureError(() =>
+      runSecrets("add-key", [key2.publicKey], args(dir)),
+    );
+    expect(result.code).toBe(EXIT_PROBLEMS);
+    expect(result.stderr).toBe(REFUSAL);
     expect(readRecipients(dir)).toEqual([key1.publicKey]);
   });
 });

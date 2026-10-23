@@ -11,20 +11,30 @@ export interface PlaceholdersResult {
   reason: string;
 }
 
-function placeholdersStep(dir: string, apply: boolean): PlaceholdersResult {
+function placeholdersStep(
+  dir: string,
+  apply: boolean,
+  release: string,
+): PlaceholdersResult {
   const path = join(dir, PLACEHOLDERS_PATH);
   if (existsSync(path)) return { state: "current", reason: "already present" };
   if (apply) {
     mkdirSync(join(dir, ".domusops"), { recursive: true });
-    writeFileSync(path, renderPlaceholders());
+    writeFileSync(path, renderPlaceholders(release));
   }
   return { state: "missing", reason: "not present yet" };
 }
 
-export function computePlaceholders(dir: string): PlaceholdersResult {
-  return placeholdersStep(dir, false);
+export function computePlaceholders(
+  dir: string,
+  release: string,
+): PlaceholdersResult {
+  return placeholdersStep(dir, false, release);
 }
 
-export function applyPlaceholders(dir: string): PlaceholdersResult {
-  return placeholdersStep(dir, true);
+export function applyPlaceholders(
+  dir: string,
+  release: string,
+): PlaceholdersResult {
+  return placeholdersStep(dir, true, release);
 }

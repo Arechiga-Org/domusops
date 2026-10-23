@@ -103,22 +103,26 @@ Non-YAML files in this directory, such as this one, are ignored by the loader.
 `;
 }
 
-export function renderSopsConfig(recipients: readonly string[]): string {
+export function renderSopsConfig(
+  recipients: readonly string[],
+  release: string,
+): string {
   const age =
     recipients.length === 1
       ? recipients[0]
       : `>-\n      ${recipients.join(",\n      ")}`;
   return `# Encryption rules for secrets.sops.yaml, managed by ha-bootstrap.
-# Add or remove keys with: domusops-bootstrap secrets add-key|remove-key <age public key>
+# Add or remove keys with: npx --yes @domusops/bootstrap@${release} secrets add-key|remove-key <age public key>
 creation_rules:
   - path_regex: (^|/)secrets\\.sops\\.yaml$
     age: ${age}
 `;
 }
 
-export function renderPlaceholders(): string {
+export function renderPlaceholders(release: string): string {
   return `# Placeholder values used only to validate the configuration in CI and with
-# \`domusops-bootstrap validate\`. They are not your secrets and must never be.
+# \`npx --yes @domusops/bootstrap@${release} validate\`. They are not your secrets and
+# must never be.
 # Add an entry when a default placeholder fails validation, for example:
 #   weather_api_url: https://placeholder.invalid/api
 {}
