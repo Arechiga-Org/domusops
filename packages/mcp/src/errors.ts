@@ -31,13 +31,24 @@ export class ToolError extends Error {
   readonly kind: ErrorKind;
   readonly causeText: string;
   readonly nextStep: string;
+  /**
+   * The error code the instance answered a command with, when it did. Callers branch on this, never
+   * on the text. It is not part of what agents see (`toToolText` ignores it).
+   */
+  readonly haCode: string | null;
 
-  constructor(kind: ErrorKind, cause: string, nextStep: string) {
+  constructor(
+    kind: ErrorKind,
+    cause: string,
+    nextStep: string,
+    haCode: string | null = null,
+  ) {
     super(`${cause}. ${nextStep}.`);
     this.name = "ToolError";
     this.kind = kind;
     this.causeText = cause;
     this.nextStep = nextStep;
+    this.haCode = haCode;
   }
 
   /** The text returned to the MCP client (contracts/ha_snapshot.md, contracts/ha_logbook_query.md). */
@@ -126,11 +137,16 @@ export const errors = {
     );
   },
 
-  retrievalFailed(retrieval: string, detail: string): ToolError {
+  retrievalFailed(
+    retrieval: string,
+    detail: string,
+    haCode: string | null = null,
+  ): ToolError {
     return new ToolError(
       "retrieval_failed",
       `The retrieval "${retrieval}" failed (${detail})`,
       "Nothing was returned, because a partial result would look complete. Check the instance logs and try again",
+      haCode,
     );
   },
 

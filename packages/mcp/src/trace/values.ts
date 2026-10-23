@@ -5,6 +5,8 @@ import {
   parseIsoMicros,
   type JsonObject,
 } from "@domusops/schema";
+import { isObject } from "../util/json.js";
+import { byCountThenKey } from "../util/order.js";
 
 /**
  * Value encoding of the trace format (data-model §3.2): the inverse of `decodeValue` in
@@ -30,17 +32,13 @@ const STATE_KEYS = [
   "context",
 ];
 
-export function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /** A context object: exactly `id`, `parent_id`, and `user_id`. */
 export function isContextObject(value: unknown): value is {
   id: string;
   parent_id: string | null;
   user_id: string | null;
 } {
-  if (!isObject(value)) return false;
+  if (!isObject<JsonObject>(value)) return false;
   const keys = Object.keys(value);
   return (
     keys.length === 3 &&
@@ -64,14 +62,14 @@ export interface StateObject {
 
 /** A state object: exactly the seven keys of a state, of the right kinds (data-model §3.2). */
 export function isStateObject(value: unknown): value is StateObject {
-  if (!isObject(value)) return false;
+  if (!isObject<JsonObject>(value)) return false;
   const keys = Object.keys(value);
   return (
     keys.length === STATE_KEYS.length &&
     STATE_KEYS.every((k) => keys.includes(k)) &&
     typeof value["entity_id"] === "string" &&
     typeof value["state"] === "string" &&
-    isObject(value["attributes"]) &&
+    isObject<JsonObject>(value["attributes"]) &&
     typeof value["last_changed"] === "string" &&
     typeof value["last_updated"] === "string" &&
     typeof value["last_reported"] === "string" &&
@@ -170,7 +168,7 @@ export function encodeValue(
   if (typeof value === "string") return encodeString(value, anchor);
   if (Array.isArray(value))
     return value.map((item) => encodeValue(item, anchor));
-  if (!isObject(value)) return value;
+  if (!isObject<JsonObject>(value)) return value;
   if (isStateObject(value)) return encodeState(value, anchor, null);
   if (isContextObject(value)) {
     return {
@@ -217,7 +215,7 @@ export function encodeVariables(
         tag: "this",
         attributes: template.attributes,
       });
-    } else if (key === "trigger" && isObject(value)) {
+    } else if (key === "trigger" && isObject<JsonObject>(value)) {
       out[key] = encodeTrigger(value, anchor);
     } else {
       out[key] = encodeValue(value, anchor);
@@ -373,7 +371,7 @@ export function buildTables(roots: readonly Root[]): Tables {
   for (const tree of [...shrunk, ...table]) tallyStrings(tree);
   const strings = [...stringCounts]
     .filter(([, count]) => count >= 2)
-    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .sort(byCountThenKey)
     .map(([text]) => text);
   const stringIndex = new Map(strings.map((text, at) => [text, at]));
   const replaceStrings = (node: unknown): unknown => {

@@ -1,5 +1,6 @@
 import type { LogbookRow } from "@domusops/schema";
 import { describe, expect, it } from "vitest";
+import { vi } from "vitest";
 import { ToolError } from "../src/errors.js";
 import {
   MAX_SELECTOR_LENGTH,
@@ -144,6 +145,47 @@ describe("selectRows and noEvents", () => {
     expect(noEvents(selectors, selectRows(rows, selectors))).toEqual([
       "sensor.*",
       "light.zzz",
+    ]);
+  });
+});
+
+describe("selectRows decides once per entity (FR-026)", () => {
+  const entities = Array.from({ length: 10 }, (_, i) =>
+    i % 2 === 0 ? `light.lamp_${i}` : `sensor.temp_${i}`,
+  );
+  const many: LogbookRow[] = Array.from({ length: 1000 }, (_, i) => ({
+    when: 1_700_000_000 + i,
+    entity_id: entities[i % entities.length] as string,
+    state: "on",
+  }));
+
+  it("evaluates the selectors once per distinct entity_id, not once per row", () => {
+    const selectors = ["light.*", "sensor.temp_9"];
+    const evaluate = vi.spyOn(selectors, "some");
+    selectRows(many, selectors);
+    expect(evaluate).toHaveBeenCalledTimes(10);
+  });
+
+  it("selects exactly the rows the per-row check would", () => {
+    const selectors = ["light.*", "sensor.temp_9", "*_motion"];
+    const expected = many.filter(
+      (row) =>
+        typeof row.entity_id === "string" &&
+        selectors.some((selector) =>
+          matches(selector, row.entity_id as string),
+        ),
+    );
+    expect(selectRows(many, selectors)).toEqual(expected);
+  });
+
+  it("still drops rows with no entity, and keeps their order", () => {
+    const mixed: LogbookRow[] = [
+      { when: 1, entity_id: "light.a", state: "on" },
+      { when: 2, message: "started" },
+      { when: 3, entity_id: "light.a", state: "off" },
+    ];
+    expect(selectRows(mixed, ["light.a"]).map((row) => row.when)).toEqual([
+      1, 3,
     ]);
   });
 });

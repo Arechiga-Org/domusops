@@ -15,6 +15,8 @@ import {
   buildEnvelope,
   type EncodeContext,
 } from "./envelope.js";
+import { pad } from "../util/json.js";
+import { byCountThenKey } from "../util/order.js";
 import { formatOffset, localParts } from "./local-time.js";
 
 export type { EncodeContext } from "./envelope.js";
@@ -22,8 +24,6 @@ export type { EncodeContext } from "./envelope.js";
 /** Keys that are never a column or a constant: they have a fixed place in the row. */
 const FIXED = new Set(["when", "entity_id", "state", ...CAUSE_FIELDS]);
 const MIN_STRING = 4;
-
-const pad = (n: number): string => String(n).padStart(2, "0");
 
 interface EntityLayout {
   id: string | null;
@@ -48,7 +48,12 @@ interface RawRow {
   whenSeconds: number;
 }
 
-/** A value that is an object of exactly `{ v }` is escaped, so decoding stays unambiguous. */
+/**
+ * A value that is an object of exactly `{ v }` is escaped, so decoding stays unambiguous. The
+ * decoder's `isEscape` in `@domusops/schema` (`src/logbook/expand.ts`) must agree with this check;
+ * the round-trip tests fail if they drift. It is not shared because that would add an export to the
+ * schema, a public API change.
+ */
 function isEscapeShaped(value: unknown): boolean {
   return (
     typeof value === "object" &&
@@ -160,7 +165,7 @@ export function encodeStandard(
   }
   const strings = [...uses]
     .filter(([, n]) => n >= 2)
-    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .sort(byCountThenKey)
     .map(([text]) => text);
   const stringIndex = new Map(strings.map((text, i) => [text, i]));
 

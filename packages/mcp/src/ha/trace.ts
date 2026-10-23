@@ -6,7 +6,8 @@ import {
 } from "@domusops/schema";
 import { errors, ToolError } from "../errors.js";
 import type { CommandParams, HaClient } from "./client.js";
-import { isObject, readInstance, type Instance } from "./instance.js";
+import { isObject } from "../util/json.js";
+import { readInstance, type Instance } from "./instance.js";
 
 /** How many `trace/get` requests are in flight at once (research R4). */
 export const MAX_IN_FLIGHT = 8;
@@ -261,6 +262,13 @@ export interface TraceRef {
   item_id: string;
   run_id: string;
 }
+
+/** Where the trace a short record describes is stored. */
+export const refOf = (record: TraceShortRecord): TraceRef => ({
+  domain: record.domain as TraceDomain,
+  item_id: record.item_id,
+  run_id: record.run_id,
+});
 
 async function getOne(
   client: HaClient,
