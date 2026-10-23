@@ -414,3 +414,22 @@ describe("a directory that cannot be used", () => {
     ).toBe("config_dir_invalid");
   });
 });
+
+describe("the sandbox's own state directory", () => {
+  it("is never carried over, so a configuration cannot supply or overwrite the device state", async () => {
+    const root = scratch();
+    write(root, "configuration.yaml", "default_config:\n");
+    write(
+      root,
+      ".domusops_sandbox/devices.json",
+      '{"format":"domusops.sandbox-devices/0.1","revision":99}',
+    );
+    const { archive, summary } = await packConfig({ dir: root });
+    const paths = [...(await readArchive(archive)).keys()];
+    expect(paths.some((path) => path.includes(".domusops_sandbox"))).toBe(
+      false,
+    );
+    expect(summary?.excluded).toContain(".domusops_sandbox/");
+    expect(summary?.files).toBe(1);
+  });
+});

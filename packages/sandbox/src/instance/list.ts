@@ -1,5 +1,9 @@
 import type { Runtime } from "../runtime/docker.js";
-import { parseLabels, type Mode } from "../runtime/labels.js";
+import {
+  parseLabels,
+  type Mode,
+  type SandboxLabels,
+} from "../runtime/labels.js";
 
 export interface SandboxListing {
   id: string;
@@ -9,7 +13,7 @@ export interface SandboxListing {
   /** `null` when the instance is not running. */
   url: string | null;
   deadline: string;
-  owner: { host: string; pid: number } | null;
+  owner: SandboxLabels["owner"];
 }
 
 /** Every sandbox instance the runtime knows of: labelled containers only. */

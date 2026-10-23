@@ -131,3 +131,91 @@ describe("ownerMayBeAlive", () => {
     ).toBe(false);
   });
 });
+
+// The ownership decision table of specs/007-debt-paydown data-model §2, one test per row.
+describe("ownership by machine", () => {
+  const MACHINE = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const OTHER = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const owned = (machine: string | undefined, host = HOST) =>
+    labels({
+      owner: {
+        host,
+        pid: 4242,
+        ...(machine === undefined ? {} : { machine }),
+      },
+    });
+
+  it("removes an instance of this machine whose owner is gone, although the host name changed", async () => {
+    const runtime = new FakeRuntime();
+    const id = runtime.addSandbox("a", owned(MACHINE, "the-old-name"));
+    const removed = await reap(runtime, { ...options(), machine: MACHINE });
+    expect(removed).toEqual([
+      { id: "0123456789ab", containerId: id, reason: "owner process gone" },
+    ]);
+  });
+
+  it("keeps an instance of this machine whose owner is alive, although the host name changed", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(MACHINE, "the-old-name"));
+    expect(
+      await reap(runtime, { ...options([4242]), machine: MACHINE }),
+    ).toEqual([]);
+  });
+
+  it("keeps an instance of another machine, even when its host name matches and its pid is dead", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(OTHER));
+    expect(await reap(runtime, { ...options(), machine: MACHINE })).toEqual([]);
+  });
+
+  it("keeps an instance that names a machine when this one has no identifier", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(MACHINE));
+    expect(await reap(runtime, { ...options(), machine: null })).toEqual([]);
+  });
+
+  it("applies the 0.1.0 rule to an instance with no machine: host name equal, owner gone", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(undefined));
+    const removed = await reap(runtime, { ...options(), machine: MACHINE });
+    expect(removed.map((r) => r.reason)).toEqual(["owner process gone"]);
+  });
+
+  it("applies the 0.1.0 rule to an instance with no machine: host name equal, owner alive", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(undefined));
+    expect(
+      await reap(runtime, { ...options([4242]), machine: MACHINE }),
+    ).toEqual([]);
+  });
+
+  it("applies the 0.1.0 rule to an instance with no machine: host name differs, so only the deadline removes it", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(undefined, "the-old-name"));
+    expect(await reap(runtime, { ...options(), machine: MACHINE })).toEqual([]);
+  });
+
+  it("removes any instance past its deadline, whatever its owner", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox(
+      "a",
+      labels({
+        deadline: "2026-10-06T11:00:00.000Z",
+        owner: { host: HOST, pid: 4242, machine: OTHER },
+      }),
+    );
+    const removed = await reap(runtime, {
+      ...options([4242]),
+      machine: MACHINE,
+    });
+    expect(removed.map((r) => r.reason)).toEqual(["deadline passed"]);
+  });
+
+  it("reads this machine's identifier from the state file, without creating it, when none is given", async () => {
+    const runtime = new FakeRuntime();
+    runtime.addSandbox("a", owned(undefined));
+    // Nothing named a machine, so the state file is never needed; the result is the 0.1.0 rule.
+    const removed = await reap(runtime, options());
+    expect(removed.map((r) => r.reason)).toEqual(["owner process gone"]);
+  });
+});

@@ -23,9 +23,9 @@ Existing labels are unchanged. One label is added to tied instances:
 | ----------------------------------- | ----------------------- | ---------------------------------------------- |
 | `io.domusops.sandbox.owner-machine` | machine identifier (§1) | `mode = tied` and the identifier is not `null` |
 
-`parseLabels` returns `owner: { host, pid, machine: string | null }`. A malformed
-`owner-machine` value is treated as absent, which applies the legacy rule; it does not reject the
-container.
+`parseLabels` returns `owner: { host, pid }`, with `machine` added only when the label is present
+and well formed (32 lowercase hex characters). A malformed `owner-machine` value is read as absent,
+which applies the legacy rule; it does not reject the container.
 
 ### Ownership decision (replaces `ownerMayBeAlive`)
 
@@ -65,19 +65,23 @@ file on every successful `initialise` and `add`, and only by the sandbox.
 }
 ```
 
-| Field      | Rule                                                                                   |
-| ---------- | -------------------------------------------------------------------------------------- |
-| `format`   | exactly `domusops.sandbox-devices/0.1`; any other value means "no device support"      |
-| `revision` | integer ≥ 1, incremented on every successful write                                     |
-| `entryId`  | the integration's configuration entry ID; must still be loaded when the handle resumes |
-| `specs`    | the validated `VirtualDeviceSpec`s, in creation order                                  |
-| `devices`  | the `VirtualDevice`s created, in creation order                                        |
+| Field      | Rule                                                                               |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `format`   | exactly `domusops.sandbox-devices/0.1`; any other value means "no device support"  |
+| `revision` | integer ≥ 1, incremented on every successful write                                 |
+| `entryId`  | the integration's configuration entry ID; must still exist when the handle resumes |
+| `specs`    | the validated `VirtualDeviceSpec`s, in creation order                              |
+| `devices`  | the `VirtualDevice`s created, in creation order                                    |
 
 - **Resume** (`attachSandbox`):
   - If the file is missing, unparsable, or has the wrong `format`, the handle gets no device
     support.
-  - If the file is valid but `entryId` is no longer loaded, the handle also gets no device
-    support, and the message says so.
+  - If the file is valid but the entry `entryId` no longer exists, the handle also gets no
+    device support, and the message says so. An entry that exists in any other state (still
+    setting up, being retried, not loaded) is resumed, because adding devices reloads it.
+  - If the instance cannot be asked (the state file or the entry list cannot be read), the
+    handle gets no device support and the message carries the cause and says to attach again.
+    That is never reported as "started without devices".
 - **Add from a resumed handle**:
   - The handle re-reads `revision` first. If it differs from the revision the handle last read
     or wrote, the call fails with `virtual_unavailable` and changes nothing.
