@@ -17,14 +17,11 @@ export function parseRunId(value: string): string {
 
 /**
  * A context ID: a 26-character ULID, a compact ID as either tool emits it, or at most 64 printable
- * ASCII characters (an ID of another kind is matched exactly).
+ * ASCII characters (an ID of another kind is matched exactly). A ULID is always within the 64
+ * characters; a compact ID is not (its offset has no length limit), so it keeps its own test.
  */
 export function parseContextId(value: string): string {
-  if (
-    ULID.test(value) ||
-    ENCODED_CONTEXT_ID.test(value) ||
-    /^[\x20-\x7e]{1,64}$/.test(value)
-  ) {
+  if (ENCODED_CONTEXT_ID.test(value) || /^[\x20-\x7e]{1,64}$/.test(value)) {
     return value;
   }
   throw errors.selectionInvalid(

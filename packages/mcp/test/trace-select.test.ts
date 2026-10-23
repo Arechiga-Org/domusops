@@ -379,3 +379,19 @@ describe("selectTraces: runs that were not selected (spec FR-004)", () => {
     expect(got.noRuns).toBeNull();
   });
 });
+
+describe("parseContextId keeps accepting a long compact ID (FR-024)", () => {
+  it("accepts a compact ID whose offset passes 64 characters, as before", () => {
+    const long = `${"1".repeat(60)}:${"A".repeat(16)}`;
+    expect(long.length).toBeGreaterThan(64);
+    expect(parseContextId(long)).toBe(long);
+  });
+
+  it("accepts a full ULID, and still refuses an ID that is neither compact nor printable", () => {
+    expect(parseContextId("01ARZ3NDEKTSV4RRFFQ69G5FAV")).toBe(
+      "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    );
+    expect(() => parseContextId("")).toThrowError(/context ID/);
+    expect(() => parseContextId("x".repeat(65))).toThrowError(/context ID/);
+  });
+});

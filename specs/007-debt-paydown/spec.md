@@ -376,7 +376,7 @@ For traceability only; the requirements above are the contract.
 - **US4**: bare `domusops-bootstrap` in generated templates; `.sops.yaml` overwritten by
   add/remove-key; no recipient membership check in `init`.
 - **US5**: duplicate `refOf`; error-mapping try/catch copied three times in `server.ts`; dead code
-  in `trace/select.ts` (`created === null`, redundant alternative in `parseContextId`);
+  in `trace/select.ts` (`created === null`, redundant ULID alternative in `parseContextId`);
   `history_unavailable` matched by message; selectors evaluated per row in `selectRows`; the
   escape-shape check copied from the schema's logbook decoder into the MCP logbook encoder, and
   other small copied helpers (`isObject`, `pad`); repeated count/key comparator; per-command

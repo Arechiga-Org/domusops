@@ -1,7 +1,8 @@
 import type { LogbookRow } from "@domusops/schema";
 import { errors, ToolError } from "../errors.js";
 import type { HaClient } from "./client.js";
-import { isObject, readInstance, type Instance } from "./instance.js";
+import { isObject } from "../util/json.js";
+import { readInstance, type Instance } from "./instance.js";
 
 /** What a logbook query needs to know about the instance before it can resolve a window. */
 export type LogbookContext = Omit<Instance, "components">;
@@ -37,7 +38,7 @@ export async function fetchEvents(
     if (
       error instanceof ToolError &&
       error.kind === "retrieval_failed" &&
-      error.causeText.includes("unknown_command")
+      error.haCode === "unknown_command"
     ) {
       throw errors.historyUnavailable();
     }

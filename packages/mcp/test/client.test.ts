@@ -3,6 +3,9 @@ import { ToolError, type ErrorKind } from "../src/errors.js";
 import { HaClient, type Timeouts } from "../src/ha/client.js";
 import { readConfig } from "../src/ha/config.js";
 import { retrieve } from "../src/ha/retrieve.js";
+import { errors } from "../src/errors.js";
+import { ALLOWED_COMMANDS } from "../src/ha/client.js";
+import { fetchEvents } from "../src/ha/logbook.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
 import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
 import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
@@ -470,5 +473,126 @@ describe("HaClient.close (spec FR-002, SC-002)", () => {
     expect(kindOf(await waiting)).toBe("retrieval_failed");
     const later = await failure(() => client.command("get_states"));
     expect(kindOf(later)).toBe("retrieval_failed");
+  });
+});
+
+describe("history_unavailable comes from the instance's error code (FR-025)", () => {
+  const WINDOW = ["2026-09-26T00:00:00Z", "2026-09-27T00:00:00Z"] as const;
+
+  it("is reported when logbook/get_events answers unknown_command", async () => {
+    const ha = await fake({
+      failCommand: { type: "logbook/get_events", code: "unknown_command" },
+    });
+    const client = await connect(ha);
+    const error = await failure(() => fetchEvents(client, ...WINDOW));
+    expect(kindOf(error)).toBe("history_unavailable");
+    expect(error.toToolText("ha_logbook_query")).toBe(
+      "ha_logbook_query failed [history_unavailable]: " +
+        errors.historyUnavailable().message,
+    );
+  });
+
+  it("is not reported when only the message says unknown_command", async () => {
+    const ha = await fake({
+      failCommand: {
+        type: "logbook/get_events",
+        code: "home_assistant_error",
+        message: "the recorder said unknown_command",
+      },
+    });
+    const client = await connect(ha);
+    const error = await failure(() => fetchEvents(client, ...WINDOW));
+    expect(kindOf(error)).toBe("retrieval_failed");
+    expect(error.haCode).toBe("home_assistant_error");
+  });
+
+  it("keeps the instance's code on a failed command, and nothing on other errors", async () => {
+    const ha = await fake({
+      failCommand: { type: "get_states", code: "unauthorized" },
+    });
+    const client = await connect(ha);
+    expect((await failure(() => client.command("get_states"))).haCode).toBe(
+      "unauthorized",
+    );
+    expect(errors.unreachable("x", "y").haCode).toBeNull();
+    expect(errors.retrievalFailed("get_states", "closed").haCode).toBeNull();
+  });
+});
+
+describe("the command table (FR-027)", () => {
+  it("allows exactly these commands, in this order", () => {
+    expect([...ALLOWED_COMMANDS]).toEqual([
+      "auth/current_user",
+      "get_config",
+      "get_states",
+      "config/entity_registry/list",
+      "config/device_registry/list",
+      "config/area_registry/list",
+      "config_entries/get",
+      "logbook/get_events",
+      "trace/list",
+      "trace/get",
+      "trace/contexts",
+    ]);
+  });
+
+  const WINDOW = { start_time: "2026-09-26T00:00:00Z", end_time: "x" };
+  it.each([
+    ["get_states", { domain: "light" }, 'command "get_states" does not take'],
+    ["logbook/get_events", {}, 'parameter "start_time" is required'],
+    [
+      "logbook/get_events",
+      { ...WINDOW, end_time: "y", bogus: 1 },
+      'parameter "bogus" is not allowed',
+    ],
+    [
+      "logbook/get_events",
+      { start_time: "a" },
+      'parameter "end_time" is required',
+    ],
+    ["trace/list", {}, 'parameter "domain" is required'],
+    [
+      "trace/list",
+      { domain: "light" },
+      'parameter "domain" must be "automation" or "script"',
+    ],
+    [
+      "trace/get",
+      { domain: "script", item_id: "a" },
+      'parameter "run_id" is required',
+    ],
+    [
+      "trace/get",
+      { domain: "script", item_id: "a", run_id: "b", extra: 1 },
+      'parameter "extra" is not allowed',
+    ],
+    ["trace/contexts", { domain: "script" }, "does not take parameters"],
+  ])("rejects %s with %j before the socket", async (type, params, text) => {
+    const ha = await fake();
+    const client = await connect(ha);
+    const before = ha.received.length;
+    const error = await failure(() =>
+      client.command(type as never, params as never),
+    );
+    expect(kindOf(error)).toBe("protocol_error");
+    expect(error.causeText).toContain(text);
+    expect(ha.received.length).toBe(before);
+  });
+
+  it("gives only logbook/get_events the overall budget", async () => {
+    // 600 ms is past the 300 ms per-command limit and inside the 2000 ms overall one.
+    const slowLogbook = await fake({ logbookDelayMs: 600 });
+    const logbook = await connect(slowLogbook);
+    await expect(
+      logbook.command("logbook/get_events", {
+        start_time: "2026-09-26T00:00:00Z",
+        end_time: "2026-09-27T00:00:00Z",
+      }),
+    ).resolves.toBeDefined();
+
+    const slowStates = await fake({ delayMs: 600 });
+    const states = await connect(slowStates);
+    const error = await failure(() => states.command("get_states"));
+    expect(kindOf(error)).toBe("timeout");
   });
 });

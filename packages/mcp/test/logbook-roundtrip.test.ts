@@ -204,3 +204,32 @@ describe("expandLogbook(standard) equals projectLogbook(rows)", () => {
     expect(text).toContain('{"v":{"v":7}}');
   });
 });
+
+describe("the encoder and the schema decoder agree on what is an escape", () => {
+  // `isEscapeShaped` here and `isEscape` in the schema are separate copies (the schema may not
+  // export one). Every shape that sits near the rule goes through both, so a change to only one
+  // of them breaks a round trip.
+  const SHAPES: unknown[] = [
+    { v: 1 },
+    { v: { v: 1 } },
+    { v: 1, w: 2 },
+    { v: null },
+    { w: 1 },
+    {},
+    [{ v: 1 }],
+    "v",
+    5,
+  ];
+
+  it.each(SHAPES.map((shape) => [JSON.stringify(shape), shape]))(
+    "round-trips %s as an attribute value",
+    (_name, shape) => {
+      const rows: LogbookRow[] = [
+        { when: T, entity_id: "sensor.shape", state: "on", shape },
+        { when: T + 1, entity_id: "sensor.shape", state: "off", shape: "x" },
+      ];
+      const { expanded } = roundTrip(rows);
+      expect(expanded).toEqual(projectLogbook(rows));
+    },
+  );
+});

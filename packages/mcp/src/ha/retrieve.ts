@@ -8,15 +8,12 @@ import type {
   RawState,
 } from "@domusops/schema";
 import { errors } from "../errors.js";
+import { isObject } from "../util/json.js";
 import type { HaClient } from "./client.js";
 
 export interface Retrieved {
   haVersion: string;
   records: RawRecords;
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function expectObject(

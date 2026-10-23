@@ -399,8 +399,11 @@ content)`.
   - `created === null` is unreachable, because `.find((ms) => ms !== null)` yields
     `number | undefined`. The check goes.
   - In `trace/context-id.ts`, `parseContextId` accepts `ULID.test(value) ||
-ENCODED_CONTEXT_ID.test(value) || /^[\x20-\x7e]{1,64}$/.test(value)`. Both earlier patterns
-    are subsets of the last, so only the last remains, and the error message is unchanged.
+ENCODED_CONTEXT_ID.test(value) || /^[\x20-\x7e]{1,64}$/.test(value)`. The ULID pattern
+    is a subset of the last (26 characters), so it goes. The compact-ID pattern is not: its
+    offset (`\d+`) has no length limit, so a compact ID of more than 64 characters is accepted
+    today. It stays, so the accepted inputs do not change. The error message is unchanged.
+    (The first draft of this decision assumed both were subsets; checked during implementation.)
 - **Structured code**:
   - `ToolError` gains an optional `haCode`, set by `HaClient` from `message.error.code` when
     the instance answers a command with an error.

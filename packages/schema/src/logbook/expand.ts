@@ -15,6 +15,11 @@ function offsetSeconds(offset: string): number {
   );
 }
 
+/**
+ * The shape the encoder escapes: an object of exactly `{ v }`. `isEscapeShaped` in
+ * `@domusops/mcp` (`src/logbook/encode-standard.ts`) must agree with this check; the round-trip
+ * tests fail if they drift. It is not exported so the schema's public API stays as it is.
+ */
 function isEscape(value: unknown): value is { v: unknown } {
   return (
     typeof value === "object" &&

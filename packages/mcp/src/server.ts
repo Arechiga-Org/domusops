@@ -4,6 +4,7 @@ import {
   TRACE_DETAIL_LEVELS,
 } from "@domusops/schema";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
@@ -49,6 +50,31 @@ const TRACE_CONTEXT_DESCRIPTION =
 const TRACE_DETAIL_DESCRIPTION =
   "summary: one row per run. standard: every step, compressed losslessly.";
 
+/**
+ * Runs one tool and turns its outcome into a result. Domain failures are tool results, not
+ * protocol errors, so the agent always sees the remediation text; anything that is not already a
+ * `ToolError` is reported as a protocol error.
+ */
+async function asToolResult(
+  tool: string,
+  run: () => Promise<string>,
+): Promise<CallToolResult> {
+  try {
+    return { content: [{ type: "text", text: await run() }] };
+  } catch (error) {
+    const failure =
+      error instanceof ToolError
+        ? error
+        : errors.protocolError(
+            error instanceof Error ? error.message : "unknown error",
+          );
+    return {
+      isError: true,
+      content: [{ type: "text", text: failure.toToolText(tool) }],
+    };
+  }
+}
+
 export interface ServerOptions {
   /** Environment the tool reads its configuration from on every call. Defaults to `process.env`. */
   env?: Readonly<Record<string, string | undefined>>;
@@ -76,31 +102,15 @@ export function createServer(options: ServerOptions = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ detail }) => {
-      try {
-        const text = await runSnapshot(options.env ?? process.env, {
+    ({ detail }) =>
+      asToolResult("ha_snapshot", () =>
+        runSnapshot(options.env ?? process.env, {
           detail,
           ...(options.timeouts === undefined
             ? {}
             : { timeouts: options.timeouts }),
-        });
-        return { content: [{ type: "text" as const, text }] };
-      } catch (error) {
-        // Domain failures are tool results, so the agent always sees the remediation text.
-        const failure =
-          error instanceof ToolError
-            ? error
-            : errors.protocolError(
-                error instanceof Error ? error.message : "unknown error",
-              );
-        return {
-          isError: true,
-          content: [
-            { type: "text" as const, text: failure.toToolText("ha_snapshot") },
-          ],
-        };
-      }
-    },
+        }),
+      ),
   );
 
   server.registerTool(
@@ -130,9 +140,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ start, end, entities, detail }) => {
-      try {
-        const text = await runLogbookQuery(options.env ?? process.env, {
+    ({ start, end, entities, detail }) =>
+      asToolResult("ha_logbook_query", () =>
+        runLogbookQuery(options.env ?? process.env, {
           detail,
           ...(start === undefined ? {} : { start }),
           ...(end === undefined ? {} : { end }),
@@ -140,26 +150,8 @@ export function createServer(options: ServerOptions = {}): McpServer {
           ...(options.timeouts === undefined
             ? {}
             : { timeouts: options.timeouts }),
-        });
-        return { content: [{ type: "text" as const, text }] };
-      } catch (error) {
-        const failure =
-          error instanceof ToolError
-            ? error
-            : errors.protocolError(
-                error instanceof Error ? error.message : "unknown error",
-              );
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: failure.toToolText("ha_logbook_query"),
-            },
-          ],
-        };
-      }
-    },
+        }),
+      ),
   );
 
   server.registerTool(
@@ -191,9 +183,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ entities, start, end, run, context, detail }) => {
-      try {
-        const text = await runTrace(options.env ?? process.env, {
+    ({ entities, start, end, run, context, detail }) =>
+      asToolResult("ha_trace", () =>
+        runTrace(options.env ?? process.env, {
           detail,
           ...(entities === undefined ? {} : { entities }),
           ...(start === undefined ? {} : { start }),
@@ -203,26 +195,8 @@ export function createServer(options: ServerOptions = {}): McpServer {
           ...(options.timeouts === undefined
             ? {}
             : { timeouts: options.timeouts }),
-        });
-        return { content: [{ type: "text" as const, text }] };
-      } catch (error) {
-        const failure =
-          error instanceof ToolError
-            ? error
-            : errors.protocolError(
-                error instanceof Error ? error.message : "unknown error",
-              );
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text" as const,
-              text: failure.toToolText("ha_trace"),
-            },
-          ],
-        };
-      }
-    },
+        }),
+      ),
   );
 
   return server;
