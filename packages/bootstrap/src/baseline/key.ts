@@ -13,14 +13,19 @@ export interface KeyResolution {
 }
 
 export function resolveOrCreateKey(): KeyResolution {
-  const identity = resolveIdentity();
-  if (identity !== null) {
-    return {
-      publicKey: publicKeyOf(identity),
-      created: false,
-      path: identity.path ?? defaultKeyFilePath(),
-    };
-  }
+  const existing = lookupKey();
+  if (existing !== null) return existing;
   const path = defaultKeyFilePath();
   return { publicKey: keygen(path), created: true, path };
+}
+
+/** The user's own age identity if there is one, without creating anything (used in a preview). */
+export function lookupKey(): KeyResolution | null {
+  const identity = resolveIdentity();
+  if (identity === null) return null;
+  return {
+    publicKey: publicKeyOf(identity),
+    created: false,
+    path: identity.path ?? defaultKeyFilePath(),
+  };
 }

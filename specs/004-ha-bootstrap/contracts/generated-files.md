@@ -51,9 +51,12 @@ says that non-YAML files, such as this one, are ignored by the loader.
 
 ## `.sops.yaml`
 
+Every command named in a generated file uses the pinned form, as amended by
+[007 bootstrap-cli.md](../../007-debt-paydown/contracts/bootstrap-cli.md).
+
 ```yaml
 # Encryption rules for secrets.sops.yaml, managed by ha-bootstrap.
-# Add or remove keys with: domusops-bootstrap secrets add-key|remove-key <age public key>
+# Add or remove keys with: npx --yes @domusops/bootstrap@<release> secrets add-key|remove-key <age public key>
 creation_rules:
   - path_regex: (^|/)secrets\.sops\.yaml$
     age: >-
@@ -70,7 +73,8 @@ section. Never hand-written by the CLI.
 
 ```yaml
 # Placeholder values used only to validate the configuration in CI and with
-# `domusops-bootstrap validate`. They are not your secrets and must never be.
+# `npx --yes @domusops/bootstrap@<release> validate`. They are not your secrets and
+# must never be.
 # Add an entry when a default placeholder fails validation, for example:
 #   weather_api_url: https://placeholder.invalid/api
 {}

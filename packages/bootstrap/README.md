@@ -10,15 +10,15 @@ agent. Full design: `specs/004-ha-bootstrap/`.
 
 ## Commands
 
-| Command                                   | Does                                                                                                                                                  |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init [--apply] [--instance-version <v>]` | Computes the state of all 12 baseline elements; writes them only with `--apply`. Without it, nothing changes (a preview).                             |
-| `check (--staged \| --all) [--ci]`        | Runs the five pre-commit rules against staged or every tracked file. `--ci` skips the local-secret-value check, since no plaintext file exists there. |
-| `validate [--ci]`                         | Runs the instance's own configuration validator, in a container, at the recorded instance version, with placeholder secrets. Needs Docker or Podman.  |
-| `secrets decrypt [--force]`               | Writes `secrets.yaml` from `secrets.sops.yaml`, mode 0600. Refuses to overwrite local edits unless `--force`.                                         |
-| `secrets encrypt`                         | Re-encrypts `secrets.yaml` into `secrets.sops.yaml`, with a round-trip check.                                                                         |
-| `secrets add-key <age public key>`        | Adds a recipient (for example, a key generated on the instance's host) and re-encrypts for it.                                                        |
-| `secrets remove-key <age public key>`     | Removes a recipient and re-encrypts. Refuses to remove the last one.                                                                                  |
+| Command                                   | Does                                                                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init [--apply] [--instance-version <v>]` | Computes the state of all 12 baseline elements; writes them only with `--apply`. Without it, nothing changes (a preview).                                |
+| `check (--staged \| --all) [--ci]`        | Runs the five pre-commit rules against staged or every tracked file. `--ci` skips the local-secret-value check, since no plaintext file exists there.    |
+| `validate [--ci]`                         | Runs the instance's own configuration validator, in a container, at the recorded instance version, with placeholder secrets. Needs Docker or Podman.     |
+| `secrets decrypt [--force]`               | Writes `secrets.yaml` from `secrets.sops.yaml`, mode 0600. Refuses to overwrite local edits unless `--force`.                                            |
+| `secrets encrypt`                         | Re-encrypts `secrets.yaml` into `secrets.sops.yaml`, with a round-trip check.                                                                            |
+| `secrets add-key <age public key>`        | Adds a recipient (for example, a key generated on the instance's host) and re-encrypts for it. Refuses a `.sops.yaml` that was changed outside DomusOps. |
+| `secrets remove-key <age public key>`     | Removes a recipient and re-encrypts. Refuses to remove the last one, or to rewrite a `.sops.yaml` that was changed outside DomusOps.                     |
 
 Every command accepts `--dir <path>` (default: the current directory) and `--json` (machine-
 readable output). Full contract, including exit codes and the JSON shapes: `specs/004-ha-bootstrap/contracts/cli.md`.

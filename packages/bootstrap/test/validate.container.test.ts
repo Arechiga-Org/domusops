@@ -1,3 +1,4 @@
+import { packageVersion } from "../src/cli-support.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -40,7 +41,7 @@ function bootstrappedFixture(
   buildReference(dir, { alreadyRepo: true, ...options });
   const { keyFile, publicKey } = makeThrowawayAgeKey();
   process.env["SOPS_AGE_KEY_FILE"] = keyFile;
-  writeSopsConfig(dir, [publicKey]);
+  writeSopsConfig(dir, [publicKey], packageVersion());
   encryptWithRoundtrip(dir);
   mkdirSync(join(dir, ".domusops"), { recursive: true });
   writeFileSync(

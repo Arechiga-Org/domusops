@@ -20,7 +20,7 @@ import {
   SOPS_CONFIG_FILE,
 } from "../baseline/sops-config.js";
 import { renderSopsConfig, sha256 } from "../baseline/templates.js";
-import { readRecord, writeRecord } from "../baseline/record.js";
+import { elementState, readRecord, writeRecord } from "../baseline/record.js";
 
 /**
  * `secrets decrypt|encrypt|add-key|remove-key`
@@ -78,7 +78,7 @@ function runEncrypt(args: CliArgs): number {
 function updateSopsRecordEntry(dir: string): void {
   const record = readRecord(dir);
   const recipients = readRecipients(dir);
-  const content = renderSopsConfig(recipients);
+  const content = renderSopsConfig(recipients, packageVersion());
   const entries = { ...(record?.elements ?? {}) };
   entries["sops-config"] = {
     path: SOPS_CONFIG_FILE,
@@ -100,7 +100,7 @@ function updateSopsRecordEntry(dir: string): void {
 function rewrapKeys(dir: string, recipients: readonly string[]): string | null {
   const configPath = join(dir, SOPS_CONFIG_FILE);
   const previous = existsSync(configPath) ? readFileSync(configPath) : null;
-  writeSopsConfig(dir, recipients);
+  writeSopsConfig(dir, recipients, packageVersion());
   try {
     updateKeys(dir, "secrets.sops.yaml");
   } catch (error) {
@@ -109,6 +109,30 @@ function rewrapKeys(dir: string, recipients: readonly string[]): string | null {
     return `${error instanceof Error ? error.message : "sops failed"}. ${SOPS_CONFIG_FILE} was left as it was.`;
   }
   return null;
+}
+
+const EDITED_REFUSAL =
+  ".sops.yaml was changed outside DomusOps, so it is left as it is. To change its recipients, " +
+  "edit the `age` list in .sops.yaml by hand, then run: sops updatekeys secrets.sops.yaml";
+
+/**
+ * True when `.sops.yaml` is not what DomusOps wrote (or would write), so rewriting it would
+ * discard someone's changes. The same record test `init` applies to every generated file.
+ */
+function sopsConfigWasEdited(
+  dir: string,
+  recipients: readonly string[],
+): boolean {
+  const path = join(dir, SOPS_CONFIG_FILE);
+  const content = existsSync(path) ? readFileSync(path, "utf8") : null;
+  const entry = readRecord(dir)?.elements["sops-config"];
+  return (
+    elementState(
+      entry,
+      renderSopsConfig(recipients, packageVersion()),
+      content,
+    ) === "edited"
+  );
 }
 
 function runAddKey(key: string | undefined, args: CliArgs): number {
@@ -122,6 +146,10 @@ function runAddKey(key: string | undefined, args: CliArgs): number {
   if (recipients.includes(key)) {
     console.log("That key is already a recipient; nothing to do.");
     return EXIT_OK;
+  }
+  if (sopsConfigWasEdited(args.dir, recipients)) {
+    console.error(EDITED_REFUSAL);
+    return EXIT_PROBLEMS;
   }
   const failed = rewrapKeys(args.dir, [...recipients, key]);
   if (failed !== null) {
@@ -152,6 +180,10 @@ function runRemoveKey(key: string | undefined, args: CliArgs): number {
     console.error(
       "Refusing to remove the last recipient: nobody would be able to decrypt the secrets.",
     );
+    return EXIT_PROBLEMS;
+  }
+  if (sopsConfigWasEdited(args.dir, recipients)) {
+    console.error(EDITED_REFUSAL);
     return EXIT_PROBLEMS;
   }
   const failed = rewrapKeys(args.dir, remaining);

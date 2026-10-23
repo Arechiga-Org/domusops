@@ -30,10 +30,11 @@ export function readRecipients(dir: string): string[] {
 export function writeSopsConfig(
   dir: string,
   recipients: readonly string[],
+  release: string,
 ): void {
   writeFileSync(
     join(dir, SOPS_CONFIG_FILE),
-    renderSopsConfig(recipients),
+    renderSopsConfig(recipients, release),
     "utf8",
   );
 }
@@ -42,10 +43,11 @@ export function computeSopsConfig(
   dir: string,
   recipients: readonly string[],
   record: GenerationRecord | null,
+  release: string,
 ): SkillFileResult {
   return computeSkillFile(
     join(dir, SOPS_CONFIG_FILE),
-    renderSopsConfig(recipients),
+    renderSopsConfig(recipients, release),
     record,
     "sops-config",
   );
@@ -55,10 +57,11 @@ export function applySopsConfig(
   dir: string,
   recipients: readonly string[],
   record: GenerationRecord | null,
+  release: string,
 ): SkillFileResult {
   return applySkillFile(
     join(dir, SOPS_CONFIG_FILE),
-    renderSopsConfig(recipients),
+    renderSopsConfig(recipients, release),
     record,
     "sops-config",
   );

@@ -1,3 +1,4 @@
+import { packageVersion } from "../src/cli-support.js";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -95,7 +96,7 @@ describe("check (research R8)", () => {
     const { keyFile, publicKey } = makeThrowawayAgeKey();
     process.env["SOPS_AGE_KEY_FILE"] = keyFile;
     const dir = repo();
-    writeSopsConfig(dir, [publicKey]);
+    writeSopsConfig(dir, [publicKey], packageVersion());
     writeFileSync(join(dir, "secrets.yaml"), "wifi_password: fake-value-1\n");
     encryptWithRoundtrip(dir);
     spawnSync("git", ["add", "secrets.sops.yaml", ".sops.yaml"], { cwd: dir });

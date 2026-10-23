@@ -71,7 +71,9 @@ round-trip proof. Prerequisites: `sops`.
 Edits the recipients of `.sops.yaml`, runs `sops updatekeys --yes secrets.sops.yaml`, and updates
 the record entry of `sops-config` (FR-028). `add-key` rejects a string that is not an age public
 key (`age1` plus 58 characters) or is already present; `remove-key` refuses the last recipient.
-Prerequisites: `sops`, and the user's own age identity.
+Prerequisites: `sops`, and the user's own age identity. Both subcommands refuse a `.sops.yaml`
+that was changed outside DomusOps, and `init` reports whether the local key is a recipient; see
+[007 bootstrap-cli.md](../../007-debt-paydown/contracts/bootstrap-cli.md).
 
 ## Environment
 

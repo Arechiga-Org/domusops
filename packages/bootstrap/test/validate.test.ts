@@ -1,3 +1,4 @@
+import { packageVersion } from "../src/cli-support.js";
 import {
   chmodSync,
   existsSync,
@@ -79,7 +80,7 @@ function fixtureWithSecrets(): string {
   buildReference(dir);
   const { keyFile, publicKey } = makeThrowawayAgeKey();
   process.env["SOPS_AGE_KEY_FILE"] = keyFile;
-  writeSopsConfig(dir, [publicKey]);
+  writeSopsConfig(dir, [publicKey], packageVersion());
   writeFileSync(
     join(dir, "secrets.yaml"),
     "wifi_password: fake-1\nport_number: 1883\nis_enabled: true\nratio_value: 1.5\n",
