@@ -5,7 +5,7 @@ import {
   type TraceShortRecord,
 } from "@domusops/schema";
 import { errors } from "../errors.js";
-import type { ContextEntry, TraceRef } from "../ha/trace.js";
+import { refOf, type ContextEntry, type TraceRef } from "../ha/trace.js";
 import { matches, parseSelectors } from "../logbook/selectors.js";
 import {
   parseWindowInput,
@@ -127,12 +127,6 @@ export interface Selection {
 const startMicros = (record: TraceShortRecord): number =>
   parseIsoMicros(record.timestamp.start) as number;
 
-const refOf = (record: TraceShortRecord): TraceRef => ({
-  domain: record.domain as TraceDomain,
-  item_id: record.item_id,
-  run_id: record.run_id,
-});
-
 const byCodePoint = (a: string, b: string): number =>
   a < b ? -1 : a > b ? 1 : 0;
 
@@ -164,9 +158,7 @@ export async function selectTraces(input: SelectInput): Promise<Selection> {
     const rest = short.filter(
       (record) =>
         !extended.has(record.run_id) &&
-        (created === undefined ||
-          created === null ||
-          startMicros(record) / 1000 >= created),
+        (created === undefined || startMicros(record) / 1000 >= created),
     );
     for (const record of await fetch(rest.map(refOf))) {
       extended.set(record.run_id, record);

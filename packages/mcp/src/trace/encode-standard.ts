@@ -12,6 +12,7 @@ import {
   type TraceStepRecord,
 } from "@domusops/schema";
 import { formatOffset, localParts } from "../logbook/local-time.js";
+import { isObject, pad } from "../util/json.js";
 import type { ItemResolver } from "./items.js";
 import type { NoRuns } from "./select.js";
 import {
@@ -19,7 +20,6 @@ import {
   encodeValue,
   encodeVariables,
   isContextObject,
-  isObject,
   isStateObject,
   type EncodeAnchor,
   type Root,
@@ -36,8 +36,6 @@ export interface TraceEncodeContext {
   items: Pick<ItemResolver, "keyOf" | "itemIdOf">;
   noRuns: NoRuns | null;
 }
-
-const pad = (n: number, width = 2): string => String(n).padStart(width, "0");
 
 /** Local ISO 8601 with offset; six fraction digits exactly when the microsecond is not zero. */
 export function localIsoMicros(micros: number, timeZone: string): string {

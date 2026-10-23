@@ -1,3 +1,5 @@
+import { pad } from "../util/json.js";
+
 /** Wall-clock time in an IANA zone, from `Intl` alone (no dependency). */
 export interface LocalParts {
   /** `YYYY-MM-DD` */
@@ -42,8 +44,6 @@ function formatterFor(timeZone: string): Intl.DateTimeFormat {
   }
   return formatter;
 }
-
-const pad = (n: number, width = 2): string => String(n).padStart(width, "0");
 
 export function localParts(epochMs: number, timeZone: string): LocalParts {
   const parts: Record<string, number> = {};

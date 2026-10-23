@@ -1,4 +1,5 @@
 import { errors } from "../errors.js";
+import { isObject } from "../util/json.js";
 import type { HaClient } from "./client.js";
 
 /** What every tool that reads history needs to know about the instance before it queries it. */
@@ -11,10 +12,6 @@ export interface Instance {
   longitude: unknown;
   /** The loaded integrations, from `get_config`. */
   components: readonly unknown[];
-}
-
-export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**

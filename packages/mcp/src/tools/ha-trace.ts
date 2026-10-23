@@ -13,6 +13,7 @@ import {
   readContexts,
   readItems,
   readTraceContext,
+  refOf,
   type ContextEntry,
   type TraceRef,
 } from "../ha/trace.js";
@@ -138,11 +139,6 @@ export async function runTrace(
         longitude: instance.longitude,
       },
     };
-    const refOf = (r: TraceShortRecord): TraceRef => ({
-      domain: r.domain as TraceRef["domain"],
-      item_id: r.item_id,
-      run_id: r.run_id,
-    });
     // Everything a result needs is read before anything is emitted: a failure gives no runs at
     // all (spec FR-018).
     const readMissing = async (records: TraceShortRecord[]): Promise<void> => {

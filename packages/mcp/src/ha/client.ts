@@ -1,25 +1,59 @@
 import { errors, ToolError } from "../errors.js";
 import { isSupported, MIN_VERSION } from "./version.js";
 
+/** What the client knows about one command it may send. */
+interface CommandSpec {
+  /**
+   * The only parameter keys the command may carry, `null` when it is sent bare. A command with
+   * parameters must carry every required key, and only those: no caller can smuggle anything else
+   * onto the socket.
+   */
+  params: {
+    required: readonly string[];
+    optional: readonly string[];
+  } | null;
+  /**
+   * `overall`: the command may use the whole remaining budget, because its duration grows with the
+   * window it reads. `command`: it keeps the per-command limit.
+   */
+  budget: "command" | "overall";
+  /** What to try when the command times out at the overall limit. */
+  timeoutHint?: string;
+}
+
 /**
  * The only commands this client will ever send. Every one is a read (spec FR-018): anything else is
  * rejected before it reaches the socket, so mutation is structurally impossible.
  */
-export const ALLOWED_COMMANDS = [
-  "auth/current_user",
-  "get_config",
-  "get_states",
-  "config/entity_registry/list",
-  "config/device_registry/list",
-  "config/area_registry/list",
-  "config_entries/get",
-  "logbook/get_events",
-  "trace/list",
-  "trace/get",
-  "trace/contexts",
-] as const;
+const COMMANDS = {
+  "auth/current_user": { params: null, budget: "command" },
+  get_config: { params: null, budget: "command" },
+  get_states: { params: null, budget: "command" },
+  "config/entity_registry/list": { params: null, budget: "command" },
+  "config/device_registry/list": { params: null, budget: "command" },
+  "config/area_registry/list": { params: null, budget: "command" },
+  "config_entries/get": { params: null, budget: "command" },
+  "logbook/get_events": {
+    params: { required: ["start_time", "end_time"], optional: ["entity_ids"] },
+    budget: "overall",
+    timeoutHint: "Use a shorter window or fewer entities, then try again",
+  },
+  "trace/list": {
+    params: { required: ["domain"], optional: [] },
+    budget: "command",
+  },
+  "trace/get": {
+    params: { required: ["domain", "item_id", "run_id"], optional: [] },
+    budget: "command",
+  },
+  "trace/contexts": { params: null, budget: "command" },
+} as const satisfies Record<string, CommandSpec>;
 
-export type AllowedCommand = (typeof ALLOWED_COMMANDS)[number];
+export type AllowedCommand = keyof typeof COMMANDS;
+
+export const ALLOWED_COMMANDS: readonly AllowedCommand[] = Object.freeze(
+  Object.keys(COMMANDS) as AllowedCommand[],
+);
 
 /** Parameters of `logbook/get_events` (feature 002). */
 export interface LogbookParams {
@@ -41,25 +75,6 @@ export interface TraceGetParams {
 }
 
 export type CommandParams = LogbookParams | TraceListParams | TraceGetParams;
-
-/**
- * The commands that take parameters, and the only keys each may carry. Every other command is sent
- * bare, so no caller can smuggle anything else onto the socket. A command with parameters must
- * carry every required key, and only those (`trace/contexts` takes none: it is sent bare).
- */
-const PARAM_KEYS: Partial<
-  Record<
-    AllowedCommand,
-    { required: readonly string[]; optional: readonly string[] }
-  >
-> = {
-  "logbook/get_events": {
-    required: ["start_time", "end_time"],
-    optional: ["entity_ids"],
-  },
-  "trace/list": { required: ["domain"], optional: [] },
-  "trace/get": { required: ["domain", "item_id", "run_id"], optional: [] },
-};
 
 const TRACE_DOMAIN_VALUES: readonly unknown[] = ["automation", "script"];
 
@@ -93,7 +108,7 @@ interface Pending {
 }
 
 function isAllowed(type: string): type is AllowedCommand {
-  return (ALLOWED_COMMANDS as readonly string[]).includes(type);
+  return Object.hasOwn(COMMANDS, type);
 }
 
 /** Why `params` may not accompany `type`, or `null` when they may (and must). */
@@ -101,8 +116,9 @@ function paramProblem(
   type: AllowedCommand,
   params: CommandParams | undefined,
 ): string | null {
-  const keys = PARAM_KEYS[type];
-  if (keys === undefined) {
+  const spec: CommandSpec = COMMANDS[type];
+  const keys = spec.params;
+  if (keys === null) {
     return params === undefined
       ? null
       : `command "${type}" does not take parameters`;
@@ -268,12 +284,12 @@ export class HaClient {
           code?: unknown;
           message?: unknown;
         };
-        const code =
-          typeof details.code === "string" ? details.code : "unknown_error";
+        const haCode = typeof details.code === "string" ? details.code : null;
+        const code = haCode ?? "unknown_error";
         const text =
           typeof details.message === "string" ? details.message : "no message";
         pending.reject(
-          errors.retrievalFailed(pending.command, `${code}: ${text}`),
+          errors.retrievalFailed(pending.command, `${code}: ${text}`, haCode),
         );
       }
     });
@@ -328,12 +344,14 @@ export class HaClient {
     }
     const id = this.nextId++;
     const remaining = this.deadline - Date.now();
-    const logbook = type === "logbook/get_events";
-    const budget = logbook
-      ? remaining
-      : Math.min(this.timeouts.commandMs, remaining);
+    const spec: CommandSpec = COMMANDS[type];
+    const budget =
+      spec.budget === "overall"
+        ? remaining
+        : Math.min(this.timeouts.commandMs, remaining);
     return new Promise<unknown>((resolve, reject) => {
-      const overall = logbook || remaining <= this.timeouts.commandMs;
+      const overall =
+        spec.budget === "overall" || remaining <= this.timeouts.commandMs;
       const timer = setTimeout(
         () => {
           this.pending.delete(id);
@@ -343,9 +361,7 @@ export class HaClient {
               overall
                 ? `the ${type} retrieval (overall limit)`
                 : `the ${type} retrieval`,
-              logbook
-                ? "Use a shorter window or fewer entities, then try again"
-                : undefined,
+              spec.timeoutHint,
             ),
           );
         },

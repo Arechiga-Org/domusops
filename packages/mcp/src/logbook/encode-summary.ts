@@ -10,12 +10,8 @@ import {
   baseOffsetMinutes,
   type EncodeContext,
 } from "./envelope.js";
+import { byCountThenKey } from "../util/order.js";
 import { formatLocalIso } from "./local-time.js";
-
-const byCountThenKey = <T>(
-  a: [string, T, number],
-  b: [string, T, number],
-): number => b[2] - a[2] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
 
 /**
  * Encodes the redacted rows of a window as a `domusops.logbook/0.1` summary document (data-model
@@ -78,23 +74,18 @@ export function encodeSummary(
     },
     by_domain: Object.fromEntries(
       [...domains]
-        .map(([domain, count]): [string, number, number] => [
-          domain,
-          count,
-          count,
-        ])
         .sort(byCountThenKey)
         .map(([domain, count]) => [domain, count]),
     ),
     by_entity: Object.fromEntries(
       [...entities]
-        .map(([id, e]): [string, typeof e, number] => [id, e, e.count])
+        .map(([id, e]): [string, number, typeof e] => [id, e.count, e])
         .sort(byCountThenKey)
-        .map(([id, e]) => [id, [e.count, local(e.first), local(e.last)]]),
+        .map(([id, , e]) => [id, [e.count, local(e.first), local(e.last)]]),
     ),
     by_cause: [...causes]
-      .map(([key, c]): [string, typeof c, number] => [key, c, c.count])
+      .map(([key, c]): [string, number, typeof c] => [key, c.count, c])
       .sort(byCountThenKey)
-      .map(([, c]): [JsonObject, number] => [c.cause, c.count]),
+      .map(([, , c]): [JsonObject, number] => [c.cause, c.count]),
   };
 }
