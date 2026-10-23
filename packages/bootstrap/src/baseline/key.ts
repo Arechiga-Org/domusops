@@ -13,14 +13,8 @@ export interface KeyResolution {
 }
 
 export function resolveOrCreateKey(): KeyResolution {
-  const identity = resolveIdentity();
-  if (identity !== null) {
-    return {
-      publicKey: publicKeyOf(identity),
-      created: false,
-      path: identity.path ?? defaultKeyFilePath(),
-    };
-  }
+  const existing = lookupKey();
+  if (existing !== null) return existing;
   const path = defaultKeyFilePath();
   return { publicKey: keygen(path), created: true, path };
 }

@@ -1,11 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildReference } from "./fixtures/build-reference.mjs";
 import { makeTempDir, makeThrowawayAgeKey } from "./support/tmp.js";
 import { encryptWithRoundtrip } from "../src/baseline/secrets.js";
+import { writeRecord } from "../src/baseline/record.js";
 import { writeSopsConfig } from "../src/baseline/sops-config.js";
+import { sha256 } from "../src/baseline/templates.js";
 import { packageVersion } from "../src/cli-support.js";
 import { runInit } from "../src/commands/init.js";
 import { EXIT_OK } from "../src/exit-codes.js";
@@ -168,6 +170,80 @@ describe("init when .sops.yaml already lists recipients", () => {
       expect(
         summary.next_steps.filter((line) => line.includes("no age key")),
       ).toEqual([]);
+    }
+  });
+
+  describe("when the key cannot be read", () => {
+    function unreadableKey(): void {
+      const { dir, cleanup } = makeTempDir("domusops-bootstrap-badkey-");
+      cleanups.push(cleanup);
+      const keyFile = join(dir, "keys.txt");
+      writeFileSync(keyFile, "this is not an age identity\n");
+      process.env["SOPS_AGE_KEY_FILE"] = keyFile;
+    }
+
+    it("a preview says nothing about the key and still succeeds", () => {
+      const dir = clonedFor(makeThrowawayAgeKey());
+      unreadableKey();
+      const { code, summary } = run(dir, false);
+      expect(code).toBe(EXIT_OK);
+      expect(summary.key).toBeNull();
+      expect(
+        summary.next_steps.filter((line) => /age key|add-key/.test(line)),
+      ).toEqual([]);
+    });
+
+    it("--apply stops before it rewrites an outdated .sops.yaml, so the record still matches it", () => {
+      const colleague = makeThrowawayAgeKey();
+      const dir = clonedFor(colleague);
+      // A file an earlier release wrote, with the record that goes with it.
+      writeSopsConfig(dir, [colleague.publicKey], "0.0.1");
+      const old = readFileSync(join(dir, ".sops.yaml"), "utf8");
+      writeRecord(dir, {
+        format: "domusops.bootstrap/0.1",
+        release: "0.0.1",
+        elements: {
+          "sops-config": {
+            path: ".sops.yaml",
+            sha256: sha256(old),
+            release: "0.0.1",
+          },
+        },
+      });
+      unreadableKey();
+      expect(() => run(dir, true)).toThrow();
+      expect(readFileSync(join(dir, ".sops.yaml"), "utf8")).toBe(old);
+    });
+  });
+
+  it("does not send a contributor to add-key when .sops.yaml was edited by hand", () => {
+    const colleague = makeThrowawayAgeKey();
+    const mine = makeThrowawayAgeKey();
+    process.env["SOPS_AGE_KEY_FILE"] = mine.keyFile;
+    const dir = clonedFor(colleague);
+    const content = readFileSync(join(dir, ".sops.yaml"), "utf8");
+    writeRecord(dir, {
+      format: "domusops.bootstrap/0.1",
+      release: packageVersion(),
+      elements: {
+        "sops-config": {
+          path: ".sops.yaml",
+          sha256: sha256(content),
+          release: packageVersion(),
+        },
+      },
+    });
+    writeFileSync(join(dir, ".sops.yaml"), `# mine\n${content}`);
+
+    for (const apply of [false, true]) {
+      const { summary } = run(dir, apply);
+      const line = summary.next_steps.find((step) =>
+        step.startsWith("Your key cannot decrypt"),
+      );
+      expect(line).toContain(".sops.yaml was changed outside DomusOps");
+      expect(line).toContain(mine.publicKey);
+      expect(line).toContain("sops updatekeys secrets.sops.yaml");
+      expect(line).not.toContain("secrets add-key");
     }
   });
 });

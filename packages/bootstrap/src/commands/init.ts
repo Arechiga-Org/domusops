@@ -214,6 +214,8 @@ interface ComputedElement {
 interface Membership {
   localKey: string | null;
   isRecipient: boolean;
+  /** `.sops.yaml` was changed outside DomusOps, so `secrets add-key` would refuse it. */
+  edited: boolean;
 }
 
 /** The key of this machine as the summary reports it. */
@@ -232,19 +234,32 @@ function keyInfoOf(resolved: {
 
 /**
  * Who this machine is among the recipients that `.sops.yaml` already lists. With `apply` the key is
- * created when there is none; in a preview it is only looked up (FR-022).
+ * created when there is none, before anything is written, so a key that cannot be read stops the
+ * run with every file as it was. In a preview it is only looked up, and a lookup that fails
+ * (an unreadable identity, a failing `SOPS_AGE_KEY_CMD`) says nothing instead of failing a run
+ * that changes nothing (FR-022).
  */
 function membershipOf(
   recipients: readonly string[],
   apply: boolean,
-): { key: KeyInfo | null; membership: Membership } {
-  const resolved = apply ? resolveOrCreateKey() : lookupKey();
+): {
+  key: KeyInfo | null;
+  localKey: string | null;
+  isRecipient: boolean;
+} | null {
+  let resolved: ReturnType<typeof lookupKey>;
+  if (apply) resolved = resolveOrCreateKey();
+  else {
+    try {
+      resolved = lookupKey();
+    } catch {
+      return null;
+    }
+  }
   return {
     key: resolved === null ? null : keyInfoOf(resolved),
-    membership: {
-      localKey: resolved?.publicKey ?? null,
-      isRecipient: resolved !== null && recipients.includes(resolved.publicKey),
-    },
+    localKey: resolved?.publicKey ?? null,
+    isRecipient: resolved !== null && recipients.includes(resolved.publicKey),
   };
 }
 
@@ -353,7 +368,7 @@ function computeElement(
         const who =
           existingRecipients.length > 0
             ? membershipOf(existingRecipients, false)
-            : undefined;
+            : null;
         return {
           element: {
             id,
@@ -362,10 +377,19 @@ function computeElement(
             reason: result.reason,
           },
           key: who?.key ?? undefined,
-          membership: who?.membership,
+          membership:
+            who === null
+              ? undefined
+              : {
+                  localKey: who.localKey,
+                  isRecipient: who.isRecipient,
+                  edited: result.state === "edited",
+                },
         };
       }
       if (existingRecipients.length > 0) {
+        // The key first: if it cannot be had, nothing has been written yet.
+        const who = membershipOf(existingRecipients, true);
         const result = applySopsConfig(
           dir,
           existingRecipients,
@@ -382,7 +406,6 @@ function computeElement(
                 release: packageVersion(),
               }
             : undefined;
-        const who = membershipOf(existingRecipients, true);
         return {
           element: {
             id,
@@ -391,8 +414,15 @@ function computeElement(
             reason: result.reason,
           },
           entry,
-          key: who.key ?? undefined,
-          membership: who.membership,
+          key: who?.key ?? undefined,
+          membership:
+            who === null
+              ? undefined
+              : {
+                  localKey: who.localKey,
+                  isRecipient: who.isRecipient,
+                  edited: result.state === "edited",
+                },
         };
       }
       if (checkExposure(dir)) {
@@ -596,6 +626,12 @@ function membershipSteps(membership: Membership | undefined): string[] {
   if (membership.localKey === null) {
     return [
       "You have no age key yet; init --apply creates one so a recipient can add you.",
+    ];
+  }
+  if (membership.edited) {
+    // `secrets add-key` refuses a .sops.yaml that was changed outside DomusOps.
+    return [
+      `Your key cannot decrypt secrets.sops.yaml yet. .sops.yaml was changed outside DomusOps, so ask an existing recipient to add ${membership.localKey} to its \`age\` list by hand and run: sops updatekeys secrets.sops.yaml`,
     ];
   }
   return [
