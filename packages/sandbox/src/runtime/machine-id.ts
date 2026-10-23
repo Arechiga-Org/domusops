@@ -31,13 +31,25 @@ export function readMachineId(): string | null {
   }
 }
 
+/** Blocks the thread for `ms`; the file reads here are synchronous, so the wait has to be too. */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+const READ_ATTEMPTS = 20;
+const READ_PAUSE_MS = 10;
+
 /**
  * The identifier, created on first use. The file is created exclusively, so two first uses agree on
- * whichever won. A file that exists but holds something else is never overwritten (null), and an
- * unwritable location gives null as well: the caller then records no machine and the 0.1.0 rule
- * (the host name) applies.
+ * whichever won. The winner creates the file before it writes to it, so a loser that reads in
+ * between finds it empty: it reads again, a few times, before giving up. A file that exists but
+ * holds something else is never overwritten (null), and an unwritable location gives null as well:
+ * the caller then records no machine and the 0.1.0 rule (the host name) applies. `pause` is a seam
+ * for tests.
  */
-export function ensureMachineId(): string | null {
+export function ensureMachineId(
+  pause: (ms: number) => void = sleepSync,
+): string | null {
   const existing = readMachineId();
   if (existing !== null) return existing;
   const path = machineIdPath();
@@ -48,8 +60,11 @@ export function ensureMachineId(): string | null {
     return created;
   } catch (error) {
     // Another process created it first: that one wins. Anything else is no identifier.
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      return readMachineId();
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") return null;
+    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt += 1) {
+      const winner = readMachineId();
+      if (winner !== null) return winner;
+      pause(READ_PAUSE_MS);
     }
     return null;
   }

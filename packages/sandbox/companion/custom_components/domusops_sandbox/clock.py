@@ -249,13 +249,14 @@ class Clock:
             pass
 
     async def _advance(self, seconds: float) -> tuple[datetime, int]:
+        loop = self.hass.loop
+        # Checked before the freeze, so a loop without a timer queue leaves the clock as it was.
+        if not hasattr(loop, "_scheduled"):
+            raise _unavailable("the event loop's timer queue")
         if self._now is None:
             # Freezing at the real time leaves the pending timers correctly aimed.
             await self._freeze(dt_util.utcnow(), rearm=False)
         assert self._now is not None
-        loop = self.hass.loop
-        if not hasattr(loop, "_scheduled"):
-            raise _unavailable("the event loop's timer queue")
         target = self._now + timedelta(seconds=seconds)
         target_ts = target.timestamp()
         start_ts = self._now.timestamp()

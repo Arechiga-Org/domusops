@@ -217,13 +217,29 @@ describe("resuming from the state file", () => {
     expect(await VirtualDevices.resume(context)).toEqual({ kind: "none" });
   });
 
-  it("says the entry is gone when it is no longer loaded", async () => {
+  it.each(["not_loaded", "setup_in_progress", "setup_retry"])(
+    "resumes an entry that is %s, since adding devices reloads it",
+    async (state) => {
+      const { ha, context } = await setup();
+      await new VirtualDevices(context).initialise([]);
+      ha.entries = [{ entry_id: "entry-1", state }];
+      expect((await VirtualDevices.resume(context)).kind).toBe("resumed");
+    },
+  );
+
+  it("rejects with the cause when the instance cannot be asked, instead of reporting no devices", async () => {
+    const { runtime, context } = await setup();
+    const broken = Object.assign(Object.create(runtime) as typeof runtime, {
+      exec: () => Promise.reject(new Error("docker went away")),
+    });
+    await expect(
+      VirtualDevices.resume({ ...context, runtime: broken }),
+    ).rejects.toThrow("docker went away");
+  });
+
+  it("says the entry is gone when it no longer exists", async () => {
     const { ha, context } = await setup();
     await new VirtualDevices(context).initialise([]);
-    ha.entries = [{ entry_id: "entry-1", state: "not_loaded" }];
-    expect(await VirtualDevices.resume(context)).toEqual({
-      kind: "entry-gone",
-    });
     ha.entries = [];
     expect(await VirtualDevices.resume(context)).toEqual({
       kind: "entry-gone",

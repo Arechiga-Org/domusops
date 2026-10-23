@@ -20,7 +20,9 @@ interface Probe {
   message?: string;
 }
 
-const run = (): Record<string, Probe> & { freeze: unknown } => {
+type Results = Record<string, Probe> & { freeze: unknown; advance: unknown };
+
+const run = (): Results => {
   const result = spawnSync(
     "python3",
     [
@@ -30,9 +32,7 @@ const run = (): Record<string, Probe> & { freeze: unknown } => {
     { encoding: "utf8", env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" } },
   );
   if (result.status !== 0) throw new Error(result.stderr);
-  return JSON.parse(result.stdout) as Record<string, Probe> & {
-    freeze: unknown;
-  };
+  return JSON.parse(result.stdout) as Results;
 };
 
 describe.skipIf(!available)("the companion's time-control probe", () => {
@@ -70,5 +70,13 @@ describe.skipIf(!available)("the companion's time-control probe", () => {
       code: "time_unavailable",
       frozen: false,
     });
+  });
+
+  it("leaves the clock unfrozen when the event loop has no timer queue", () => {
+    expect(results?.["advance"]).toMatchObject({
+      code: "time_unavailable",
+      frozen: false,
+    });
+    expect(JSON.stringify(results?.["advance"])).toContain("timer queue");
   });
 });

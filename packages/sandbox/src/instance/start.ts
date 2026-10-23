@@ -142,7 +142,6 @@ export function validateOptions(options: StartOptions): ValidOptions {
   };
 }
 
-/** Anything that is not already a typed error is reported as a failed start, with its message. */
 /** Who owns a tied instance: this process, on this host, and on this machine when it has an identifier. */
 function ownerOfThisProcess(): NonNullable<SandboxLabels["owner"]> {
   const machine = ensureMachineId();
@@ -153,6 +152,7 @@ function ownerOfThisProcess(): NonNullable<SandboxLabels["owner"]> {
   };
 }
 
+/** Anything that is not already a typed error is reported as a failed start, with its message. */
 function asSandboxError(
   error: unknown,
   secrets: readonly string[] = [],

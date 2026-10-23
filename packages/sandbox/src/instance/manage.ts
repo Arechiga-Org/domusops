@@ -73,7 +73,10 @@ export async function attachSandboxWith(
     baseUrl: `http://127.0.0.1:${String(port)}`,
     token,
     sandboxId: id,
-  }).catch((): Resumed => ({ kind: "none" }));
+  }).catch((error: unknown): Resumed => ({
+    kind: "failed",
+    reason: error instanceof Error ? error.message : String(error),
+  }));
   return new SandboxHandle({
     id,
     containerId: found.containerId,
@@ -90,7 +93,12 @@ export async function attachSandboxWith(
     ...(resumed.kind === "entry-gone"
       ? {
           noDevicesReason:
-            "The virtual-device integration of this instance is no longer loaded, so devices cannot be added. Start a new instance with `devices`.",
+            "The virtual-device integration of this instance is gone, so devices cannot be added. Start a new instance with `devices`.",
+        }
+      : {}),
+    ...(resumed.kind === "failed"
+      ? {
+          noDevicesReason: `The devices of this instance could not be resumed (${resumed.reason}). Attach again to retry.`,
         }
       : {}),
   });

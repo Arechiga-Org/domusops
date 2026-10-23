@@ -78,4 +78,27 @@ describe("the machine identifier", () => {
     if (process.getuid?.() === 0) return;
     expect(ensureMachineId()).toBeNull();
   });
+
+  it("reads again when it loses the race and finds the winner's file still empty", () => {
+    const path = machineIdPath();
+    mkdirSync(join(state, "domusops"), { recursive: true });
+    writeFileSync(path, "");
+    const winner = "ab".repeat(16);
+    let pauses = 0;
+    const id = ensureMachineId(() => {
+      pauses += 1;
+      // The winner finishes writing during the first pause.
+      writeFileSync(path, `${winner}\n`);
+    });
+    expect(id).toBe(winner);
+    expect(pauses).toBe(1);
+  });
+
+  it("gives up on a file that never holds an identifier, without overwriting it", () => {
+    const path = machineIdPath();
+    mkdirSync(join(state, "domusops"), { recursive: true });
+    writeFileSync(path, "mine");
+    expect(ensureMachineId(() => undefined)).toBeNull();
+    expect(readFileSync(path, "utf8")).toBe("mine");
+  });
 });

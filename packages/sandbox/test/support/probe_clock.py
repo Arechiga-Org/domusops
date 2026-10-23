@@ -88,6 +88,19 @@ async def freeze_leaves_clock(path):
     return {"code": None, "frozen": instance.frozen}
 
 
+async def advance_leaves_clock(path):
+    """An event loop without a timer queue: advancing must refuse before it freezes anything."""
+    install()
+    sys.modules["homeassistant.util.dt"].utcnow = lambda: datetime(2031, 3, 4, tzinfo=timezone.utc)
+    clock = load(path)
+    instance = clock.Clock(types.SimpleNamespace(loop=object()))
+    try:
+        await instance.advance(10)
+    except clock.ClockError as error:
+        return {"code": error.code, "frozen": instance.frozen, "message": str(error)}
+    return {"code": None, "frozen": instance.frozen}
+
+
 path = sys.argv[1]
 print(
     json.dumps(
@@ -99,6 +112,7 @@ print(
             "dt": probe(path, missing=("dt", "now")),
             "script": probe(path, broken_import="script"),
             "freeze": asyncio.run(freeze_leaves_clock(path)),
+            "advance": asyncio.run(advance_leaves_clock(path)),
         }
     )
 )

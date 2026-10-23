@@ -108,7 +108,8 @@ export function parseDeviceState(text: string): DeviceState | null {
 export type Resumed =
   | { kind: "resumed"; virtual: VirtualDevices; devices: VirtualDevice[] }
   | { kind: "none" }
-  | { kind: "entry-gone" };
+  | { kind: "entry-gone" }
+  | { kind: "failed"; reason: string };
 
 interface StateRow {
   entity_id: string;
@@ -149,7 +150,9 @@ export class VirtualDevices {
   /**
    * Takes over the devices of a running instance from the state file its starting process left.
    * `none` when there is no valid file, which means the instance was started without `devices`;
-   * `entry-gone` when the file is valid but the integration's entry is no longer loaded.
+   * `entry-gone` when the file is valid but the integration's entry no longer exists. An entry in
+   * any other state (still setting up, being retried, not loaded) is resumed: adding devices
+   * reloads it anyway.
    */
   static async resume(context: DeviceContext): Promise<Resumed> {
     const read = await context.runtime.exec(context.containerId, [
@@ -160,13 +163,11 @@ export class VirtualDevices {
     if (state === null) return { kind: "none" };
     const entries = (await getJson(context.baseUrl, ENTRY, {
       token: context.token,
-    })) as { entry_id?: unknown; state?: unknown }[];
-    const loaded =
+    })) as { entry_id?: unknown }[];
+    const present =
       Array.isArray(entries) &&
-      entries.some(
-        (entry) => entry.entry_id === state.entryId && entry.state === "loaded",
-      );
-    if (!loaded) return { kind: "entry-gone" };
+      entries.some((entry) => entry.entry_id === state.entryId);
+    if (!present) return { kind: "entry-gone" };
     const virtual = new VirtualDevices(context);
     virtual.#specs = [...state.specs];
     virtual.#entryId = state.entryId;
