@@ -110,9 +110,13 @@ by user story. Code references are to `main` at `c0a7065`.
 - **No fallback** (clarification 2026-10-22): Nothing in any workflow reads `NPM_TOKEN` after
   this change. The secret is deleted and the granular token revoked after the first release that
   publishes through OIDC (quickstart §US2).
-- **Verification before merge**: The claim that `pnpm publish` delegates to the npm CLI is
-  checked in T020 with a verbose dry run, because OIDC itself can only be proven by a real
-  release. The fallback is publishing the `pnpm pack` tarballs with `npm publish`.
+- **Verification before merge**: OIDC itself can only be proven by a real release, but the claim
+  that `pnpm publish` delegates to the npm CLI was checked in T020 (2026-10-22). With pnpm 9.15.0 and
+  an `npm` stand-in that logs its arguments, `pnpm publish --dry-run` ran
+  `npm publish --ignore-scripts <package>.tgz …`: pnpm packs the tarball and the npm CLI uploads it,
+  so the npm CLI installed by the workflow is the one that proves the identity. The fallback, if the
+  first release is refused for a reason on the npm side, is publishing the `pnpm pack` tarballs with
+  `npm publish`.
 - **Partial failure**: `changeset publish` skips versions already on the registry, so re-running
   the job after a part-way failure publishes only the rest (spec edge case).
 - **Hardening after proof**: Once OIDC has published, each package's publishing access on

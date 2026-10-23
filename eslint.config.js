@@ -6,7 +6,11 @@ module.exports = [
     ignores: ["**/dist/**", "**/node_modules/**", ".specify/**", "specs/**"],
   },
   {
-    files: ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"],
+    files: [
+      "packages/*/src/**/*.ts",
+      "packages/*/test/**/*.ts",
+      "scripts/test/**/*.ts",
+    ],
     languageOptions: {
       parser: tsParser,
     },

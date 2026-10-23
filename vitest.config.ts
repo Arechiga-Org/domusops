@@ -15,7 +15,7 @@ export default defineConfig({
     // Tests that start a sandbox keep its per-user machine identifier here, not in the real home
     // directory of whoever runs them.
     env: { XDG_STATE_HOME: join(tmpdir(), "domusops-vitest-state") },
-    include: ["packages/*/test/**/*.test.ts"],
+    include: ["packages/*/test/**/*.test.ts", "scripts/test/**/*.test.ts"],
     // The bootstrap package's container-based validation test needs a real
     // container runtime and a network pull of a pinned Home Assistant image;
     // it runs only in the `bootstrap-validate` CI job (specs/004-ha-bootstrap).
