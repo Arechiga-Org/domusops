@@ -236,7 +236,7 @@ describe("the cache", () => {
     );
   });
 
-  it.skipIf(process.getuid?.() === 0)(
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     "still downloads and checks again when the bad entry cannot be deleted",
     async () => {
       const cacheDir = scratch();

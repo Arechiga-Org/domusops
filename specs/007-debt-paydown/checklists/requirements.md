@@ -74,8 +74,9 @@ Open or not verifiable from the repository:
   is a configuration-parsing input that is never connected to.
 
 Follow-up found by the post-merge review and fixed with this audit: deleting a cache entry that
-fails the digest check is now best effort in `readCached`, so a cache that cannot be written no
-longer surfaces a raw file-system error instead of `virtual_unavailable`.
+fails the digest check (`readCached`) and cleaning up a failed cache write (`writeCache`) are now
+best effort, so a cache that cannot be written no longer surfaces a raw file-system error instead
+of `virtual_unavailable`.
 
 Left as they are, by decision: `ha/trace.ts` still classifies `unknown_command`, `unauthorized`
 and `not_found` by message text; `packageVersion()` falls back to `0.0.0` without a message;

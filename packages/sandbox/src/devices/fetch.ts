@@ -159,7 +159,11 @@ function writeCache(directory: string, files: readonly VirtualFile[]): void {
     renameSync(temporary, directory);
   } catch {
     // A cache that cannot be written only costs the next run another download.
-    rmSync(temporary, { recursive: true, force: true });
+    try {
+      rmSync(temporary, { recursive: true, force: true });
+    } catch {
+      // Nor does a leftover that cannot be removed.
+    }
   }
 }
 
