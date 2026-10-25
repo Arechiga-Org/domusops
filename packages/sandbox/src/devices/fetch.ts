@@ -138,7 +138,11 @@ function readCached(directory: string, digest: string): VirtualFile[] | null {
   if (files !== null && contentDigest(files) === digest) {
     return files;
   }
-  rmSync(directory, { recursive: true, force: true });
+  try {
+    rmSync(directory, { recursive: true, force: true });
+  } catch {
+    // Best effort, like writing the cache: the files are downloaded and checked again either way.
+  }
   return null;
 }
 
