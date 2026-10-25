@@ -1,5 +1,16 @@
 # @domusops/sandbox
 
+## 0.1.1
+
+### Patch Changes
+
+- b520d21: Every package now ships its TypeScript sources next to `dist`, so the source maps and declaration maps in a package resolve from the package alone. `@domusops/schema` gains a README that says what the package is, how to install it, which formats it exports, and what stability it promises.
+- bc67b4f: A cache of the virtual-device integration that cannot be changed (read-only, locked) no longer stops a start with a raw file-system error. A cached copy that fails its check is downloaded and checked again, and the cache is left as it is.
+- ba6c2bf: The sandbox holds up across processes and releases. A handle from `attachSandbox` can now add virtual devices to an instance that was started with `devices`, and says why when it cannot. Tied instances record a random identifier of the machine that started them, so cleanup no longer mistakes a live owner for gone, or an orphan for alive, when the host name changes; instances started by 0.1.0 are handled as before. On a Home Assistant release that lacks what time control replaces, `time.freeze` and `time.advance` fail with the new `time_unavailable` error and the smoke check reports that release as failed, instead of failing with an obscure error. The virtual-device integration is now fetched by an exact commit and checked against a digest of its files before it is installed. The smoke check keeps the instance's token across steps, so a message written after the instance is stopped cannot leak it.
+- Updated dependencies [6b56db3]
+- Updated dependencies [b520d21]
+  - @domusops/mcp@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
