@@ -138,7 +138,11 @@ function readCached(directory: string, digest: string): VirtualFile[] | null {
   if (files !== null && contentDigest(files) === digest) {
     return files;
   }
-  rmSync(directory, { recursive: true, force: true });
+  try {
+    rmSync(directory, { recursive: true, force: true });
+  } catch {
+    // Best effort, like writing the cache: the files are downloaded and checked again either way.
+  }
   return null;
 }
 
@@ -155,7 +159,11 @@ function writeCache(directory: string, files: readonly VirtualFile[]): void {
     renameSync(temporary, directory);
   } catch {
     // A cache that cannot be written only costs the next run another download.
-    rmSync(temporary, { recursive: true, force: true });
+    try {
+      rmSync(temporary, { recursive: true, force: true });
+    } catch {
+      // Nor does a leftover that cannot be removed.
+    }
   }
 }
 

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -234,6 +235,28 @@ describe("the cache", () => {
       GENUINE["light.py"],
     );
   });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "still downloads and checks again when the bad entry cannot be deleted",
+    async () => {
+      const cacheDir = scratch();
+      await seeded(cacheDir, (entry) =>
+        writeFileSync(join(entry, "light.py"), "tampered"),
+      );
+      // A read-only cache directory: the entry cannot be removed, nor replaced.
+      chmodSync(cacheDir, 0o500);
+      try {
+        const files = await ensureVirtualIntegration({
+          cacheDir,
+          digest: GENUINE_DIGEST,
+          download: async () => archive(GENUINE),
+        });
+        expect(contentDigest(files)).toBe(GENUINE_DIGEST);
+      } finally {
+        chmodSync(cacheDir, 0o700);
+      }
+    },
+  );
 
   it("is deleted when a file was added to it, or one removed", async () => {
     for (const spoil of [

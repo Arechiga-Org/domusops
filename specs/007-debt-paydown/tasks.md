@@ -202,8 +202,8 @@ description: "Task list for the debt paydown after the 0.1.0 release"
 
 ## Phase 8: Polish
 
-- [ ] T073 After US1–US6 are merged, check each `FR-001..FR-033` and `SC-001..SC-013` against the merged pull requests and note any gap in `specs/007-debt-paydown/checklists/requirements.md` Notes
-- [ ] T074 Tell the maintainer the SEED §7 articles for backlog items 3, 4 and 5 remain outside this repository, and that the hass-virtual per-kind device-name question stays open in research R15
+- [X] T073 After US1–US6 are merged, check each `FR-001..FR-033` and `SC-001..SC-013` against the merged pull requests and note any gap in `specs/007-debt-paydown/checklists/requirements.md` Notes
+- [X] T074 Tell the maintainer the SEED §7 articles for backlog items 3, 4 and 5 remain outside this repository, and that the hass-virtual per-kind device-name question stays open in research R15
 
 ---
 
