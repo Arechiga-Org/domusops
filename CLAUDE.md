@@ -22,7 +22,7 @@ specs/ — Spec Kit feature specs
 
 ## Current focus
 
-`ha_snapshot`, `ha_logbook_query`, `ha_trace` and the `ha-bootstrap` skill are merged.
-Current feature: `@domusops/sandbox` part 1, the ephemeral harness
-(specs/005-sandbox-harness/), backlog item 3 of docs/SEED.md §6. The scenario and assertion
-DSL is a later feature. Nothing else lands until the harness works end to end.
+The four packages are published at 0.1.x: `ha_snapshot`, `ha_logbook_query` and `ha_trace`, the
+sandbox harness, and the `ha-bootstrap` skill with its CLI.
+Current feature: the debt paydown after the 0.1.0 release (specs/007-debt-paydown/), one pull
+request per user story. Next feature: the scenario and assertion DSL (006), not yet specified.
