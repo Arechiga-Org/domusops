@@ -149,6 +149,11 @@ by user story. Code references are to `main` at `c0a7065`.
   - changesets/action v2 pushes release commits and tags through the GitHub API by default; the
     default is kept.
   - changesets/action v2 no longer writes an `.npmrc` from `NPM_TOKEN`, which fits R5.
+  - changesets/action v2 only works with Changesets CLI v3 and stops with "designed to work with
+    Changesets CLI v3" on v2. The repository was on CLI 2.31, so the first `release` run after
+    US2 failed at that step. `@changesets/cli` moved to `^3.0.3` (the `latest` tag), which keeps
+    `changeset version` and `changeset publish` as they were. Found after the merge, because the
+    workflow only runs on `main`.
   - setup-node v6 and later limit automatic caching to npm; every job already sets
     `cache: pnpm` explicitly.
   - download-artifact v8 fails on a hash mismatch by default, which is the desired behaviour for
