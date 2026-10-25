@@ -9,16 +9,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildReference } from "./fixtures/build-reference.mjs";
 import { makeTempDir, withoutOnPath } from "./support/tmp.js";
+import * as support from "../src/cli-support.js";
 import { runInit } from "../src/commands/init.js";
 import { EXIT_OK, EXIT_PROBLEMS, EXIT_STOPPED } from "../src/exit-codes.js";
 import type { CliArgs } from "../src/cli-args.js";
 import { decrypt } from "../src/env/sops.js";
-
-const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 /**
  * Extended by every later story (T030, T038, T042); each addition is sequential in this file,
@@ -436,16 +434,12 @@ describe("init — User Story 4 (safe to run again)", () => {
   });
 
   it("quickstart scenario 4: an unedited generated file is upgraded across a release bump; an edited one is not", () => {
-    const packageJsonPath = join(PACKAGE_ROOT, "package.json");
-    const originalPackageJson = readFileSync(packageJsonPath, "utf8");
-    const withVersion = (version: string): string =>
-      originalPackageJson.replace(
-        /"version": "[^"]*"/,
-        `"version": "${version}"`,
-      );
+    // The release is stubbed, never written into the package's own package.json: test files run
+    // in parallel, and others read that file for the version (specs/007 US4).
+    const release = vi.spyOn(support, "packageVersion");
     const dir = fixture();
     try {
-      writeFileSync(packageJsonPath, withVersion("0.0.1-test"));
+      release.mockReturnValue("0.0.1-test");
       runInit(args(dir, { apply: true }));
       const hookAfterFirst = readFileSync(
         join(dir, ".githooks", "pre-commit"),
@@ -459,7 +453,7 @@ describe("init — User Story 4 (safe to run again)", () => {
         "# hand-edited by the user, not the template\n",
       );
 
-      writeFileSync(packageJsonPath, withVersion("0.0.2-test"));
+      release.mockReturnValue("0.0.2-test");
       const logs: string[] = [];
       const original = console.log;
       console.log = (msg: string) => logs.push(msg);
@@ -483,7 +477,7 @@ describe("init — User Story 4 (safe to run again)", () => {
         readFileSync(join(dir, ".github", "workflows", "domusops.yml"), "utf8"),
       ).toBe("# hand-edited by the user, not the template\n");
     } finally {
-      writeFileSync(packageJsonPath, originalPackageJson);
+      release.mockRestore();
     }
   });
 
