@@ -1,5 +1,14 @@
 # @domusops/mcp
 
+## 0.1.1
+
+### Patch Changes
+
+- 6b56db3: `ha_trace` now fails fast and never leaves a request hanging. After one stored trace fails to read, no further stored trace is read. Closing the connection ends every command still waiting with a "connection closed" error instead of leaving it unsettled. Reads that do not depend on each other run together, so a request waits for its longest chain of dependent reads instead of the sum of all of them. At `detail=standard`, a result that cannot fit the size limit is refused as soon as the runs read so far already exceed it, instead of after every stored trace has been read; the refusal then says "would be N bytes or more". A result that fits is unchanged.
+- b520d21: Every package now ships its TypeScript sources next to `dist`, so the source maps and declaration maps in a package resolve from the package alone. `@domusops/schema` gains a README that says what the package is, how to install it, which formats it exports, and what stability it promises.
+- Updated dependencies [b520d21]
+  - @domusops/schema@0.1.1
+
 ## 0.1.0
 
 ### Minor Changes
