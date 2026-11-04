@@ -114,8 +114,8 @@ trace query with and without an exclusion list, and compare the events or runs, 
    **Then** it is excluded.
 4. **Given** a standard result over the size limit, **When** the excluded entities bring it
    under the limit, **Then** it is returned instead of refused.
-5. **Given** any query without `exclude`, **When** it runs, **Then** the result is identical
-   to 0.1.1's for the same instance state.
+5. **Given** any query without `exclude`, **When** it runs, **Then** its document is identical
+   to 0.1.1's for the same instance state and no exclusion note is added.
 6. **Given** a trace query with `entities: ["automation.*"]` and an `exclude` pattern, **When**
    it runs, **Then** no run of an excluded automation appears, the counts and the size check
    leave them out, and the discarded-runs warning (US4) does not name them.
@@ -206,14 +206,18 @@ with an automation that stores fewer runs than its maximum and check there is no
   exact entity IDs and `*` patterns, with the same syntax, validation and limits as that tool's
   `entities`. In `ha_trace`, `exclude` is refused with `run` or `context`, as `entities` is.
 - **FR-008**: Nothing of an excluded entity MAY appear in the result at any detail level: no
-  logbook event, no trace run, and no mention in the discarded-runs warning. Every count, the
-  size check and the logbook's list of entities with no events MUST be computed after the
-  exclusion. Logbook events with no entity are never excluded.
+  logbook event, no trace run, no entity ID in any list of the document, and no mention in the
+  discarded-runs warning. Every count and the size check MUST be computed after the exclusion.
+  The logbook's list of selectors with no events keeps its 0.1.1 meaning (selectors that
+  matched no event before the exclusion), except that an exact ID that is itself excluded is
+  never listed; a selector whose events were all excluded is therefore not reported as having
+  none. Logbook events with no entity are never excluded.
 - **FR-009**: When `exclude` is given, the response MUST state the exclusion list that was
   applied, as a separate text block next to the document in the same response; the published
   formats do not change.
-- **FR-010**: Without `exclude`, every output MUST be identical to 0.1.1's for the same inputs
-  and instance state.
+- **FR-010**: For the same inputs and instance state, the document in every response MUST be
+  identical to 0.1.1's when `exclude` is absent. The only additions to a response are the notes
+  of FR-009 and FR-013; a response that carries neither is exactly 0.1.1's single block.
 
 **Trace warning (US4)**
 
@@ -235,10 +239,10 @@ with an automation that stores fewer runs than its maximum and check there is no
 
 - **FR-015**: No published format in `@domusops/schema` changes in this feature, and every
   compression floor stays where it is.
-- **FR-016**: The feature MUST carry one changeset for `@domusops/mcp` (patch) and none for any
-  other package.
-- **FR-017**: Tools that receive none of the new inputs MUST return the same output as 0.1.1;
-  existing output tests pass unchanged.
+- **FR-016**: The feature MUST carry only patch changesets for `@domusops/mcp`, one per pull
+  request, and none for any other package.
+- **FR-017**: `ha_snapshot` MUST NOT change, and every existing output test of the three tools
+  MUST pass with unchanged expectations.
 - **FR-018**: Tests MUST use simulated instances or the sandbox, never a real instance, and no
   specification, fixture or test may contain data taken from a real home.
 

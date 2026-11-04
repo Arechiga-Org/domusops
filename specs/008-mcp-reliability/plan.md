@@ -40,7 +40,7 @@ changes. The tool contracts move to this feature's `contracts/` (R6).
   answer `automation/config` and `script/config` and to hold runs and not-triggered records per
   item.
 - New test files: `server-version`, `readme`, `logbook-exclude`, `trace-exclude`,
-  `trace-discarded` (quickstart).
+  `response-notes`, `trace-discarded` (quickstart).
 - `packages/sandbox/test/mcp.container.test.ts` gains the discarded-runs and exclusion checks
   against real releases (§8).
 
@@ -58,7 +58,7 @@ the documented one.
 **Constraints**:
 
 - Every output for inputs without `exclude`, and without a window that triggers the warning, is
-  byte-identical to 0.1.1 (FR-017); compression floors unchanged (§4).
+  byte-identical to 0.1.1 (FR-010, FR-017); compression floors unchanged (§4).
 - No published format changes (§5); notes bounded (R5).
 - The token never appears in a note, the README, or a committed example.
 
@@ -124,6 +124,7 @@ packages/mcp/
     ├── readme.test.ts            # US2
     ├── logbook-exclude.test.ts   # US3
     ├── trace-exclude.test.ts     # US3
+    ├── response-notes.test.ts    # US3: notes after the document
     ├── trace-discarded.test.ts   # US4
     ├── logbook-contract.test.ts  # points at 008 contracts
     └── trace-tool.test.ts        # points at 008 contracts

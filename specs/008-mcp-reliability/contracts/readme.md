@@ -34,8 +34,8 @@ and the notes added to the logbook and trace sections.
 - One table: tool, detail level, decoder in `@domusops/schema` (`expand` for snapshots,
   `expandLogbook` and `expandTrace` for `standard` documents; `summary` documents are read as
   they are).
-- One TypeScript example, marked as the tested example, that decodes a document; a test runs it
-  as written against fixture documents.
+- One JavaScript example (an ES module), marked as the tested example, that decodes a document;
+  a test runs it as written against fixture documents.
 - A sentence on notes: text blocks after the document are notes, not part of it.
 
 ## Invented names only

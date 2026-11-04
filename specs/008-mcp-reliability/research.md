@@ -120,8 +120,9 @@ Facts about Home Assistant were read from the source of the 2026.10.0 (stable) a
 
 - **Decision**: a test reads `packages/mcp/README.md` and checks that every
   `@domusops/mcp@~X.Y` matches the major and minor of `package.json`, and that the decoding
-  example (a fenced TypeScript block marked as the tested example) decodes a fixture document
-  from each tool with the decoder it names. The example is extracted and run as written.
+  example (a fenced JavaScript block marked as the tested example) decodes a fixture document
+  from each tool with the decoder it names. The example is extracted and run as written, as an
+  ES module, so it needs no compile step.
 - **Rationale**: FR-005 and FR-006 without a hand step per release; the README ships in the
   package, so a stale one is a published defect.
 - **Rejected**: pinning an exact version in the README (wrong after every patch).

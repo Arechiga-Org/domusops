@@ -11,7 +11,7 @@ No published format changes (spec FR-015). The entities below exist only inside
 | Match      | Anchored, case-sensitive; `*` matches any sequence, including an empty one (`matches`)                                                                     |
 | Applies to | Logbook rows with an `entity_id`; trace runs by their item's entity ID                                                                                     |
 | Order      | After `entities`; an entity matched by both is excluded                                                                                                    |
-| Absent     | Behaviour and output identical to 0.1.1                                                                                                                    |
+| Absent     | No filtering and no exclusion note; the document is identical to 0.1.1                                                                                     |
 
 Selection with exclusion, for one entity ID `e`:
 
