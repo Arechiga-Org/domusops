@@ -24,5 +24,6 @@ specs/ — Spec Kit feature specs
 
 The four packages are published at 0.1.x: `ha_snapshot`, `ha_logbook_query` and `ha_trace`, the
 sandbox harness, and the `ha-bootstrap` skill with its CLI.
-Current feature: the debt paydown after the 0.1.0 release (specs/007-debt-paydown/), one pull
-request per user story. Next feature: the scenario and assertion DSL (006), not yet specified.
+Current feature: the mcp reliability release, `@domusops/mcp` 0.1.2
+(specs/008-mcp-reliability/), one pull request per user story. Next feature: the scenario and
+assertion DSL (006), not yet specified.
