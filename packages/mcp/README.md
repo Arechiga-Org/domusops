@@ -225,6 +225,7 @@ administrator-token requirement as `ha_snapshot`, so one configuration serves bo
 | `start`    | Window start, ISO 8601 (`2026-09-26T03:00`, or with `Z` or an offset). Default: 24 hours before `end`                                |
 | `end`      | Window end, ISO 8601. Default: now. A later time is clamped to now                                                                   |
 | `entities` | Up to 100 entity IDs or patterns of at most 128 characters, where `*` matches anything (`light.*`, `*_motion`). Default: every event |
+| `exclude`  | Entity IDs or patterns to leave out, in the same form as `entities` (`*_firmware`, `button.*`). Applied after `entities`             |
 | `detail`   | `summary` (counts per entity, domain, and cause) or `standard` (every event, compressed, the default)                                |
 
 A time without an offset is read in the instance's time zone, and every time in the result is in
@@ -232,12 +233,18 @@ that zone. Without `entities`, the result also includes events that belong to no
 Home Assistant starting or stopping. A selector that matched nothing is listed in `no_events`, so
 "no activity" is never confused with "not queried".
 
+`exclude` leaves the events of matching entities out of the result, its counts, its size, and its
+`compression_ratio`; events that belong to no entity are never excluded. An entity matched by both
+lists is excluded, and a selector whose events were all excluded is not listed in `no_events`. When
+`exclude` is given, a note after the document lists what was excluded.
+
 ### Size limit
 
 A `standard` result larger than 100,000 bytes is refused with an error that states the event count
 and how to narrow the query (`summary`, a shorter window, or fewer entities). It is never
-truncated. Set `DOMUSOPS_LOGBOOK_MAX_BYTES` in the server configuration to change the limit; it
-cannot be changed from a tool call. `summary` is not subject to it.
+truncated. `exclude` can bring a result under the limit by leaving noisy entities out. Set
+`DOMUSOPS_LOGBOOK_MAX_BYTES` in the server configuration to change the limit; it cannot be changed
+from a tool call. `summary` is not subject to it.
 
 ### What the logbook does not contain
 
@@ -279,14 +286,17 @@ administrators).
 | Property   | Meaning                                                                                                                                                     |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `entities` | Up to 100 automation or script entity IDs, or patterns where `*` matches anything (`automation.*`, `script.*_lights`). Default: every automation and script |
+| `exclude`  | Automation or script entity IDs or patterns to leave out, in the same form as `entities`. Applied after `entities`                                          |
 | `start`    | Keep runs that started at or after this time, ISO 8601. Default when only `end` is given: 24 hours before it                                                |
 | `end`      | Keep runs that started at or before this time, ISO 8601. Default when only `start` is given: now                                                            |
 | `run`      | A run ID from an earlier response. Returns that run only                                                                                                    |
 | `context`  | A context ID from a `ha_trace` or `ha_logbook_query` response (the cause of an event). Returns every run in that context, in one call                       |
 | `detail`   | `summary` (one row per run) or `standard` (every step, variable, and result, plus the configuration the run executed; the default)                          |
 
-Without `start` and `end`, every stored run is returned. `run` and `context` each exclude every other
-selection parameter; `detail` combines with anything. A time without an offset is read in the
+Without `start` and `end`, every stored run is returned. `exclude` leaves the runs of matching
+automations and scripts out of the result, its counts, and its size, and they are not listed in
+`no_runs`; when it is given, a note after the document lists what was excluded. `run` and
+`context` each exclude every other selection parameter, `exclude` included; `detail` combines with anything. A time without an offset is read in the
 instance's time zone, and every time in the result is in that zone. A selector that matched
 nothing, an automation or script with no stored runs, one whose runs all started outside the window,
 and an automation that cannot be traced are listed apart in `no_runs`, so "it did not run" is never

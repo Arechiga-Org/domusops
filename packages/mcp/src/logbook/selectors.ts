@@ -11,34 +11,58 @@ export type Strategy = "all" | "exact" | "filtered";
 
 /**
  * Validates and deduplicates the requested selectors, keeping the request order. Returns
- * `undefined` when none were given.
+ * `undefined` when none were given. `what` names the list in errors: `entities` holds entity
+ * selectors, `exclude` exclusion selectors, with the same rules.
  */
 export function parseSelectors(
   list: readonly string[] | undefined,
+  what: "entity selector" | "exclusion selector" = "entity selector",
 ): string[] | undefined {
   if (list === undefined) return undefined;
   if (list.length === 0) {
-    throw errors.selectorInvalid(
-      "(empty list)",
-      "The entity selector list is empty",
-    );
+    throw errors.selectorInvalid("(empty list)", `The ${what} list is empty`);
   }
   if (list.length > MAX_SELECTORS) {
     throw errors.selectorInvalid(
       "(too many)",
-      `There are ${list.length} entity selectors, and the limit is ${MAX_SELECTORS}`,
+      `There are ${list.length} ${what}s, and the limit is ${MAX_SELECTORS}`,
     );
   }
   for (const selector of list) {
     if (selector.length > MAX_SELECTOR_LENGTH) {
       throw errors.selectorInvalid(
         selector,
-        `An entity selector is ${selector.length} characters long, and the limit is ${MAX_SELECTOR_LENGTH}`,
+        `An ${what} is ${selector.length} characters long, and the limit is ${MAX_SELECTOR_LENGTH}`,
       );
     }
-    if (!VALID.test(selector)) throw errors.selectorInvalid(selector);
+    if (!VALID.test(selector)) {
+      throw errors.selectorInvalid(
+        selector,
+        `The ${what} "${selector}" is not valid`,
+      );
+    }
   }
   return [...new Set(list)];
+}
+
+/**
+ * Whether an entity ID is matched by the exclusion list (specs/008-mcp-reliability research R3).
+ * Without a list nothing is excluded. A busy entity is asked about many times; each verdict is
+ * worked out once.
+ */
+export function exclusion(
+  exclude: readonly string[] | undefined,
+): (entityId: string) => boolean {
+  if (exclude === undefined) return () => false;
+  const verdicts = new Map<string, boolean>();
+  return (entityId) => {
+    let verdict = verdicts.get(entityId);
+    if (verdict === undefined) {
+      verdict = exclude.some((selector) => matches(selector, entityId));
+      verdicts.set(entityId, verdict);
+    }
+    return verdict;
+  };
 }
 
 /**

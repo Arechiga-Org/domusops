@@ -385,6 +385,7 @@ describe("too_large (spec FR-020)", () => {
       "detail",
       "end",
       "entities",
+      "exclude",
       "run",
       "start",
     ]);
