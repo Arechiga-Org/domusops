@@ -6,7 +6,12 @@ import {
 } from "@domusops/schema";
 import { errors } from "../errors.js";
 import { refOf, type ContextEntry, type TraceRef } from "../ha/trace.js";
-import { matches, parseSelectors } from "../logbook/selectors.js";
+import {
+  exclusion,
+  matcher,
+  matches,
+  parseSelectors,
+} from "../logbook/selectors.js";
 import {
   parseWindowInput,
   type ParsedWindow,
@@ -25,6 +30,8 @@ const DOMAINS: readonly TraceDomain[] = ["automation", "script"];
 /** What the caller asked for, validated (research R14). */
 export interface TraceRequest {
   selectors?: string[];
+  /** Entity IDs and patterns left out after `selectors` (specs/008-mcp-reliability US3). */
+  exclude?: string[];
   run?: string;
   context?: string;
   /** Present only when `start` or `end` was given. */
@@ -37,6 +44,7 @@ export interface TraceRequest {
  */
 export function parseRequest(input: {
   entities?: string[] | undefined;
+  exclude?: string[] | undefined;
   start?: string | undefined;
   end?: string | undefined;
   run?: string | undefined;
@@ -45,6 +53,7 @@ export function parseRequest(input: {
   const given = (
     [
       ["entities", input.entities],
+      ["exclude", input.exclude],
       ["start", input.start],
       ["end", input.end],
       ["run", input.run],
@@ -69,6 +78,8 @@ export function parseRequest(input: {
   }
   const selectors = parseSelectors(input.entities);
   if (selectors !== undefined) request.selectors = selectors;
+  const exclude = parseSelectors(input.exclude, "exclusion selector");
+  if (exclude !== undefined) request.exclude = exclude;
   if (input.start !== undefined || input.end !== undefined) {
     request.window = parseWindowInput({
       ...(input.start === undefined ? {} : { start: input.start }),
@@ -91,11 +102,36 @@ function selectorDomains(selector: string): TraceDomain[] {
   return star === -1 ? [] : DOMAINS.filter((d) => d.startsWith(prefix));
 }
 
-/** The domains whose traces a request can select, so `trace/list` is sent for those only. */
+/** Whether a pattern matches every entity ID of a domain, such as `script.*`, `scr*`, or `*`. */
+function coversDomain(selector: string, domain: TraceDomain): boolean {
+  const star = selector.indexOf("*");
+  return (
+    star !== -1 &&
+    /^\**$/.test(selector.slice(star)) &&
+    `${domain}.`.startsWith(selector.slice(0, star))
+  );
+}
+
+/**
+ * The domains whose traces a request can select, so `trace/list` is sent for those only. An exact
+ * ID that is excluded asks for nothing, and a domain that `exclude` covers whole is not listed
+ * (specs/008-mcp-reliability research R3).
+ */
 export function domainsFor(request: TraceRequest): TraceDomain[] {
-  if (request.selectors === undefined) return [...DOMAINS];
-  const wanted = new Set(request.selectors.flatMap(selectorDomains));
-  return DOMAINS.filter((d) => wanted.has(d));
+  const excluded = exclusion(request.exclude);
+  const wanted =
+    request.selectors === undefined
+      ? new Set(DOMAINS)
+      : new Set(
+          request.selectors
+            .filter((s) => s.includes("*") || !excluded(s))
+            .flatMap(selectorDomains),
+        );
+  return DOMAINS.filter(
+    (d) =>
+      wanted.has(d) &&
+      !(request.exclude ?? []).some((selector) => coversDomain(selector, d)),
+  );
 }
 
 /** Selectors and items that produced no runs, with the reason (spec FR-004). */
@@ -176,30 +212,38 @@ export async function selectTraces(input: SelectInput): Promise<Selection> {
     (startMicros(record) >= window.startMs * 1000 &&
       startMicros(record) <= window.endMs * 1000);
 
+  const keyOf = (record: TraceShortRecord): string =>
+    items.keyOf(record.domain, record.item_id);
+  // Excluded items are dropped after the selectors apply, and appear in no list of what produced
+  // no runs (research R3).
+  const excluded = exclusion(request.exclude);
   const selectors = request.selectors;
   if (selectors === undefined) {
     return {
-      shorts: short.filter(inWindow),
+      shorts: short.filter(
+        (record) => inWindow(record) && !excluded(keyOf(record)),
+      ),
       extended,
       noRuns: null,
     };
   }
 
   const known = [...items.registered, ...items.untraceable];
-  const keyOf = (record: TraceShortRecord): string =>
-    items.keyOf(record.domain, record.item_id);
-  const chosen = short.filter(
-    (record) =>
-      selectors.some((selector) => matches(selector, keyOf(record))) &&
-      inWindow(record),
-  );
+  const selected = matcher(selectors);
+  const chosen = short.filter((record) => {
+    const key = keyOf(record);
+    return selected(key) && !excluded(key) && inWindow(record);
+  });
 
   const matched = new Set<string>();
   const noMatch: string[] = [];
   for (const selector of selectors) {
     const hits = known.filter((id) => matches(selector, id));
-    if (hits.length === 0) noMatch.push(selector);
-    for (const id of hits) matched.add(id);
+    // A selector that matched nothing keeps its meaning, unless it is an exact ID that is itself
+    // excluded.
+    if (hits.length === 0 && (selector.includes("*") || !excluded(selector)))
+      noMatch.push(selector);
+    for (const id of hits) if (!excluded(id)) matched.add(id);
   }
   const selectedKeys = new Set(chosen.map(keyOf));
   const storedKeys = new Set(short.map(keyOf));

@@ -643,7 +643,7 @@ describe("the advertised definition matches the contract (drift guard)", () => {
     const contract = JSON.parse(
       readFileSync(
         new URL(
-          "../../../specs/003-ha-trace/contracts/ha_trace.tool.json",
+          "../../../specs/008-mcp-reliability/contracts/ha_trace.tool.json",
           import.meta.url,
         ),
         "utf8",

@@ -29,11 +29,14 @@ import { encodeSummary } from "../trace/encode-summary.js";
 import { sizeFloor } from "../trace/size.js";
 import { resolveItems } from "../trace/items.js";
 import { domainsFor, parseRequest, selectTraces } from "../trace/select.js";
+import { exclusionNote, type Response } from "../notes.js";
 
 export interface TraceOptions {
   /** Defaults to `standard`. */
   detail?: TraceDetailLevel;
   entities?: string[];
+  /** Entity IDs and patterns left out after `entities` (specs/008-mcp-reliability US3). */
+  exclude?: string[];
   start?: string;
   end?: string;
   run?: string;
@@ -54,19 +57,29 @@ async function together<A, B>(a: Promise<A>, b: Promise<B>): Promise<[A, B]> {
   return [await a, await b];
 }
 
-/**
- * The whole `ha_trace` pipeline: configuration, connection, all-or-nothing retrieval, selection,
- * redaction, and encoding. Resolves with the minified document, or throws a `ToolError`.
- */
+/** The minified document of a `ha_trace` call, without its notes. Throws a `ToolError`. */
 export async function runTrace(
   env: Readonly<Record<string, string | undefined>>,
   options: TraceOptions = {},
 ): Promise<string> {
+  return (await queryTrace(env, options)).document;
+}
+
+/**
+ * The whole `ha_trace` pipeline: configuration, connection, all-or-nothing retrieval, selection,
+ * exclusion, redaction, and encoding. Resolves with the minified document and the notes that
+ * follow it, or throws a `ToolError`.
+ */
+export async function queryTrace(
+  env: Readonly<Record<string, string | undefined>>,
+  options: TraceOptions = {},
+): Promise<Response> {
   const config = readConfig(env);
   // Everything that can be checked without the instance is checked before connecting.
   const now = options.now ?? Date.now();
   const request = parseRequest({
     entities: options.entities,
+    exclude: options.exclude,
     start: options.start,
     end: options.end,
     run: options.run,
@@ -233,7 +246,9 @@ export async function runTrace(
     if (bytes > limit) {
       throw errors.tooLargeRuns(selection.shorts.length, bytes, limit, detail);
     }
-    return text;
+    const notes =
+      request.exclude === undefined ? [] : [exclusionNote(request.exclude)];
+    return { document: text, notes };
   } finally {
     client.close();
   }

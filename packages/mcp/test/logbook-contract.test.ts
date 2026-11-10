@@ -19,7 +19,7 @@ interface ToolDefinition {
 const contract = JSON.parse(
   readFileSync(
     new URL(
-      "../../../specs/002-ha-logbook-query/contracts/ha_logbook_query.tool.json",
+      "../../../specs/008-mcp-reliability/contracts/ha_logbook_query.tool.json",
       import.meta.url,
     ),
     "utf8",
