@@ -1,13 +1,18 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
+
 interface Reply {
   id?: number;
   result?: {
+    serverInfo?: { name: string; version: string };
     tools?: { name: string; annotations?: Record<string, unknown> }[];
   };
 }
@@ -86,5 +91,14 @@ describe("the built server over stdio", () => {
       });
     }
     expect(stderr).not.toMatch(/token/i);
+
+    // The handshake reports the installed package's version (spec FR-001, SC-001).
+    const handshake = lines
+      .map((l) => JSON.parse(l) as Reply)
+      .find((r) => r.id === 1);
+    expect(handshake?.result?.serverInfo).toEqual({
+      name: "domusops-mcp",
+      version: pkg.version,
+    });
   });
 });
