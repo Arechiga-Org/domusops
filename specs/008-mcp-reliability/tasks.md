@@ -24,7 +24,7 @@ description: "Task list for the mcp reliability release (0.1.2)"
 
 ## Phase 1: Setup
 
-- [ ] T001 After the maintainer merges pull request #28 (spec, plan and tasks), run `pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test` on a clean `main` and record that the baseline is green before any story starts (constitution §2)
+- [X] T001 After the maintainer merges pull request #28 (spec, plan and tasks), run `pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test` on a clean `main` and record that the baseline is green before any story starts (constitution §2)
 
 **Checkpoint**: Spec, plan and tasks are on `main`. There is no foundational phase: US3 creates the shared pieces (multi-block results, `notes.ts`, the 008 contracts) that US4 reuses.
 
@@ -40,14 +40,14 @@ description: "Task list for the mcp reliability release (0.1.2)"
 
 ### Tests for User Story 1 (write first, see them fail)
 
-- [ ] T002 [US1] Create `packages/mcp/test/server-version.test.ts`: (a) connect an in-memory client to `createServer({ env: {} })` and assert `client.getServerVersion()` is `{ name: "domusops-mcp", version: <version in packages/mcp/package.json> }`; (b) spawn the built `packages/mcp/dist/cli.js` over stdio, send `initialize`, and assert the same `serverInfo` (skip with a clear message when `dist/cli.js` is missing, as `mcp.container.test.ts` does). Both fail today with `0.0.0` (SC-001)
+- [X] T002 [US1] Create `packages/mcp/test/server-version.test.ts`: (a) connect an in-memory client to `createServer({ env: {} })` and assert `client.getServerVersion()` is `{ name: "domusops-mcp", version: <version in packages/mcp/package.json> }`; (b) in `packages/mcp/test/cli.test.ts`, which already spawns the built `dist/cli.js` over stdio and sends `initialize`, assert the same `serverInfo` (failing with the same message as its other test when `dist/cli.js` is missing). Both fail today with `0.0.0` (SC-001)
 
 ### Implementation for User Story 1
 
-- [ ] T003 [US1] In `packages/mcp/src/server.ts`, replace `version: "0.0.0"` with the version read once from `new URL("../package.json", import.meta.url)` (valid from both `src/` and `dist/`). A missing file or a missing `version` throws with a message that names the file; there is no fallback value (R1, FR-002)
-- [ ] T004 [US1] Run `pnpm exec vitest run scripts/test/package-contents.test.ts` and confirm `package.json` is in the packed `@domusops/mcp`, so the published server can read it
-- [ ] T005 [US1] Add `.changeset/mcp-real-version.md` (`@domusops/mcp` patch): the server reports its real version instead of `0.0.0`
-- [ ] T006 [US1] Run the gate; confirm no existing test changed. Then follow the per-story closing steps in the header
+- [X] T003 [US1] In `packages/mcp/src/server.ts`, replace `version: "0.0.0"` with the version read once from `new URL("../package.json", import.meta.url)` (valid from both `src/` and `dist/`). A missing file or a missing `version` throws with a message that names the file; there is no fallback value (R1, FR-002)
+- [X] T004 [US1] Run `pnpm exec vitest run scripts/test/package-contents.test.ts` and confirm `package.json` is in the packed `@domusops/mcp`, so the published server can read it
+- [X] T005 [US1] Add `.changeset/mcp-real-version.md` (`@domusops/mcp` patch): the server reports its real version instead of `0.0.0`
+- [X] T006 [US1] Run the gate; confirm no existing test changed. Then follow the per-story closing steps in the header
 
 **Checkpoint**: US1 is mergeable on its own.
 
