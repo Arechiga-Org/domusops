@@ -107,10 +107,24 @@ Facts about Home Assistant were read from the source of the 2026.10.0 (stable) a
   repository and a project-scoped server in `.mcp.json` whose command runs the local binary;
   `node_modules/` goes in `.gitignore`. Alternatives: `npm install --global` with
   `"command": "domusops-mcp"`, and `npx --yes @domusops/mcp@~0.1`.
-- **To verify while writing the README** (quickstart scenario 2): which of
-  `"command": "./node_modules/.bin/domusops-mcp"` and `"command": "npx", "args": ["--no",
-"domusops-mcp"]` starts reliably from a Claude Code session opened in the repository, and that
-  neither contacts the registry (network off). The README documents the one that passes.
+- **Verified** (2026-11-09, `@domusops/mcp` 0.1.1 installed as a development dependency in an
+  empty repository, both forms started with the registry unreachable and answering
+  `initialize`):
+  - `"command": "npx", "args": ["--no", "domusops-mcp"]` starts from the repository root and from
+    any subdirectory, because npx looks for the binary up the directory tree. **The README
+    documents this form.**
+  - `"command": "./node_modules/.bin/domusops-mcp"` starts from the root only; from a
+    subdirectory the spawn fails with `ENOENT`. Rejected.
+  - Neither form contacts the registry when the package is installed. When it is not, `npx --no`
+    asks the registry before giving up, so without network access it waits instead of failing;
+    the README's troubleshooting list says to run `npm install`.
+  - Confirmed in Claude Code (T008, a configuration repository with 0.1.1 installed this way): the
+    project-scoped server connects and lists the three tools; `${DOMUSOPS_HA_URL}` and
+    `${DOMUSOPS_HA_TOKEN}` are expanded from the environment Claude Code started in (a
+    `ha_snapshot` call succeeded with no secret in any file); started from that repository with
+    the registry unreachable, the server answered `initialize` in about 0.6 s. A Claude Code
+    session cannot run with the network off (it needs the model API), so "no registry request"
+    (SC-003) is proven by that unreachable-registry start, not by an offline session.
 - **Token**: `.mcp.json` names `${DOMUSOPS_HA_URL}` and `${DOMUSOPS_HA_TOKEN}`, which Claude Code
   expands from the environment, so the committed file carries no secret.
 - **Troubleshooting list**: waiting for approval (`/mcp`), command not found (dependencies not

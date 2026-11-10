@@ -35,8 +35,9 @@ By hand, once per release, with a sandbox instance as the target:
 1. In an empty Git repository, follow README §1 (recommended form) and §2.
 2. Open Claude Code in it, approve the server, run `/mcp`: `domusops` is connected and lists
    three tools.
-3. Turn the network off and start a new session: the server still connects (no registry
-   request). Record which command form of research R7 passed.
+3. From the repository, start the server with the registry unreachable
+   (`npm_config_registry=http://127.0.0.1:9/`) and send `initialize`: it answers (no registry
+   request, SC-003). A Claude Code session cannot run offline, since it needs the model API.
 4. Check `git status`: `.mcp.json`, `package.json` and the lockfile are tracked; `node_modules/`
    is ignored; no file contains the token.
 
