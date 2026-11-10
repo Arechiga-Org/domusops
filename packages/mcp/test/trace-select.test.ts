@@ -201,6 +201,26 @@ describe("domainsFor", () => {
     expect(domainsFor({ selectors: ["auto*"] })).toEqual(["automation"]);
     expect(domainsFor({ selectors: ["light.*"] })).toEqual([]);
   });
+
+  it("does not list a domain that exclude covers whole, nor one only an excluded ID asked for", () => {
+    expect(domainsFor({ exclude: ["script.*"] })).toEqual(["automation"]);
+    expect(domainsFor({ exclude: ["scr*"] })).toEqual(["automation"]);
+    expect(domainsFor({ exclude: ["*"] })).toEqual([]);
+    expect(
+      domainsFor({
+        selectors: ["automation.a", "script.b"],
+        exclude: ["script.b"],
+      }),
+    ).toEqual(["automation"]);
+    // A pattern that leaves part of a domain keeps it listed.
+    expect(domainsFor({ exclude: ["script.*_lights"] })).toEqual([
+      "automation",
+      "script",
+    ]);
+    expect(
+      domainsFor({ selectors: ["script.*"], exclude: ["script.b"] }),
+    ).toEqual(["script"]);
+  });
 });
 
 describe("selectTraces: selectors", () => {

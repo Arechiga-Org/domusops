@@ -46,23 +46,31 @@ export function parseSelectors(
 }
 
 /**
- * Whether an entity ID is matched by the exclusion list (specs/008-mcp-reliability research R3).
- * Without a list nothing is excluded. A busy entity is asked about many times; each verdict is
- * worked out once.
+ * Whether an entity ID is matched by any of the selectors. A busy entity is asked about many
+ * times; each verdict is worked out once.
  */
-export function exclusion(
-  exclude: readonly string[] | undefined,
+export function matcher(
+  selectors: readonly string[],
 ): (entityId: string) => boolean {
-  if (exclude === undefined) return () => false;
   const verdicts = new Map<string, boolean>();
   return (entityId) => {
     let verdict = verdicts.get(entityId);
     if (verdict === undefined) {
-      verdict = exclude.some((selector) => matches(selector, entityId));
+      verdict = selectors.some((selector) => matches(selector, entityId));
       verdicts.set(entityId, verdict);
     }
     return verdict;
   };
+}
+
+/**
+ * Whether an entity ID is matched by the exclusion list (specs/008-mcp-reliability research R3).
+ * Without a list nothing is excluded.
+ */
+export function exclusion(
+  exclude: readonly string[] | undefined,
+): (entityId: string) => boolean {
+  return exclude === undefined ? () => false : matcher(exclude);
 }
 
 /**
@@ -111,16 +119,7 @@ export function selectRows(
   selectors: readonly string[] | undefined,
 ): LogbookRow[] {
   if (selectors === undefined) return [...rows];
-  // A busy entity has many rows; the verdict is the same for each, so it is worked out once.
-  const verdicts = new Map<string, boolean>();
-  const selected = (entityId: string): boolean => {
-    let verdict = verdicts.get(entityId);
-    if (verdict === undefined) {
-      verdict = selectors.some((selector) => matches(selector, entityId));
-      verdicts.set(entityId, verdict);
-    }
-    return verdict;
-  };
+  const selected = matcher(selectors);
   return rows.filter(
     (row) => typeof row.entity_id === "string" && selected(row.entity_id),
   );

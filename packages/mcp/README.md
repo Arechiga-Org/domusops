@@ -235,14 +235,15 @@ Home Assistant starting or stopping. A selector that matched nothing is listed i
 
 `exclude` leaves the events of matching entities out of the result, its counts, its size, and its
 `compression_ratio`; events that belong to no entity are never excluded. An entity matched by both
-lists is excluded, and a selector whose events were all excluded is not listed in `no_events`. When
-`exclude` is given, a note after the document lists what was excluded.
+lists is excluded, and a selector whose events were all excluded is not listed in `no_events`. An
+event that is kept is returned whole, so its cause can still name an excluded automation or
+script. When `exclude` is given, a note after the document lists what was excluded.
 
 ### Size limit
 
 A `standard` result larger than 100,000 bytes is refused with an error that states the event count
-and how to narrow the query (`summary`, a shorter window, or fewer entities). It is never
-truncated. `exclude` can bring a result under the limit by leaving noisy entities out. Set
+and how to narrow the query (`summary`, a shorter window, fewer entities, or `exclude` for the
+noisiest ones). It is never truncated. Set
 `DOMUSOPS_LOGBOOK_MAX_BYTES` in the server configuration to change the limit; it cannot be changed
 from a tool call. `summary` is not subject to it.
 
@@ -295,7 +296,8 @@ administrators).
 
 Without `start` and `end`, every stored run is returned. `exclude` leaves the runs of matching
 automations and scripts out of the result, its counts, and its size, and they are not listed in
-`no_runs`; when it is given, a note after the document lists what was excluded. `run` and
+`no_runs`; a run that is kept is returned whole, including the excluded scripts it called. When
+`exclude` is given, a note after the document lists what was excluded. `run` and
 `context` each exclude every other selection parameter, `exclude` included; `detail` combines with anything. A time without an offset is read in the
 instance's time zone, and every time in the result is in that zone. A selector that matched
 nothing, an automation or script with no stored runs, one whose runs all started outside the window,

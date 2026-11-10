@@ -206,8 +206,10 @@ with an automation that stores fewer runs than its maximum and check there is no
   exact entity IDs and `*` patterns, with the same syntax, validation and limits as that tool's
   `entities`. In `ha_trace`, `exclude` is refused with `run` or `context`, as `entities` is.
 - **FR-008**: Nothing of an excluded entity MAY appear in the result at any detail level: no
-  logbook event, no trace run, no entity ID in any list of the document, and no mention in the
-  discarded-runs warning. Every count and the size check MUST be computed after the exclusion.
+  logbook event, no trace run, no entry in the document's items or in its lists of what produced
+  no events or no runs, and no mention in the discarded-runs warning. An event or run that is
+  kept is returned whole: the cause of an event, or a script a run called, still names an
+  excluded entity. Every count and the size check MUST be computed after the exclusion.
   The logbook's list of selectors with no events keeps its 0.1.1 meaning (selectors that
   matched no event before the exclusion), except that an exact ID that is itself excluded is
   never listed; a selector whose events were all excluded is therefore not reported as having

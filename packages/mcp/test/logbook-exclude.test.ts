@@ -161,6 +161,7 @@ describe("ha_logbook_query with exclude", () => {
     const limit = { DOMUSOPS_LOGBOOK_MAX_BYTES: String(narrowed) };
     await expect(query({}, limit)).rejects.toMatchObject({
       kind: "too_large",
+      nextStep: expect.stringContaining("exclude") as unknown,
     });
     const { text } = await query({ exclude }, limit);
     const doc = JSON.parse(text) as LogbookStandardDocument;

@@ -188,7 +188,7 @@ export const errors = {
     return new ToolError(
       "too_large",
       `The result has ${events} events and would be ${bytes} bytes, above the limit of ${limit} bytes`,
-      "Use detail=summary to see where the activity is, or narrow the query with a shorter window or fewer entities; to allow larger results, raise DOMUSOPS_LOGBOOK_MAX_BYTES",
+      "Use detail=summary to see where the activity is, or narrow the query with a shorter window, fewer entities, or exclude for the noisiest ones; to allow larger results, raise DOMUSOPS_LOGBOOK_MAX_BYTES",
     );
   },
 
@@ -218,7 +218,7 @@ export const errors = {
     return new ToolError(
       "selection_invalid",
       `The selection is not valid: ${problem}`,
-      "Give either run (32 lowercase hexadecimal characters) or context (a 26-character context ID, a compact ID from ha_trace or ha_logbook_query, or at most 64 printable ASCII characters), and no entities, start, or end with them; detail combines with anything",
+      "Give either run (32 lowercase hexadecimal characters) or context (a 26-character context ID, a compact ID from ha_trace or ha_logbook_query, or at most 64 printable ASCII characters), and no entities, exclude, start, or end with them; detail combines with anything",
     );
   },
 
@@ -233,8 +233,8 @@ export const errors = {
   ): ToolError {
     const narrow =
       detail === "standard"
-        ? "use detail=summary to list the runs, ask for one run or context, or narrow the query with fewer entities or a shorter window"
-        : "narrow the query with fewer entities or a shorter window";
+        ? "use detail=summary to list the runs, ask for one run or context, or narrow the query with fewer entities or a shorter window, or with exclude"
+        : "narrow the query with fewer entities or a shorter window, or with exclude";
     return new ToolError(
       "too_large",
       `The result has ${runs} runs and would be ${bytes} bytes${atLeast ? " or more" : ""}, above the limit of ${limit} bytes`,

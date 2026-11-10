@@ -106,7 +106,10 @@ describe("ha_trace with exclude", () => {
     const env = { DOMUSOPS_TRACE_MAX_BYTES: String(limit) };
     await expect(
       query({ entities: ["automation.*"] }, env),
-    ).rejects.toMatchObject({ kind: "too_large" });
+    ).rejects.toMatchObject({
+      kind: "too_large",
+      nextStep: expect.stringContaining("exclude") as unknown,
+    });
     await expect(
       query({ entities: ["automation.*"], exclude: EXCLUDED }, env),
     ).resolves.toBeTypeOf("string");
@@ -126,6 +129,23 @@ describe("ha_trace with exclude", () => {
         .map((r) => r.run_id)
         .sort(),
     );
+  });
+
+  it("does not ask the instance for the runs of a domain that exclude covers whole", async () => {
+    const ha = await startFakeHa({ fixture: REFERENCE_TRACES });
+    running.push(ha);
+    await runTrace(
+      {
+        DOMUSOPS_HA_URL: ha.url,
+        DOMUSOPS_HA_TOKEN: FAKE_TOKEN,
+        DOMUSOPS_TRACE_MAX_BYTES: "10000000",
+      },
+      { now: REFERENCE_TRACES.windowEnd * 1000, exclude: ["script.*"] },
+    );
+    const listed = ha.receivedTraceParams
+      .filter((p) => !("run_id" in p))
+      .map((p) => p["domain"]);
+    expect(listed).toEqual(["automation"]);
   });
 
   it("lists no excluded ID in no_runs, and keeps the meaning of no_match", async () => {

@@ -6,7 +6,12 @@ import {
 } from "@domusops/schema";
 import { errors } from "../errors.js";
 import { refOf, type ContextEntry, type TraceRef } from "../ha/trace.js";
-import { exclusion, matches, parseSelectors } from "../logbook/selectors.js";
+import {
+  exclusion,
+  matcher,
+  matches,
+  parseSelectors,
+} from "../logbook/selectors.js";
 import {
   parseWindowInput,
   type ParsedWindow,
@@ -97,11 +102,36 @@ function selectorDomains(selector: string): TraceDomain[] {
   return star === -1 ? [] : DOMAINS.filter((d) => d.startsWith(prefix));
 }
 
-/** The domains whose traces a request can select, so `trace/list` is sent for those only. */
+/** Whether a pattern matches every entity ID of a domain, such as `script.*`, `scr*`, or `*`. */
+function coversDomain(selector: string, domain: TraceDomain): boolean {
+  const star = selector.indexOf("*");
+  return (
+    star !== -1 &&
+    /^\**$/.test(selector.slice(star)) &&
+    `${domain}.`.startsWith(selector.slice(0, star))
+  );
+}
+
+/**
+ * The domains whose traces a request can select, so `trace/list` is sent for those only. An exact
+ * ID that is excluded asks for nothing, and a domain that `exclude` covers whole is not listed
+ * (specs/008-mcp-reliability research R3).
+ */
 export function domainsFor(request: TraceRequest): TraceDomain[] {
-  if (request.selectors === undefined) return [...DOMAINS];
-  const wanted = new Set(request.selectors.flatMap(selectorDomains));
-  return DOMAINS.filter((d) => wanted.has(d));
+  const excluded = exclusion(request.exclude);
+  const wanted =
+    request.selectors === undefined
+      ? new Set(DOMAINS)
+      : new Set(
+          request.selectors
+            .filter((s) => s.includes("*") || !excluded(s))
+            .flatMap(selectorDomains),
+        );
+  return DOMAINS.filter(
+    (d) =>
+      wanted.has(d) &&
+      !(request.exclude ?? []).some((selector) => coversDomain(selector, d)),
+  );
 }
 
 /** Selectors and items that produced no runs, with the reason (spec FR-004). */
@@ -184,7 +214,8 @@ export async function selectTraces(input: SelectInput): Promise<Selection> {
 
   const keyOf = (record: TraceShortRecord): string =>
     items.keyOf(record.domain, record.item_id);
-  // Excluded items are dropped after the selectors apply, and appear in no list (research R3).
+  // Excluded items are dropped after the selectors apply, and appear in no list of what produced
+  // no runs (research R3).
   const excluded = exclusion(request.exclude);
   const selectors = request.selectors;
   if (selectors === undefined) {
@@ -198,12 +229,11 @@ export async function selectTraces(input: SelectInput): Promise<Selection> {
   }
 
   const known = [...items.registered, ...items.untraceable];
-  const chosen = short.filter(
-    (record) =>
-      selectors.some((selector) => matches(selector, keyOf(record))) &&
-      !excluded(keyOf(record)) &&
-      inWindow(record),
-  );
+  const selected = matcher(selectors);
+  const chosen = short.filter((record) => {
+    const key = keyOf(record);
+    return selected(key) && !excluded(key) && inWindow(record);
+  });
 
   const matched = new Set<string>();
   const noMatch: string[] = [];

@@ -65,12 +65,10 @@ const TRACE_DETAIL_DESCRIPTION =
  */
 async function asToolResult(
   tool: string,
-  run: () => Promise<string | Response>,
+  run: () => Promise<Response>,
 ): Promise<CallToolResult> {
   try {
-    const outcome = await run();
-    const { document, notes } =
-      typeof outcome === "string" ? { document: outcome, notes: [] } : outcome;
+    const { document, notes } = await run();
     return {
       content: [document, ...notes].map((text) => ({
         type: "text" as const,
@@ -155,14 +153,15 @@ export function createServer(options: ServerOptions = {}): McpServer {
       },
     },
     ({ detail }) =>
-      asToolResult("ha_snapshot", () =>
-        runSnapshot(options.env ?? process.env, {
+      asToolResult("ha_snapshot", async () => ({
+        document: await runSnapshot(options.env ?? process.env, {
           detail,
           ...(options.timeouts === undefined
             ? {}
             : { timeouts: options.timeouts }),
         }),
-      ),
+        notes: [],
+      })),
   );
 
   server.registerTool(
