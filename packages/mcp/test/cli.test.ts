@@ -1,13 +1,18 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
 
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
+
 interface Reply {
   id?: number;
   result?: {
+    serverInfo?: { name: string; version: string };
     tools?: { name: string; annotations?: Record<string, unknown> }[];
   };
 }
@@ -86,5 +91,33 @@ describe("the built server over stdio", () => {
       });
     }
     expect(stderr).not.toMatch(/token/i);
+  });
+
+  it("reports the installed package's version during the handshake (spec FR-001, SC-001)", async () => {
+    if (!existsSync(cli))
+      throw new Error(
+        "packages/mcp/dist is missing: run `pnpm typecheck` first",
+      );
+    const { lines } = await converse([
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "cli-test", version: "0" },
+        },
+      },
+      { jsonrpc: "2.0", method: "notifications/initialized" },
+      { jsonrpc: "2.0", id: 2, method: "tools/list" },
+    ]);
+    const handshake = lines
+      .map((l) => JSON.parse(l) as Reply)
+      .find((r) => r.id === 1);
+    expect(handshake?.result?.serverInfo).toEqual({
+      name: "domusops-mcp",
+      version: pkg.version,
+    });
   });
 });

@@ -3,6 +3,8 @@ import {
   LOGBOOK_DETAIL_LEVELS,
   TRACE_DETAIL_LEVELS,
 } from "@domusops/schema";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -81,8 +83,31 @@ export interface ServerOptions {
   timeouts?: Partial<Timeouts>;
 }
 
+/**
+ * The installed package's version, read from its `package.json` (one level above both `src/` and
+ * `dist/`). There is no fallback: a server that cannot tell its version refuses to start rather
+ * than report an invented one.
+ */
+function packageVersion(): string {
+  const file = new URL("../package.json", import.meta.url);
+  let version: unknown;
+  try {
+    version = (JSON.parse(readFileSync(file, "utf8")) as { version?: unknown })
+      .version;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`cannot read ${fileURLToPath(file)}: ${reason}`);
+  }
+  if (typeof version !== "string" || version === "")
+    throw new Error(`${fileURLToPath(file)} has no version`);
+  return version;
+}
+
 export function createServer(options: ServerOptions = {}): McpServer {
-  const server = new McpServer({ name: "domusops-mcp", version: "0.0.0" });
+  const server = new McpServer({
+    name: "domusops-mcp",
+    version: packageVersion(),
+  });
 
   server.registerTool(
     "ha_snapshot",
