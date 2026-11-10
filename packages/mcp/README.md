@@ -3,26 +3,150 @@
 An MCP server with tools for Home Assistant. Compatible with Home Assistant; not affiliated with
 or endorsed by it.
 
-## `ha_snapshot`
+## Install and run
 
-A read-only inventory of a running instance: every entity (with its current state and attributes),
-device, area, integration and config entry, plus the core version. The result is compressed so an
-agent can hold it next to a real task, instead of spending its context on repetitive registry JSON.
+The server needs Node.js 22 or later and runs on macOS, Linux, or WSL. It reads two variables,
+`DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`, from its environment (see
+[Configuration](#configuration)).
+
+### Recommended: a development dependency of your configuration repository
+
+Install the server in the repository that holds your Home Assistant configuration, so its version
+is pinned by the lockfile and changes only through a pull request, and the MCP client starts it
+without downloading anything:
+
+```sh
+npm install --save-dev @domusops/mcp
+echo "node_modules/" >> .gitignore
+```
+
+This creates `package.json` and `package-lock.json` when the repository has none; commit both.
+`node_modules/` stays out of version control, so deploying the repository to the instance never
+copies it. After a fresh clone, run `npm install` once.
+
+Then declare the server in `.mcp.json` at the root of the repository:
 
 ```json
 {
   "mcpServers": {
     "domusops": {
       "command": "npx",
-      "args": ["@domusops/mcp"],
+      "args": ["--no", "domusops-mcp"],
       "env": {
-        "DOMUSOPS_HA_URL": "http://homeassistant.local:8123",
-        "DOMUSOPS_HA_TOKEN": "<long-lived access token>"
+        "DOMUSOPS_HA_URL": "${DOMUSOPS_HA_URL}",
+        "DOMUSOPS_HA_TOKEN": "${DOMUSOPS_HA_TOKEN}"
       }
     }
   }
 }
 ```
+
+`npx --no` runs the copy installed in the repository and never installs one. The `${...}` values
+are read from the environment the client starts in, so the committed file holds no secret.
+
+To update, change the version of `@domusops/mcp` in `package.json` (or run
+`npm install --save-dev @domusops/mcp@latest`) in a pull request, like any other dependency.
+
+### Alternatives
+
+- **Global installation**: `npm install --global @domusops/mcp`, then `"command": "domusops-mcp"`
+  with no `args`. One version for every repository on the machine; update it with the same
+  command.
+- **On demand**: `"command": "npx"` with `"args": ["--yes", "@domusops/mcp@~0.1"]`. Nothing to
+  install, but npm resolves the package at every start, so it needs network access and starts
+  more slowly. `~0.1` takes every patch release of 0.1.
+
+In each form, `env` is as in the example above.
+
+## Claude Code
+
+### Register the server
+
+- **For one repository**: the `.mcp.json` above, committed to the repository. The same file can
+  be written with `claude mcp add --scope project domusops -- npx --no domusops-mcp`; then add
+  the `env` block by hand.
+- **For every repository**: `claude mcp add --scope user domusops -- domusops-mcp` after a global
+  installation. The server then takes `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN` from the
+  environment Claude Code starts in.
+
+### Approve it
+
+Claude Code does not start a server declared in a repository's `.mcp.json` until you approve it.
+It asks once, when you open a session in the repository. `/mcp` lists every server with its state;
+a server waiting for approval can be approved there.
+
+### Keep the token out of version control
+
+Never write the token in `.mcp.json` or any other committed file. Export both variables in the
+shell that starts Claude Code, for example from your shell profile or from a local file that
+`.gitignore` excludes:
+
+```sh
+export DOMUSOPS_HA_URL="http://homeassistant.local:8123"
+export DOMUSOPS_HA_TOKEN="<long-lived access token>"
+```
+
+### When it does not connect
+
+- **Waiting for approval**: `/mcp` shows the server as pending. Approve it there.
+- **Command not found, or the server never starts**: the dependencies are not installed in this
+  clone. Run `npm install` in the repository. `npx --no` does not install anything, and without
+  network access it can wait instead of failing.
+- **`config_missing`**: `DOMUSOPS_HA_URL` or `DOMUSOPS_HA_TOKEN` is not set in the environment
+  Claude Code started in. Export it and start a new session.
+- **`auth_invalid`** or a connection error: the token or the URL is wrong. Check the URL in a
+  browser and create a new token if needed.
+- **`not_admin`**: the token belongs to a user who is not an administrator. Use an administrator's
+  token.
+- **To see the server's own error output**, start Claude Code with `claude --debug`: the server
+  writes its diagnostics to standard error, never the token.
+
+## Reading responses
+
+A successful response is one or more text blocks. The first is the document, JSON in the tool's
+published format; any later blocks are notes about the query, not part of the document.
+`summary` documents are read as they are. `standard` and `full` documents are compressed, and
+`@domusops/schema` has the reference decoder for each:
+
+| Tool               | `detail`           | Decoder in `@domusops/schema` |
+| ------------------ | ------------------ | ----------------------------- |
+| `ha_snapshot`      | `summary`          | none: read as it is           |
+| `ha_snapshot`      | `standard`, `full` | `expand`                      |
+| `ha_logbook_query` | `summary`          | none: read as it is           |
+| `ha_logbook_query` | `standard`         | `expandLogbook`               |
+| `ha_trace`         | `summary`          | none: read as it is           |
+| `ha_trace`         | `standard`         | `expandTrace`                 |
+
+`@domusops/schema` comes with the server; install it on its own
+(`npm install @domusops/schema`) if your code imports it from elsewhere. This example decodes the
+document of any tool result:
+
+<!-- tested example -->
+
+```js
+import { expand, expandLogbook, expandTrace } from "@domusops/schema";
+
+const decoders = {
+  "domusops.snapshot/0.1": expand,
+  "domusops.logbook/0.1": expandLogbook,
+  "domusops.trace/0.1": expandTrace,
+};
+
+// The first text block of a tool result is the document; later blocks are notes.
+function decode(result) {
+  const document = JSON.parse(result.content[0].text);
+  if (document.detail === "summary") return document;
+  return decoders[document.format](document);
+}
+```
+
+## `ha_snapshot`
+
+A read-only inventory of a running instance: every entity (with its current state and attributes),
+device, area, integration and config entry, plus the core version. The result is compressed so an
+agent can hold it next to a real task, instead of spending its context on repetitive registry JSON.
+
+To install the server and connect a client, see [Install and run](#install-and-run).
 
 ### Configuration
 
