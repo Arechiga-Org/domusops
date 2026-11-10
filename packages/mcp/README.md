@@ -16,13 +16,15 @@ is pinned by the lockfile and changes only through a pull request, and the MCP c
 without downloading anything:
 
 ```sh
+test -f package.json || echo '{ "private": true }' > package.json
 npm install --save-dev @domusops/mcp
-echo "node_modules/" >> .gitignore
 ```
 
-This creates `package.json` and `package-lock.json` when the repository has none; commit both.
-`node_modules/` stays out of version control, so deploying the repository to the instance never
-copies it. After a fresh clone, run `npm install` once.
+Create `package.json` first when the repository has none: without it, npm may install into a
+parent directory that has one. `"private": true` keeps the repository from ever being published.
+Commit `package.json` and `package-lock.json`, and add `node_modules/` to `.gitignore` so it stays
+out of version control and deploying the repository to the instance never copies it. After a
+fresh clone, run `npm install` once.
 
 Then declare the server in `.mcp.json` at the root of the repository:
 
@@ -62,12 +64,24 @@ In each form, `env` is as in the example above.
 
 ### Register the server
 
-- **For one repository**: the `.mcp.json` above, committed to the repository. The same file can
-  be written with `claude mcp add --scope project domusops -- npx --no domusops-mcp`; then add
-  the `env` block by hand.
-- **For every repository**: `claude mcp add --scope user domusops -- domusops-mcp` after a global
-  installation. The server then takes `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN` from the
-  environment Claude Code starts in.
+- **For one repository**: the `.mcp.json` above, committed to the repository. The same entry can
+  be written with one command; the single quotes keep `${...}` literal in the file:
+
+  ```sh
+  claude mcp add --scope project \
+    -e 'DOMUSOPS_HA_URL=${DOMUSOPS_HA_URL}' -e 'DOMUSOPS_HA_TOKEN=${DOMUSOPS_HA_TOKEN}' \
+    domusops -- npx --no domusops-mcp
+  ```
+
+- **For every repository**: after a global installation, pass both values with `-e`. They are
+  stored in your user configuration (`~/.claude.json`), outside any repository:
+
+  ```sh
+  claude mcp add --scope user \
+    -e DOMUSOPS_HA_URL=http://homeassistant.local:8123 \
+    -e DOMUSOPS_HA_TOKEN='<long-lived access token>' \
+    domusops -- domusops-mcp
+  ```
 
 ### Approve it
 
@@ -92,8 +106,10 @@ export DOMUSOPS_HA_TOKEN="<long-lived access token>"
 - **Command not found, or the server never starts**: the dependencies are not installed in this
   clone. Run `npm install` in the repository. `npx --no` does not install anything, and without
   network access it can wait instead of failing.
-- **`config_missing`**: `DOMUSOPS_HA_URL` or `DOMUSOPS_HA_TOKEN` is not set in the environment
-  Claude Code started in. Export it and start a new session.
+- **A missing environment variable**: with the `.mcp.json` above, Claude Code does not start the
+  server when `DOMUSOPS_HA_URL` or `DOMUSOPS_HA_TOKEN` is not set in the environment it started
+  in, and says which one in `/mcp`. Export it and start a new session. A configuration that
+  passes neither variable gets `config_missing` from every tool instead.
 - **`auth_invalid`** or a connection error: the token or the URL is wrong. Check the URL in a
   browser and create a new token if needed.
 - **`not_admin`**: the token belongs to a user who is not an administrator. Use an administrator's
@@ -119,7 +135,7 @@ published format; any later blocks are notes about the query, not part of the do
 
 `@domusops/schema` comes with the server; install it on its own
 (`npm install @domusops/schema`) if your code imports it from elsewhere. This example decodes the
-document of any tool result:
+document of any tool result, and throws the error text of a failed call:
 
 <!-- tested example -->
 
@@ -134,6 +150,7 @@ const decoders = {
 
 // The first text block of a tool result is the document; later blocks are notes.
 function decode(result) {
+  if (result.isError) throw new Error(result.content[0].text);
   const document = JSON.parse(result.content[0].text);
   if (document.detail === "summary") return document;
   return decoders[document.format](document);
