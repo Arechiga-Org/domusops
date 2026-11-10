@@ -91,27 +91,8 @@ describe("the built server over stdio", () => {
       });
     }
     expect(stderr).not.toMatch(/token/i);
-  });
 
-  it("reports the installed package's version during the handshake (spec FR-001, SC-001)", async () => {
-    if (!existsSync(cli))
-      throw new Error(
-        "packages/mcp/dist is missing: run `pnpm typecheck` first",
-      );
-    const { lines } = await converse([
-      {
-        jsonrpc: "2.0",
-        id: 1,
-        method: "initialize",
-        params: {
-          protocolVersion: "2025-06-18",
-          capabilities: {},
-          clientInfo: { name: "cli-test", version: "0" },
-        },
-      },
-      { jsonrpc: "2.0", method: "notifications/initialized" },
-      { jsonrpc: "2.0", id: 2, method: "tools/list" },
-    ]);
+    // The handshake reports the installed package's version (spec FR-001, SC-001).
     const handshake = lines
       .map((l) => JSON.parse(l) as Reply)
       .find((r) => r.id === 1);

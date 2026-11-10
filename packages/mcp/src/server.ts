@@ -84,23 +84,36 @@ export interface ServerOptions {
 }
 
 /**
- * The installed package's version, read from its `package.json` (one level above both `src/` and
- * `dist/`). There is no fallback: a server that cannot tell its version refuses to start rather
- * than report an invented one.
+ * Reads `version` from a `package.json`. There is no fallback: a server that cannot tell its
+ * version refuses to start rather than report an invented one, and the error names the file.
  */
-function packageVersion(): string {
-  const file = new URL("../package.json", import.meta.url);
-  let version: unknown;
+export function readVersion(file: URL): string {
+  const path = fileURLToPath(file);
+  let text: string;
   try {
-    version = (JSON.parse(readFileSync(file, "utf8")) as { version?: unknown })
-      .version;
+    text = readFileSync(file, "utf8");
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`cannot read ${fileURLToPath(file)}: ${reason}`);
+    throw new Error(`cannot read ${path}: ${reason}`);
+  }
+  let version: unknown;
+  try {
+    version = (JSON.parse(text) as { version?: unknown } | null)?.version;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`${path} is not valid JSON: ${reason}`);
   }
   if (typeof version !== "string" || version === "")
-    throw new Error(`${fileURLToPath(file)} has no version`);
+    throw new Error(`${path} has no version`);
   return version;
+}
+
+let ownVersion: string | undefined;
+
+/** The installed package's version, read once from its `package.json` (one level above both `src/` and `dist/`). */
+function packageVersion(): string {
+  ownVersion ??= readVersion(new URL("../package.json", import.meta.url));
+  return ownVersion;
 }
 
 export function createServer(options: ServerOptions = {}): McpServer {
