@@ -165,8 +165,9 @@ the counts match the instance, and the result stays small however many entities 
 - **FR-005**: The tool MUST accept a `state` filter, one or more state values, which keeps only
   the entities whose state equals one of them exactly (`on`, `unavailable`).
 - **FR-006**: For each selected entity, the response MUST carry its ID, its state, its attributes
-  (after FR-010), `last_changed`, `last_updated`, and its context identifiers as the instance
-  gives them. By default every attribute is returned; an optional `attributes` input, a list of
+  (after FR-010), `last_changed`, `last_updated`, `last_reported` when the instance gives it
+  (when a sensor last reported, even an unchanged value), and its context identifiers as the
+  instance gives them. By default every attribute is returned; an optional `attributes` input, a list of
   attribute names, keeps only those, and a named attribute an entity does not have is simply
   absent. Entities are selected the same way with or without it.
 - **FR-007**: Entities MUST appear in a deterministic order, by entity ID, so that two calls
@@ -222,7 +223,8 @@ the counts match the instance, and the result stays small however many entities 
   releases, proven by the sandbox in CI (constitution §8).
 - **FR-022**: The outputs of `ha_snapshot`, `ha_logbook_query`, `ha_trace` and `ha_ping` MUST
   NOT change for the same inputs, and every existing output test MUST pass with unchanged
-  expectations.
+  expectations. The one exception is FR-020: `ha_ping` lists `ha_state` among its tools, which
+  its open format allows, and the `ha_ping` tests that list every tool gain that entry.
 - **FR-023**: The feature MUST carry a minor changeset for `@domusops/mcp` and one for
   `@domusops/schema`.
 - **FR-024**: Tests MUST use simulated instances or the sandbox, never a real instance, and no
@@ -260,7 +262,8 @@ the counts match the instance, and the result stays small however many entities 
 - **SC-007**: On the stable, previous stable and beta releases of the sandbox CI matrix, the same
   query returns the same entities and findings.
 - **SC-008**: Every existing output test of the other tools passes with zero edited
-  expectations, and every compression floor is unchanged.
+  expectations, apart from the new `ha_state` entry in `ha_ping`'s tool list (FR-020), and every
+  compression floor is unchanged.
 
 ## Assumptions
 
