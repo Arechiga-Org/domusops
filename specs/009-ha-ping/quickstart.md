@@ -8,7 +8,7 @@
 ## 1. On the simulated instance
 
 ```sh
-pnpm exec vitest run packages/mcp/test/ping.test.ts packages/schema/test/ping-format.test.ts
+pnpm exec vitest run packages/mcp/test/ping.test.ts packages/mcp/test/ping-json-schema.test.ts
 ```
 
 Expected:

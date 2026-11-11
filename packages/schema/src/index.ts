@@ -22,3 +22,5 @@ export * from "./trace/format.js";
 export * from "./trace/values.js";
 export * from "./trace/expand.js";
 export * from "./trace/json-schema.js";
+export * from "./ping/format.js";
+export * from "./ping/json-schema.js";

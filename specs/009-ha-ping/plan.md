@@ -29,7 +29,7 @@ and the response carries a `compression_ratio` with a CI floor of 3 (R7).
 - Vitest against the simulated instance (`packages/mcp/test/support/fake-ha.ts`, with the
   reference fixture's `get_config` given the `logbook`, `recorder` and `trace` components where a
   test needs them).
-- New test files: `packages/mcp/test/ping.test.ts`, `packages/schema/test/ping-format.test.ts`.
+- New test files: `packages/mcp/test/ping.test.ts`, `packages/mcp/test/ping-json-schema.test.ts`.
 - Existing files gain cases: `tool.test.ts` (the tool's contract), `readme.test.ts` (the decoding
   example on a ping document), `client.test.ts` (`minVersion: null`),
   `packages/sandbox/test/mcp.container.test.ts` (§8).
@@ -97,7 +97,7 @@ packages/schema/
 ├── src/ping/format.ts          # PING_FORMAT and the document types
 ├── src/ping/json-schema.ts     # pingJsonSchema
 ├── src/index.ts                # exports
-├── test/ping-format.test.ts
+├── (no test: the format is tested from packages/mcp, which has ajv)
 └── README.md                   # the format's row
 
 packages/mcp/
