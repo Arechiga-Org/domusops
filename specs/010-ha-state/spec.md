@@ -22,7 +22,18 @@ raw API, which is what users of 0.1.1 did.
 
 ### Session 2026-11-11
 
-_None yet. Three open questions are marked below for `/speckit-clarify`._
+- Q: Do person and user names that appear in attributes stay visible, or are they redacted like
+  e-mail addresses? → A: They stay visible, as the instance gives them and as `ha_snapshot`
+  already returns them; only secrets, e-mail addresses and coordinates are redacted. The same
+  rule holds for the logbook's cause and any future user listing (roadmap open decision 2)
+  (FR-011).
+- Q: When a query matches more entities than fit the size limit, is it refused or are the first
+  entities that fit returned? → A: Refused, as `ha_logbook_query` and `ha_trace` do, with the
+  number of entities matched and how to narrow the query; an environment variable raises the
+  limit. A partial list is never returned (FR-012, SC-004).
+- Q: Does the document carry every attribute by default, or only those a caller lists? → A:
+  Every attribute by default; an optional `attributes` input keeps only the attributes it names,
+  and a named attribute an entity does not have is simply absent (FR-006).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -84,9 +95,9 @@ refused with the number of entities it matched and a hint for narrowing.
    after `entities`, with the same patterns and the same rules as `ha_logbook_query`, and a note
    after the document lists what was excluded.
 4. **Given** a query that matches more entities than fit in the limit, **When** the agent
-   calls the tool, **Then** [NEEDS CLARIFICATION: what happens when a query matches more
-   entities than fit the limit: refuse with the count and a narrowing hint, as `ha_logbook_query`
-   and `ha_trace` do, or return the first entities that fit with the count of the rest?].
+   calls the tool, **Then** it gets an error result, as from `ha_logbook_query` and `ha_trace`,
+   that gives the number of entities matched and says how to narrow the query or raise the
+   limit, and no partial list.
 5. **Given** an exact entity ID that does not exist on the instance, **When** the agent asks for
    it, **Then** the response is not an error: it lists no entity for that ID and a note names
    the IDs that were not found.
@@ -155,8 +166,9 @@ the counts match the instance, and the result stays small however many entities 
   the entities whose state equals one of them exactly (`on`, `unavailable`).
 - **FR-006**: For each selected entity, the response MUST carry its ID, its state, its attributes
   (after FR-010), `last_changed`, `last_updated`, and its context identifiers as the instance
-  gives them. [NEEDS CLARIFICATION: does the document carry every attribute of each entity by
-  default, or only those a caller lists in an opt-in `attributes` input?]
+  gives them. By default every attribute is returned; an optional `attributes` input, a list of
+  attribute names, keeps only those, and a named attribute an entity does not have is simply
+  absent. Entities are selected the same way with or without it.
 - **FR-007**: Entities MUST appear in a deterministic order, by entity ID, so that two calls
   against unchanged states give byte-identical responses.
 - **FR-008**: Every timestamp MUST be in the instance's local time zone, in the form the logbook
@@ -168,21 +180,23 @@ the counts match the instance, and the result stays small however many entities 
   wherever they occur, under the same rules `ha_snapshot` applies to attribute values, and the
   redacted field MUST still be listed. Entity IDs and the closed list of identifier keys the
   other tools exempt are never touched.
-- **FR-011**: The names of people and users MUST be handled as follows:
-  [NEEDS CLARIFICATION: do person and user names that appear in attributes (the `friendly_name`
-  of a person entity, a `user_id`-style field) stay visible, or are they redacted like e-mail
-  addresses? This is open decision 2 of the roadmap and also governs the logbook's cause and any
-  future user listing].
+- **FR-011**: Names of people and users that appear in attributes (the `friendly_name` of a
+  person entity, for one) MUST be returned as the instance gives them, as `ha_snapshot` returns
+  them; they are not redacted. User IDs in the context are returned as they are, as in the
+  logbook and trace documents. This rule also governs the logbook's cause and any future user
+  listing (roadmap open decision 2).
 - **FR-012**: The response MUST be bounded: a result larger than a documented limit, with the
   same default as `ha_logbook_query` and `ha_trace` and an environment variable to raise it, MUST
-  NOT be returned whole, and the message MUST say how many entities matched and how to narrow
-  the query (`entities`, `domain`, `state`, `exclude`, `detail=summary`).
+  be refused with an error result, never returned in part, and the message MUST say how many
+  entities matched and how to narrow the query (`entities`, `domain`, `state`, `exclude`,
+  `attributes`, `detail=summary`) or raise the limit.
 - **FR-013**: An exact ID with no entity on the instance MUST NOT be an error: a note names the
   IDs not found, at most 10, with the count of the rest. A query that selects nothing MUST return
   a valid empty document and a note.
 - **FR-014**: The tool MUST accept `detail`, with `summary` (counts per domain of entities, of
   unavailable ones and of unknown ones, plus the total, with no attributes) and `standard` (the
   default, FR-006). The summary MUST stay under 4,000 bytes whatever the size of the home.
+  `attributes` is not combinable with `summary`, which carries no attributes.
 - **FR-015**: The filters of FR-002 to FR-005 MUST apply to the summary as well, so its counts
   cover only the selected entities.
 - **FR-016**: The tool MUST read only the instance's current states and its core configuration
@@ -194,7 +208,8 @@ the counts match the instance, and the result stays small however many entities 
 - **FR-018**: The response MUST be a compact JSON document in a new published, versioned format
   in `@domusops/schema`, with its types, its JSON Schema and a row in the package README, as the
   other formats have. Repeated attribute sets MUST NOT be repeated per entity. Every entity's
-  state and attributes MUST be recoverable from the document, apart from redaction, and when the
+  state and the attributes returned MUST be recoverable from the document, apart from redaction,
+  and when the
   document is templated or compressed `@domusops/schema` MUST publish a reference decoder, as for
   the other formats.
 - **FR-019**: The response MUST carry a `compression_ratio`, measured as for the other tools
@@ -237,9 +252,8 @@ the counts match the instance, and the result stays small however many entities 
   redaction.
 - **SC-003**: A `summary` result is under 4,000 bytes whatever the number of entities and
   domains of the home.
-- **SC-004**: A query that exceeds the limit is never returned whole: 100% of such queries are
-  refused or bounded as the clarification decides, with the number of entities matched and a
-  hint that names the inputs that narrow it.
+- **SC-004**: A query that exceeds the limit never returns entities: 100% of such queries are
+  refused, with the number of entities matched and a hint that names the inputs that narrow it.
 - **SC-005**: On a synthetic fixture that seeds every redaction rule into entity attributes,
   100% of the seeded secrets, e-mail addresses and coordinates are absent from the response.
 - **SC-006**: Two calls against unchanged states give byte-identical responses.
@@ -264,7 +278,7 @@ the counts match the instance, and the result stays small however many entities 
 - Constitution §4 applies without exemption: the tool carries `compression_ratio` and a floor in
   CI; the plan sets the floor from the reference instance.
 - The redaction rules are the ones `ha_snapshot` already applies to attribute values; this
-  feature adds no new rule except what the clarification of FR-011 decides.
+  feature adds no new rule, and names stay visible (FR-011).
 
 ### Out of scope
 

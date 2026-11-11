@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -31,8 +31,6 @@
 
 ## Notes
 
-- Three `[NEEDS CLARIFICATION]` markers remain on purpose, the three open questions of the
-  feature request, to be resolved by `/speckit-clarify`: the behavior above the size limit
-  (User Story 2 scenario 4, FR-012, SC-004), whether attributes are all returned by default
-  (FR-006), and how person and user names are treated (FR-011).
-- Items marked incomplete require spec updates before `/speckit-plan`.
+- The three open questions of the feature request were resolved by `/speckit-clarify` on
+  2026-11-11: names stay visible (FR-011), oversize results are refused (FR-012), and every
+  attribute is returned by default with an optional `attributes` list (FR-006).
