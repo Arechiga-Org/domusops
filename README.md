@@ -13,12 +13,12 @@ inventory of a live Home Assistant instance) is in progress. See
 
 ## Packages
 
-| Package                                       | Status                                        |
-| --------------------------------------------- | --------------------------------------------- |
-| [`@domusops/schema`](./packages/schema)       | scaffolded                                    |
-| [`@domusops/mcp`](./packages/mcp)             | `ha_snapshot`, `ha_logbook_query`, `ha_trace` |
-| [`@domusops/bootstrap`](./packages/bootstrap) | CLI behind the `ha-bootstrap` skill           |
-| [`@domusops/sandbox`](./packages/sandbox)     | ephemeral Home Assistant test harness         |
+| Package                                       | Status                                                   |
+| --------------------------------------------- | -------------------------------------------------------- |
+| [`@domusops/schema`](./packages/schema)       | scaffolded                                               |
+| [`@domusops/mcp`](./packages/mcp)             | `ha_snapshot`, `ha_logbook_query`, `ha_trace`, `ha_ping` |
+| [`@domusops/bootstrap`](./packages/bootstrap) | CLI behind the `ha-bootstrap` skill                      |
+| [`@domusops/sandbox`](./packages/sandbox)     | ephemeral Home Assistant test harness                    |
 
 ## Skills
 

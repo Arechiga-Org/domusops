@@ -38,7 +38,9 @@ function converse(
     child.stderr.on("data", (chunk: Buffer) => (stderr += String(chunk)));
     child.stdout.on("data", (chunk: Buffer) => {
       out += String(chunk);
-      const lines = out.split("\n").filter((l) => l.trim() !== "");
+      // A long message arrives in several chunks: only complete lines are parsed.
+      const complete = out.slice(0, out.lastIndexOf("\n") + 1);
+      const lines = complete.split("\n").filter((l) => l.trim() !== "");
       if (lines.some((l) => (JSON.parse(l) as Reply).id === 2)) {
         clearTimeout(timer);
         child.kill();
@@ -52,7 +54,7 @@ function converse(
 }
 
 describe("the built server over stdio", () => {
-  it("starts with only Node and advertises exactly ha_snapshot, ha_logbook_query, and ha_trace", async () => {
+  it("starts with only Node and advertises exactly ha_snapshot, ha_logbook_query, ha_trace, and ha_ping", async () => {
     if (!existsSync(cli))
       throw new Error(
         "packages/mcp/dist is missing: run `pnpm typecheck` first",
@@ -83,6 +85,7 @@ describe("the built server over stdio", () => {
       "ha_snapshot",
       "ha_logbook_query",
       "ha_trace",
+      "ha_ping",
     ]);
     for (const tool of tools) {
       expect(tool.annotations).toMatchObject({

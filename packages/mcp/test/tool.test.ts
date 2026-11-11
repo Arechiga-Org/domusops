@@ -1,8 +1,10 @@
 import { FORMAT, type StandardDocument } from "@domusops/schema";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Timeouts } from "../src/ha/client.js";
+import { REQUIREMENTS } from "../src/ping/requirements.js";
 import { createServer } from "../src/server.js";
 import {
   EMPTY,
@@ -301,5 +303,73 @@ describe("ha_snapshot: detail levels", () => {
     );
     // The SDK's schema strips unknown keys, so the call succeeds (pinned by this test).
     expect(outcome).toEqual({ ok: true, detail: "summary" });
+  });
+});
+
+describe("ha_ping: the tool", () => {
+  const contract = JSON.parse(
+    readFileSync(
+      new URL(
+        "../../../specs/009-ha-ping/contracts/ha_ping.tool.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as {
+    name: string;
+    title: string;
+    description: string;
+    inputSchema: object;
+    annotations: object;
+  };
+
+  async function connected(): Promise<Client> {
+    const ha = await startFakeHa({ fixture: REFERENCE_500 });
+    cleanups.push(() => ha.close());
+    const server = createServer({
+      env: { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "tool-test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    cleanups.push(async () => {
+      await client.close();
+      await server.close();
+    });
+    return client;
+  }
+
+  it("is advertised as the contract says", async () => {
+    const { tools } = await (await connected()).listTools();
+    const tool = tools.find((candidate) => candidate.name === "ha_ping");
+    expect(tool?.title).toBe(contract.title);
+    expect(tool?.description).toBe(contract.description);
+    expect(tool?.inputSchema).toMatchObject(contract.inputSchema);
+    expect(tool?.annotations).toMatchObject(contract.annotations);
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+    });
+  });
+
+  it("returns one text block", async () => {
+    const result = (await (
+      await connected()
+    ).callTool({ name: "ha_ping", arguments: {} })) as CallResult;
+    expect(result.isError).toBeUndefined();
+    expect(result.content).toHaveLength(1);
+    expect(JSON.parse(result.content[0]?.text ?? "")).toMatchObject({
+      format: "domusops.ping/0.1",
+    });
+  });
+
+  it("has a requirements entry for every registered tool but itself, in registration order (research R4)", async () => {
+    const { tools } = await (await connected()).listTools();
+    expect(Object.keys(REQUIREMENTS)).toEqual(
+      tools.map((tool) => tool.name).filter((name) => name !== "ha_ping"),
+    );
   });
 });

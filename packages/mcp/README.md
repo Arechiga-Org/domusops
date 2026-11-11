@@ -132,6 +132,7 @@ published format; any later blocks are notes about the query, not part of the do
 | `ha_logbook_query` | `standard`         | `expandLogbook`               |
 | `ha_trace`         | `summary`          | none: read as it is           |
 | `ha_trace`         | `standard`         | `expandTrace`                 |
+| `ha_ping`          | none               | none: read as it is           |
 
 `@domusops/schema` comes with the server; install it on its own
 (`npm install @domusops/schema`) if your code imports it from elsewhere. This example decodes the
@@ -142,6 +143,7 @@ document of any tool result, and throws the error text of a failed call:
 ```js
 import { expand, expandLogbook, expandTrace } from "@domusops/schema";
 
+// A document whose format has no decoder (a summary, or a ping) is read as it is.
 const decoders = {
   "domusops.snapshot/0.1": expand,
   "domusops.logbook/0.1": expandLogbook,
@@ -152,8 +154,9 @@ const decoders = {
 function decode(result) {
   if (result.isError) throw new Error(result.content[0].text);
   const document = JSON.parse(result.content[0].text);
-  if (document.detail === "summary") return document;
-  return decoders[document.format](document);
+  const decoder = decoders[document.format];
+  if (document.detail === "summary" || decoder === undefined) return document;
+  return decoder(document);
 }
 ```
 
@@ -342,3 +345,50 @@ reference set, which CI asserts; `summary` is far smaller. The format is version
 (`domusops.trace/0.1`) and public; its types, JSON Schema, and a reference decoder (`expandTrace`)
 are in `@domusops/schema`. See
 [`specs/003-ha-trace/data-model.md`](../../specs/003-ha-trace/data-model.md).
+
+## `ha_ping`
+
+A cheap, read-only check of whether this server can work with the instance, to run before any
+real query, and the first thing to call when something does not work. It reads the current user
+and the instance's core configuration, and nothing else: no entities, registries, history or
+traces. It takes no input.
+
+It returns a small document (about 500 bytes, under 2,000 in the worst case):
+
+```json
+{
+  "format": "domusops.ping/0.1",
+  "server": { "name": "domusops-mcp", "version": "0.2.0" },
+  "instance": {
+    "version": "2026.10.0",
+    "minimum": "2025.1.0",
+    "supported": true,
+    "time_zone": "Europe/Amsterdam"
+  },
+  "admin": true,
+  "integrations": { "logbook": true, "recorder": true, "trace": true },
+  "tools": {
+    "ha_snapshot": { "ready": true },
+    "ha_logbook_query": { "ready": true },
+    "ha_trace": { "ready": true }
+  },
+  "compression_ratio": 5.71
+}
+```
+
+- `instance` has the instance's version, the least version this server supports, whether the
+  instance meets it, and its time zone, in which a `start` or `end` without an offset is read.
+- `admin` is whether the token's user is an administrator. Every tool needs one.
+- `integrations` says whether each integration the tools need is loaded.
+- `tools` has an entry for every other tool: `ready`, and when it is not, `reasons`:
+  `version_unsupported`, `not_admin`, or `integration_missing:<name>`. `next_steps` then says what
+  to change. The lists are open: ignore names you do not know, since later tools add theirs.
+
+An instance older than the minimum is reported in the document (`supported` false), not as an
+error. When nothing answers, the token is refused, or the configuration is missing, the call
+fails as in the other tools, with `unreachable`, `auth_invalid`, `timeout` or `config_missing`.
+
+The token, the instance's address and location, and user names are never returned. The format is
+versioned (`domusops.ping/0.1`) and public; its types and JSON Schema are in `@domusops/schema`.
+It has no decoder, because it is not compressed. See
+[`specs/009-ha-ping/contracts/ping-format.md`](../../specs/009-ha-ping/contracts/ping-format.md).

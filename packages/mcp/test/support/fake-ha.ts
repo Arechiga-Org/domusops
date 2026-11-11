@@ -49,6 +49,8 @@ export interface FakeHa {
   receivedParams: Record<string, unknown>[];
   /** Parameters of every `trace/*` command received, in order (feature 003). */
   receivedTraceParams: Record<string, unknown>[];
+  /** How many connections the instance accepted, authenticated or not (spec 009 FR-008). */
+  connections: number;
   /** The entity ID of every `automation/config` and `script/config` received, in order. */
   receivedConfigIds: string[];
   /** When each `trace/get` was received, in order (milliseconds since the epoch). */
@@ -230,6 +232,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
     receivedParams: [],
     receivedTraceParams: [],
     receivedConfigIds: [],
+    connections: 0,
     traceGetsAt: [],
     receivedAt: [],
     authReceived: false,
@@ -241,6 +244,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
   };
 
   server.on("connection", (socket: ServerSocket) => {
+    fake.connections++;
     if (options.stall === "connect") return;
     socket.send(
       JSON.stringify({ type: "auth_required", ha_version: haVersion }),
