@@ -88,9 +88,9 @@ were checked against a sandbox instance of 2026.10.0 with `default_config` on 20
 
 ## R8. Size
 
-- **Decision**: SC-003's bound is raised from 1,000 to 2,000 bytes. With the seven tools of
-  0.2.0 and every reason present at once (old version, no administrator, four missing
-  integrations), the document approaches 1,500 bytes; a healthy instance stays near 450. A test
+- **Decision**: SC-003's bound is raised from 1,000 to 2,000 bytes. With the six tools of
+  0.2.0 and every reason present at once (old version, no administrator, five missing
+  integrations), the document measures about 1,600 bytes; a healthy instance is about 500. A test
   builds that worst case and asserts the bound.
 - **Why**: the bound must hold for the whole 0.2.0 tool set, not only for this feature's three
   rows.
