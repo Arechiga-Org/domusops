@@ -89,8 +89,8 @@ description: "Task list for ha_ping (feature 009, first tool of 0.2.0)"
 
 - [X] T018 In `packages/sandbox/test/mcp.container.test.ts`, add a test per channel: a sandbox with `default_config` and the built server, `ha_ping` returns a `domusops.ping/0.1` document (its validity against `pingJsonSchema` is tested in `packages/mcp`, which the sandbox package does not depend on) with `instance.supported` true, `admin` true, the integrations loaded, every tool ready, a non-empty `time_zone`, a `compression_ratio` of at least 3 and no `next_steps`; the same document twice is byte-identical (SC-005, §8)
 - [X] T019 Run the gate (`pnpm lint && pnpm typecheck && pnpm test`), then `pnpm build` and the container test on `DOMUSOPS_SANDBOX_RELEASE=2026.10.0` and `2026.9.4` (never the unpinned stable channel); run Prettier only on the touched files, never on `tasks.md`
-- [ ] T020 Mark these tasks `[X]` as they complete, and ask the maintainer before any commit, push or pull request; after the pull request, run `/code-review` and triage the findings before pushing fixes
-- [ ] T021 After the maintainer merges, update `CLAUDE.md`'s current focus to point at feature 010 (`ha_state`); the 0.2.0 release itself waits for features 010 to 012
+- [X] T020 Mark these tasks `[X]` as they complete, and ask the maintainer before any commit, push or pull request; after the pull request, run `/code-review` and triage the findings before pushing fixes
+- [X] T021 After the maintainer merges, update `CLAUDE.md`'s current focus to point at feature 010 (`ha_state`); the 0.2.0 release itself waits for features 010 to 012
 
 ---
 
