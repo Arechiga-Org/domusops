@@ -139,8 +139,8 @@ description: "Task list for the mcp reliability release (0.1.2)"
 
 ## Phase 6: Polish
 
-- [ ] T037 After US1–US4 merge, check each `FR-001..FR-018` and `SC-001..SC-007` against the merged pull requests and record any gap in `specs/008-mcp-reliability/checklists/requirements.md` Notes
-- [ ] T038 After the maintainer merges Version Packages, confirm `@domusops/mcp@0.1.2` is on npm with provenance, that `@domusops/schema`, `@domusops/sandbox` and `@domusops/bootstrap` did not change version (SC-007), and that a Claude Code session using the README's recommended setup reports `0.1.2` (SC-001, SC-002)
+- [X] T037 After US1–US4 merge, check each `FR-001..FR-018` and `SC-001..SC-007` against the merged pull requests and record any gap in `specs/008-mcp-reliability/checklists/requirements.md` Notes
+- [ ] T038 After the maintainer merges Version Packages, confirm `@domusops/mcp@0.1.2` is on npm with provenance, that `@domusops/schema` and `@domusops/bootstrap` did not change version and `@domusops/sandbox` changed only its dependency (SC-007), and that a Claude Code session using the README's recommended setup reports `0.1.2` (SC-001, SC-002)
 
 ---
 
