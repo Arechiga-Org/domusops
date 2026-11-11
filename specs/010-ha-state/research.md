@@ -76,8 +76,10 @@ IDs, redaction) on the reference fixture `REFERENCE_500` of `packages/mcp/test/f
   left out when it equals the document's `utc_offset`, which is the offset at the `anchor`.
   `anchor` is the latest `last_updated` of the selected entities, truncated to the second, or
   the call time when nothing is selected. `st.last_updated` is left out (default `null`, meaning
-  "equal to `last_changed`") when it equals `last_changed`. `st.last_reported` is left out when
-  it equals `last_updated` or the instance does not give it.
+  "equal to `last_changed`") when it equals `last_changed`, and `st.last_reported` (default
+  `null`, meaning "equal to `last_updated`") when it equals `last_updated`. Every supported
+  release (2025.1.0 and later) gives all three times; a state object without one is a protocol
+  error, as `ha_trace` already treats it (`trace/values.ts`).
 - **Why**: FR-008 asks for the logbook's form; agents read the times as they are. The defaults
   remove most of the third time on a real instance, where most states have equal times.
 - **Precision**: sub-second digits are dropped, the only change besides redaction (FR-018
@@ -133,8 +135,10 @@ anchorMs)`. `st.user_id` is the user ID as the instance gives it. `parent_id` an
   larger than one raw state.
 - **Decision**: `rawBytes` is the UTF-8 size of the selected state objects as received, before
   redaction and before `attributes` trims them (the answer the tool read for those entities).
-  CI asserts a floor of 2 for `standard` on the whole fixture. The sandbox test asserts the ratio
-  is reported and above 1 on each release's full instance.
+  CI asserts a floor of 2 for `standard` on the whole fixture and on `sensor.*`, the domain
+  SC-002 names. The sandbox test asserts the ratio is reported and above 1 on each release's
+  full instance. The sandbox bound is confirmed by measurement before the container test is
+  written (T030a).
 - **Why**: §4 has no exemption. The fixture is the worst case for times, which readable local
   form makes costly, and 2 leaves room for the implementation without hiding a regression. The
   floor is lower than the logbook's 5 and the trace's 3 because a state is already a compact
@@ -144,7 +148,7 @@ anchorMs)`. `st.user_id` is the user ID as the instance gives it. `parent_id` an
 
 - **Decision**: `expandState(document)` in `@domusops/schema`. It returns the records the
   document represents, in entity-ID order: `entity_id`, `state`, `attributes`, `last_changed`,
-  `last_updated`, `last_reported` (when present), and `context: { id, parent_id, user_id }`.
+  `last_updated`, `last_reported`, and `context: { id, parent_id, user_id }`.
   Times are local ISO 8601 with their offset, and context IDs are full. It reuses the
   snapshot's `decodeGroups` and `unescapeKey`, exported from their module but not from the
   package index.

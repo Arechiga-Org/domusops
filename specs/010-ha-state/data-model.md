@@ -24,10 +24,10 @@ Both detail levels share these keys, in this order; minified JSON.
 
 Envelope, then:
 
-| Key         | Type                              | Rule                                                               |
-| ----------- | --------------------------------- | ------------------------------------------------------------------ |
-| `templates` | map of template key to `Template` | Shared by every domain; `{ const, cols }`, as in the snapshot      |
-| `entities`  | map of domain to `Groups`         | Domains in name order; within a domain, records in object-ID order |
+| Key         | Type                              | Rule                                                                                                        |
+| ----------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `templates` | map of template key to `Template` | Shared by every domain; `{ const, cols }`, as in the snapshot                                               |
+| `entities`  | map of domain to `Groups`         | Domains in name order; within each group, records in object-ID order; `expandState` returns entity-ID order |
 
 A record, positional in a template row or an inline object under `_`:
 
@@ -38,14 +38,14 @@ A record, positional in a template row or an inline object under `_`:
     `~`, or equal to `entity_id`, `state`, `device`, `alias` or `id`, gains a leading `~`).
   - The state fields, prefixed `st.`:
 
-| Field              | Value                   | Default (left out when)                    |
-| ------------------ | ----------------------- | ------------------------------------------ |
-| `st.last_changed`  | local time (§4)         | never left out                             |
-| `st.last_updated`  | local time              | `null`: equal to `last_changed`            |
-| `st.last_reported` | local time              | `null`: equal to `last_updated`, or absent |
-| `st.context`       | compact context ID (§5) | never left out                             |
-| `st.parent_id`     | compact context ID      | `null`: the instance gave none             |
-| `st.user_id`       | the user ID as given    | `null`: the instance gave none             |
+| Field              | Value                   | Default (left out when)         |
+| ------------------ | ----------------------- | ------------------------------- |
+| `st.last_changed`  | local time (§4)         | never left out                  |
+| `st.last_updated`  | local time              | `null`: equal to `last_changed` |
+| `st.last_reported` | local time              | `null`: equal to `last_updated` |
+| `st.context`       | compact context ID (§5) | never left out                  |
+| `st.parent_id`     | compact context ID      | `null`: the instance gave none  |
+| `st.user_id`       | the user ID as given    | `null`: the instance gave none  |
 
 Within a template, a field every member holds with one value is a constant, and a field every
 member leaves at its default is absent, as in the snapshot's `TemplateBook`.
@@ -73,15 +73,15 @@ in `context`.
 
 ## 6. Decoded record (`expandState`)
 
-| Key             | Type                                                         |
-| --------------- | ------------------------------------------------------------ |
-| `entity_id`     | string                                                       |
-| `state`         | string                                                       |
-| `attributes`    | object, keys unescaped                                       |
-| `last_changed`  | local ISO 8601 with offset                                   |
-| `last_updated`  | local ISO 8601 with offset                                   |
-| `last_reported` | local ISO 8601 with offset, present when the document has it |
-| `context`       | `{ id, parent_id, user_id }`, full IDs, `null` when absent   |
+| Key             | Type                                                       |
+| --------------- | ---------------------------------------------------------- |
+| `entity_id`     | string                                                     |
+| `state`         | string                                                     |
+| `attributes`    | object, keys unescaped                                     |
+| `last_changed`  | local ISO 8601 with offset                                 |
+| `last_updated`  | local ISO 8601 with offset                                 |
+| `last_reported` | local ISO 8601 with offset                                 |
+| `context`       | `{ id, parent_id, user_id }`, full IDs, `null` when absent |
 
 Records come in entity-ID order.
 

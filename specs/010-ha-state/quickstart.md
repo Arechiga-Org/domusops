@@ -60,7 +60,7 @@ DOMUSOPS_CONTAINER_TESTS=1 DOMUSOPS_SANDBOX_CHANNEL=stable DOMUSOPS_SANDBOX_RELE
 
 Expected: on a sandbox instance with `default_config`, `ha_state` returns `zone.home` with its
 coordinates redacted, a `summary` whose counts match the full `standard` result, and a
-`compression_ratio` above 1 for the full instance. Repeat with 2026.9.4; CI runs stable,
+`compression_ratio` at the bound research R10 records for the full instance. Repeat with 2026.9.4; CI runs stable,
 previous stable and beta.
 
 ## 5. The gate

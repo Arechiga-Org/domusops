@@ -136,8 +136,9 @@ the counts match the instance, and the result stays small however many entities 
   the token is refused, or the instance times out: the same error results as in the other tools.
 - The instance's version is below the supported minimum: the same refusal as in the other tools.
 - An entity's state is `unavailable` or `unknown`: reported as it is, and selectable by state.
-- A state value is not a string on the wire (a malformed answer): reported as a protocol problem,
-  as in the other tools.
+- A state value is not a string, or a state object lacks `last_changed`, `last_updated` or
+  `last_reported` (a malformed answer; every supported release gives all three): reported as a
+  protocol problem, as in the other tools.
 - An entity with no attributes, or with deeply nested or very long attribute values: reported
   completely (apart from redaction); a single entity that alone exceeds the limit is refused like
   any other oversize result.
@@ -165,8 +166,8 @@ the counts match the instance, and the result stays small however many entities 
 - **FR-005**: The tool MUST accept a `state` filter, one or more state values, which keeps only
   the entities whose state equals one of them exactly (`on`, `unavailable`).
 - **FR-006**: For each selected entity, the response MUST carry its ID, its state, its attributes
-  (after FR-010), `last_changed`, `last_updated`, `last_reported` when the instance gives it
-  (when a sensor last reported, even an unchanged value), and its context identifiers as the
+  (after FR-010), `last_changed`, `last_updated`, `last_reported` (when a sensor last reported,
+  even an unchanged value), and its context identifiers as the
   instance gives them. By default every attribute is returned; an optional `attributes` input, a list of
   attribute names, keeps only those, and a named attribute an entity does not have is simply
   absent. Entities are selected the same way with or without it.
@@ -200,8 +201,9 @@ the counts match the instance, and the result stays small however many entities 
   `attributes` is not combinable with `summary`, which carries no attributes.
 - **FR-015**: The filters of FR-002 to FR-005 MUST apply to the summary as well, so its counts
   cover only the selected entities.
-- **FR-016**: The tool MUST read only the instance's current states and its core configuration
-  (for the time zone and the instance's own coordinates). It MUST NOT read registries, history,
+- **FR-016**: The tool MUST read only the current user (to check for an administrator, as the
+  other tools do), the instance's current states and its core configuration (for the time zone
+  and the instance's own coordinates). It MUST NOT read registries, history,
   the logbook, traces or the system log, MUST use only commands already on the server's
   allowlist, and MUST make one connection per call.
 - **FR-017**: The tool MUST NOT change anything on the instance, and MUST declare itself

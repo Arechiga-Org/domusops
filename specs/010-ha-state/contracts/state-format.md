@@ -77,6 +77,7 @@ The document `ha_state` returns, published in `@domusops/schema` as `STATE_FORMA
 ```
 
 - `st.last_updated` is absent from `t1`: every light in it was updated when it changed.
+- `st.last_reported` is absent everywhere: every light reported when it was last updated.
 - `st.parent_id` and `st.user_id` are absent where the instance gave `null`.
 - The kitchen light's context, `0:9A8S7D6F5G4H3J2K`, can be passed to `ha_trace` or
   `ha_logbook_query` as `context`.
