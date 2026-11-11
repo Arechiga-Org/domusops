@@ -273,7 +273,9 @@ with an automation that stores fewer runs than its maximum and check there is no
   100% of cases, and one where no automation reached its stored-run limit carries it in 0%.
 - **SC-006**: Every existing output test of the three tools passes with zero edited
   expectations, and every compression floor is unchanged.
-- **SC-007**: The release changes the version of `@domusops/mcp` only, to 0.1.2.
+- **SC-007**: The release changes the version of `@domusops/mcp` to 0.1.2, and of no other
+  package except `@domusops/sandbox`, which pins `@domusops/mcp` to an exact version and so
+  follows with a patch that only updates that dependency.
 
 ## Assumptions
 
