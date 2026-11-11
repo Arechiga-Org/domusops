@@ -39,7 +39,7 @@ Per automation or script, per bucket (`runs`, `not_triggered`):
 | `limit`  | `raw_config.trace.stored_traces` from `automation/config` or `script/config`; 5 when absent; 5 and `assumed` when the read fails |
 
 An item is **affected** when the query has a window and, for at least one bucket,
-`count ≥ limit` and `oldest` is after the window start (always true without `start`). Excluded
+`count ≥ limit` and `oldest` is after the window start (with only `end`, the window starts 24 hours before it). Excluded
 items are never affected.
 
 ## 3. Response notes

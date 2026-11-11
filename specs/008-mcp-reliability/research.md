@@ -70,8 +70,8 @@ Facts about Home Assistant were read from the source of the 2026.10.0 (stable) a
 - **Decision**: for a query with a window, after selection and exclusion:
   1. for each selected item, count its stored records per bucket (`not_triggered` true or not)
      from the `trace/list` result already fetched, and take the oldest start in each bucket;
-  2. candidates are items with a bucket whose oldest start is after the window start (no `start`:
-     always) and whose count is at least 1;
+  2. candidates are items with a bucket whose oldest start is after the window start (with only
+     `end`, the window starts 24 hours before it) and whose count is at least 1;
   3. for candidates only, read the limit with `automation/config` or `script/config`
      (concurrently, within `MAX_IN_FLIGHT`); absent `trace.stored_traces` means 5; a failed read
      means 5 and the note says the limit was assumed;
