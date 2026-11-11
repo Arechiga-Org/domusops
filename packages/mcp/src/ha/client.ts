@@ -113,7 +113,11 @@ export interface ClientOptions {
   wsUrl: string;
   token: string;
   timeouts?: Partial<Timeouts>;
-  minVersion?: string;
+  /**
+   * The least version the client connects to. Defaults to `MIN_VERSION`; `null` connects to any
+   * parseable version, for a caller that reports support itself (`ha_ping`).
+   */
+  minVersion?: string | null;
 }
 
 interface Pending {
@@ -178,7 +182,8 @@ export class HaClient {
     const timeouts: Timeouts = { ...DEFAULT_TIMEOUTS, ...options.timeouts };
     const started = Date.now();
     const deadline = started + timeouts.totalMs;
-    const minVersion = options.minVersion ?? MIN_VERSION;
+    const minVersion =
+      options.minVersion === undefined ? MIN_VERSION : options.minVersion;
     const { wsUrl, token } = options;
 
     let socket: WebSocket;
@@ -233,7 +238,9 @@ export class HaClient {
           if (typeof message.ha_version === "string")
             haVersion = message.ha_version;
           try {
-            if (!isSupported(haVersion, minVersion)) {
+            // An unparseable version fails here whatever the minimum is.
+            const supported = isSupported(haVersion, minVersion ?? MIN_VERSION);
+            if (minVersion !== null && !supported) {
               fail(errors.versionUnsupported(haVersion, minVersion));
               return;
             }

@@ -163,6 +163,31 @@ describe("HaClient failures", () => {
     expect(ha.authReceived).toBe(false);
   });
 
+  it("connects to an old version when minVersion is null, and exposes it (ha_ping, research R3)", async () => {
+    const ha = await fake({ haVersion: "2024.12.4" });
+    const client = await HaClient.connect({
+      wsUrl: wsUrl(ha),
+      token: FAKE_TOKEN,
+      minVersion: null,
+      timeouts: SHORT,
+    });
+    expect(client.haVersion).toBe("2024.12.4");
+    client.close();
+  });
+
+  it("still fails on a version it cannot parse when minVersion is null", async () => {
+    const ha = await fake({ haVersion: "not-a-version" });
+    const error = await failure(() =>
+      HaClient.connect({
+        wsUrl: wsUrl(ha),
+        token: FAKE_TOKEN,
+        minVersion: null,
+        timeouts: SHORT,
+      }),
+    );
+    expect(kindOf(error)).toBe("protocol_error");
+  });
+
   it("reports a rejected token", async () => {
     const ha = await fake();
     const error = await failure(() =>

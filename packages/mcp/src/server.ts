@@ -3,8 +3,6 @@ import {
   LOGBOOK_DETAIL_LEVELS,
   TRACE_DETAIL_LEVELS,
 } from "@domusops/schema";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -12,6 +10,7 @@ import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
 import { MAX_SELECTORS } from "./logbook/selectors.js";
 import type { Response } from "./notes.js";
+import { packageVersion, SERVER_NAME } from "./package-info.js";
 import { queryLogbook } from "./tools/ha-logbook-query.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 import { queryTrace } from "./tools/ha-trace.js";
@@ -95,42 +94,12 @@ export interface ServerOptions {
   timeouts?: Partial<Timeouts>;
 }
 
-/**
- * Reads `version` from a `package.json`. There is no fallback: a server that cannot tell its
- * version refuses to start rather than report an invented one, and the error names the file.
- */
-export function readVersion(file: URL): string {
-  const path = fileURLToPath(file);
-  let text: string;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`cannot read ${path}: ${reason}`);
-  }
-  let version: unknown;
-  try {
-    version = (JSON.parse(text) as { version?: unknown } | null)?.version;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${path} is not valid JSON: ${reason}`);
-  }
-  if (typeof version !== "string" || version === "")
-    throw new Error(`${path} has no version`);
-  return version;
-}
-
-let ownVersion: string | undefined;
-
-/** The installed package's version, read once from its `package.json` (one level above both `src/` and `dist/`). */
-function packageVersion(): string {
-  ownVersion ??= readVersion(new URL("../package.json", import.meta.url));
-  return ownVersion;
-}
+// Kept here for the callers that import it from the server module.
+export { readVersion } from "./package-info.js";
 
 export function createServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer({
-    name: "domusops-mcp",
+    name: SERVER_NAME,
     version: packageVersion(),
   });
 

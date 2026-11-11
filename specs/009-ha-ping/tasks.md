@@ -24,7 +24,7 @@ description: "Task list for ha_ping (feature 009, first tool of 0.2.0)"
 
 ## Phase 1: Setup
 
-- [ ] T001 Run `pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test` on the branch before any code and record that the baseline is green (constitution §2)
+- [X] T001 Run `pnpm install --frozen-lockfile && pnpm lint && pnpm typecheck && pnpm test` on the branch before any code and record that the baseline is green (constitution §2)
 
 ---
 
@@ -32,12 +32,12 @@ description: "Task list for ha_ping (feature 009, first tool of 0.2.0)"
 
 **Purpose**: the format, the shared identity and the client change that the tool needs.
 
-- [ ] T002 [P] In `packages/schema/test/ping-format.test.ts`, write tests for the format: `PING_FORMAT` is `domusops.ping/0.1`; `pingJsonSchema` accepts the two examples of `specs/009-ha-ping/contracts/ping-format.md`; it rejects a document without `format`, with `admin` not a boolean, with a `reasons` entry that is not `version_unsupported`, `not_admin` or `integration_missing:` followed by `[a-z0-9_]+`, and with `ready: false` and no `reasons`; it accepts names in `tools` and `integrations` it does not know (FR-019, R9)
-- [ ] T003 [P] In `packages/schema/src/ping/format.ts`, add `PING_FORMAT` and the types `PingDocument`, `PingInstance` and `PingToolReadiness` exactly as data-model §1 and §2 (keys in that order; `next_steps` optional; `reasons` optional); in `packages/schema/src/ping/json-schema.ts`, add `pingJsonSchema`; export both from `packages/schema/src/index.ts` (R9). No decoder
-- [ ] T004 [P] In `packages/schema/README.md`, add the format's row to the Formats table (no detail levels, no decoder: the document is read as it is) and `PING_FORMAT`, `PingDocument` and `pingJsonSchema` to the exports list
-- [ ] T005 [P] In `packages/mcp/test/client.test.ts`, add tests that `HaClient.connect` with `minVersion: null` connects to a fake instance below `MIN_VERSION` and exposes its `haVersion`, and that the default still fails with `version_unsupported` (R3)
-- [ ] T006 In `packages/mcp/src/ha/client.ts`, let `ClientOptions.minVersion` be `string | null`; `null` skips the `isSupported` check at `auth_required` (an unparseable version still fails as a protocol error); the default is unchanged (R3)
-- [ ] T007 In `packages/mcp/src/package-info.ts`, move `readVersion` and `packageVersion` out of `packages/mcp/src/server.ts` and add `SERVER_NAME = "domusops-mcp"`; make `server.ts` import them (R11). No behaviour change: `packages/mcp/test/server-version.test.ts` passes unedited
+- [X] T002 [P] In `packages/mcp/test/ping-json-schema.test.ts`, write tests for the format: `PING_FORMAT` is `domusops.ping/0.1`; `pingJsonSchema` accepts the two examples of `specs/009-ha-ping/contracts/ping-format.md`; it rejects a document without `format`, with `admin` not a boolean, with a `reasons` entry that is not `version_unsupported`, `not_admin` or `integration_missing:` followed by `[a-z0-9_]+`, and with `ready: false` and no `reasons`; it accepts names in `tools` and `integrations` it does not know (FR-019, R9)
+- [X] T003 [P] In `packages/schema/src/ping/format.ts`, add `PING_FORMAT` and the types `PingDocument`, `PingInstance` and `PingToolReadiness` exactly as data-model §1 and §2 (keys in that order; `next_steps` optional; `reasons` optional); in `packages/schema/src/ping/json-schema.ts`, add `pingJsonSchema`; export both from `packages/schema/src/index.ts` (R9). No decoder
+- [X] T004 [P] In `packages/schema/README.md`, add the format's row to the Formats table (no detail levels, no decoder: the document is read as it is) and `PING_FORMAT`, `PingDocument` and `pingJsonSchema` to the exports list
+- [X] T005 [P] In `packages/mcp/test/client.test.ts`, add tests that `HaClient.connect` with `minVersion: null` connects to a fake instance below `MIN_VERSION` and exposes its `haVersion`, and that the default still fails with `version_unsupported` (R3)
+- [X] T006 In `packages/mcp/src/ha/client.ts`, let `ClientOptions.minVersion` be `string | null`; `null` skips the `isSupported` check at `auth_required` (an unparseable version still fails as a protocol error); the default is unchanged (R3)
+- [X] T007 In `packages/mcp/src/package-info.ts`, move `readVersion` and `packageVersion` out of `packages/mcp/src/server.ts` and add `SERVER_NAME = "domusops-mcp"`; make `server.ts` import them (R11). No behaviour change: `packages/mcp/test/server-version.test.ts` passes unedited
 
 **Checkpoint**: the format is published in the workspace, the client can connect to an old instance, and the server's identity has one source.
 
