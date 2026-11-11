@@ -36,6 +36,8 @@ export interface FakeHaOptions {
    * `script/config` fail.
    */
   storedTraces?: Record<string, number>;
+  /** Entity IDs of items built from a blueprint: their configuration is a `use_blueprint`. */
+  blueprints?: string[];
 }
 
 export interface FakeHa {
@@ -174,11 +176,15 @@ function configReply(
     return { error: { code: "not_found", message: "Entity not found" } };
   }
   const stored = options.storedTraces?.[entry.entity_id];
+  const blueprint = options.blueprints?.includes(entry.entity_id) === true;
   return {
     result: {
       config: {
         ...(domain === "automation" ? { id: entry.unique_id } : {}),
         alias: entry.entity_id,
+        ...(blueprint
+          ? { use_blueprint: { path: "motion_light.yaml", input: {} } }
+          : {}),
         ...(stored === undefined ? {} : { trace: { stored_traces: stored } }),
       },
     },
@@ -282,6 +288,26 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
             if (socket.readyState === socket.OPEN) socket.send(text);
           }, delay);
       };
+      // The result message of a reply; `malformed` replaces a successful result.
+      const envelope = (reply: Reply): string =>
+        JSON.stringify(
+          "error" in reply
+            ? {
+                id: message.id,
+                type: "result",
+                success: false,
+                error: reply.error,
+              }
+            : {
+                id: message.id,
+                type: "result",
+                success: true,
+                result:
+                  options.malformed === type
+                    ? "not the expected shape"
+                    : reply.result,
+              },
+        );
       if (immediate) {
         out(
           JSON.stringify({
@@ -321,26 +347,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
           ),
         );
         const reply = traceReply(type, message, options);
-        out(
-          JSON.stringify(
-            "error" in reply
-              ? {
-                  id: message.id,
-                  type: "result",
-                  success: false,
-                  error: reply.error,
-                }
-              : {
-                  id: message.id,
-                  type: "result",
-                  success: true,
-                  result:
-                    options.malformed === type
-                      ? "not the expected shape"
-                      : reply.result,
-                },
-          ),
-        );
+        out(envelope(reply));
         return;
       }
       if (type === "logbook/get_events" && options.logbook !== false) {
@@ -352,27 +359,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
           ),
         );
         const reply = logbookResult(message, options);
-        const send = (): void =>
-          out(
-            JSON.stringify(
-              "error" in reply
-                ? {
-                    id: message.id,
-                    type: "result",
-                    success: false,
-                    error: reply.error,
-                  }
-                : {
-                    id: message.id,
-                    type: "result",
-                    success: true,
-                    result:
-                      options.malformed === type
-                        ? "not the expected shape"
-                        : reply.result,
-                  },
-            ),
-          );
+        const send = (): void => out(envelope(reply));
         if (options.logbookDelayMs === undefined) send();
         else setTimeout(send, options.logbookDelayMs);
         return;
@@ -380,23 +367,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
       if (type === "automation/config" || type === "script/config") {
         fake.receivedConfigIds.push(String(message.entity_id));
         const reply = configReply(type, message.entity_id, options);
-        out(
-          JSON.stringify(
-            "error" in reply
-              ? {
-                  id: message.id,
-                  type: "result",
-                  success: false,
-                  error: reply.error,
-                }
-              : {
-                  id: message.id,
-                  type: "result",
-                  success: true,
-                  result: reply.result,
-                },
-          ),
-        );
+        out(envelope(reply));
         return;
       }
       const result =

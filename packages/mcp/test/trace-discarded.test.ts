@@ -72,7 +72,7 @@ const entityIds = (fixture: TraceFixture, domain?: string): string[] =>
     .sort();
 
 const note = (...items: string[]): string =>
-  `Note: these automations and scripts keep only their most recent runs, and older runs that may fall in the window are gone: ${items.join("; ")}. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.`;
+  `Note: these automations and scripts store as many runs as they keep, so older runs from the window may be gone: ${items.join("; ")}. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.`;
 
 /** One automation with `runs` stored runs. */
 const single = (runs: number): TraceFixture => generateTraces(1, runs, 8);
@@ -104,6 +104,14 @@ describe("ha_trace's discarded-runs note", () => {
     const [id] = entityIds(fixture);
     const { notes } = await query(fixture, window(fixture, BEFORE_ALL));
     expect(notes).toEqual([note(`${id} (keeps 5)`)]);
+  });
+
+  it("reads the limits alongside the runs, not after the document", async () => {
+    const fixture = single(5);
+    const { ha } = await query(fixture, window(fixture, BEFORE_ALL));
+    const config = ha.received.indexOf("automation/config");
+    expect(config).toBeGreaterThan(-1);
+    expect(config).toBeLessThan(ha.received.indexOf("trace/get"));
   });
 
   it("leaves the document exactly as it is without the note", async () => {
@@ -146,16 +154,27 @@ describe("ha_trace's discarded-runs note", () => {
     expect(notes).toEqual([note(`${id} (keeps 5, limit assumed)`)]);
   });
 
-  it("counts runs and not-triggered records apart", async () => {
-    // 2 runs and 4 not-triggered records: 6 together, but neither kind reaches 5.
-    const apart = withNotTriggered(single(2), 4);
-    expect((await query(apart, window(apart, BEFORE_ALL))).notes).toEqual([]);
-    // 5 not-triggered records fill their own kind: older ones may be gone.
-    const full = withNotTriggered(single(2), 5);
-    const [id] = entityIds(full);
-    expect((await query(full, window(full, BEFORE_ALL))).notes).toEqual([
-      note(`${id} (keeps 5)`),
-    ]);
+  it("counts runs only: not-triggered records are stored apart and never replace runs", async () => {
+    // 2 runs and 5 newer not-triggered records: the runs are far from their limit.
+    const fixture = withNotTriggered(single(2), 5);
+    expect((await query(fixture, window(fixture, BEFORE_ALL))).notes).toEqual(
+      [],
+    );
+  });
+
+  it("assumes the limit of an item built from a blueprint that does not set it", async () => {
+    const fixture = single(5);
+    const [id] = entityIds(fixture);
+    const { notes } = await query(fixture, window(fixture, BEFORE_ALL), {
+      blueprints: [id as string],
+    });
+    expect(notes).toEqual([note(`${id} (keeps 5, limit assumed)`)]);
+    // A limit its own configuration sets is read as given.
+    const own = await query(fixture, window(fixture, BEFORE_ALL), {
+      blueprints: [id as string],
+      storedTraces: { [id as string]: 20 },
+    });
+    expect(own.notes).toEqual([]);
   });
 
   it("names at most 10 items, in entity-ID order, then how many more", async () => {

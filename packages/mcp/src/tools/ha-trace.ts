@@ -33,7 +33,7 @@ import { affected, candidates } from "../trace/discarded.js";
 import {
   domainsFor,
   parseRequest,
-  selectsItem,
+  itemSelection,
   selectTraces,
 } from "../trace/select.js";
 import { discardedRunsNote, exclusionNote, type Response } from "../notes.js";
@@ -121,6 +121,21 @@ export async function queryTrace(
         ? readContexts(client)
         : Promise.resolve(new Map<string, ContextEntry>()),
     );
+    const chosen = itemSelection(request);
+    // A window is never combined with run or context. The limits of the items whose stored runs
+    // may no longer reach its start are read alongside the runs, so they never wait for the
+    // document nor get only what is left of the call's time (spec FR-011, research R4).
+    const found =
+      window === null
+        ? null
+        : candidates(
+            short,
+            (record) => items.keyOf(record.domain, record.item_id),
+            chosen.selects,
+            window.startMs,
+          );
+    const limits =
+      found === null ? null : readStoredLimits(client, [...found.keys()]);
     const selection = await selectTraces({
       request,
       items,
@@ -128,6 +143,7 @@ export async function queryTrace(
       contexts,
       window,
       fetch: (refs: TraceRef[]) => getTraces(client, refs),
+      chosen,
     });
 
     const context: TraceEncodeContext = {
@@ -255,19 +271,10 @@ export async function queryTrace(
     }
     const notes =
       request.exclude === undefined ? [] : [exclusionNote(request.exclude)];
-    // A window is never combined with run or context. Items whose stored runs may no longer reach
-    // its start are named after the document, which they do not change (spec FR-011 to FR-014).
-    if (window !== null) {
-      const found = candidates(
-        short,
-        (record) => items.keyOf(record.domain, record.item_id),
-        selectsItem(request),
-        window.startMs,
-      );
-      const gone = affected(
-        found,
-        await readStoredLimits(client, [...found.keys()]),
-      );
+    // The affected items are named after the document, which they do not change (FR-012 to
+    // FR-014).
+    if (found !== null && limits !== null) {
+      const gone = affected(found, await limits);
       if (gone.length > 0) notes.push(discardedRunsNote(gone));
     }
     return { document: text, notes };

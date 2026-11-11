@@ -342,23 +342,27 @@ async function readStoredLimit(
   const command = entityId.startsWith("script.")
     ? "script/config"
     : "automation/config";
+  const assumed = { limit: DEFAULT_STORED_TRACES, assumed: true };
   let result: unknown;
   try {
     result = await client.command(command, { entity_id: entityId });
   } catch {
-    return { limit: DEFAULT_STORED_TRACES, assumed: true };
+    // Whatever the failure (a timeout, a missing command, a refused user, a closed connection),
+    // the limit is assumed and the note says so: it never fails the call (spec FR-011).
+    return assumed;
   }
   const config = isObject(result) ? result["config"] : undefined;
-  if (!isObject(config)) return { limit: DEFAULT_STORED_TRACES, assumed: true };
+  if (!isObject(config)) return assumed;
   const trace = config["trace"];
   const stored = isObject(trace) ? trace["stored_traces"] : undefined;
-  return {
-    limit:
-      typeof stored === "number" && Number.isInteger(stored) && stored > 0
-        ? stored
-        : DEFAULT_STORED_TRACES,
-    assumed: false,
-  };
+  if (typeof stored === "number" && Number.isInteger(stored) && stored > 0) {
+    return { limit: stored, assumed: false };
+  }
+  // The configuration of an item built from a blueprint is the user's `use_blueprint`, not what
+  // the blueprint expands to, which may set the limit itself.
+  return "use_blueprint" in config
+    ? assumed
+    : { limit: DEFAULT_STORED_TRACES, assumed: false };
 }
 
 /**

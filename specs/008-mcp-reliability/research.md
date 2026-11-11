@@ -68,17 +68,21 @@ Facts about Home Assistant were read from the source of the 2026.10.0 (stable) a
     holds `trace.stored_traces` only when the user set it. Both commands exist on both releases
     checked.
 - **Decision**: for a query with a window, after selection and exclusion:
-  1. for each selected item, count its stored records per bucket (`not_triggered` true or not)
-     from the `trace/list` result already fetched, and take the oldest start in each bucket;
-  2. candidates are items with a bucket whose oldest start is after the window start (with only
-     `end`, the window starts 24 hours before it) and whose count is at least 1;
+  1. for each selected item, count its stored runs (records without `not_triggered`) from the
+     `trace/list` result already fetched, and take the oldest start;
+  2. candidates are items whose oldest stored run started after the window start (with only
+     `end`, the window starts 24 hours before it);
   3. for candidates only, read the limit with `automation/config` or `script/config`
-     (concurrently, within `MAX_IN_FLIGHT`); absent `trace.stored_traces` means 5; a failed read
-     means 5 and the note says the limit was assumed;
-  4. an item is affected when a candidate bucket's count is at or above its limit.
-- **Why per bucket**: a flood of not-triggered traces does not evict runs, so counting them
-  together would raise false warnings. On an older release that shares one bucket, counting
-  separately can only miss a warning, never invent one.
+     (concurrently, within `MAX_IN_FLIGHT`, alongside the reads of the runs, so they never get
+     only what is left of the call's time); absent `trace.stored_traces` means 5; a failed read,
+     or an item built from a blueprint (its configuration is the `use_blueprint`, not what the
+     blueprint expands to) that sets none, means 5 and the note says the limit was assumed;
+  4. an item is affected when its count is at or above its limit.
+- **Why runs only**: not-triggered traces have a bucket and a limit of their own and never evict
+  runs. A trigger evaluated often fills that bucket in minutes, so counting it would name such
+  an item on nearly every windowed query; and the warning exists so that missing runs are not
+  read as "nothing ran". On an older release that shares one bucket, counting runs only can only
+  miss a warning, never invent one.
 - **Cost**: one extra round trip per candidate, and none when no query window is given. The
   extra reads never change the document.
 - **Rejected**: reading `trace.stored_traces` from the `config` of an extended record (it needs

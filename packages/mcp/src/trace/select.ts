@@ -134,15 +134,19 @@ export function domainsFor(request: TraceRequest): TraceDomain[] {
   );
 }
 
-/**
- * Whether a request selects an item, by its key: matched by the selectors (every item without
- * them), then not excluded (research R3).
- */
-export function selectsItem(request: TraceRequest): (key: string) => boolean {
+/** Which items a request selects, by their keys (research R3). */
+export interface ItemSelection {
+  /** Matched by the selectors (every item without them), then not excluded. */
+  selects: (key: string) => boolean;
+  /** Matched by the exclusion list. */
+  excluded: (key: string) => boolean;
+}
+
+export function itemSelection(request: TraceRequest): ItemSelection {
   const excluded = exclusion(request.exclude);
   const selected =
     request.selectors === undefined ? () => true : matcher(request.selectors);
-  return (key) => selected(key) && !excluded(key);
+  return { selects: (key) => selected(key) && !excluded(key), excluded };
 }
 
 /** Selectors and items that produced no runs, with the reason (spec FR-004). */
@@ -162,6 +166,8 @@ export interface SelectInput {
   window: ResolvedWindow | null;
   /** Reads the extended records of the given traces (only the context lookup needs it here). */
   fetch: (refs: TraceRef[]) => Promise<TraceExtendedRecord[]>;
+  /** Built from `request` when absent; a caller that needs it too passes its own. */
+  chosen?: ItemSelection;
 }
 
 export interface Selection {
@@ -225,16 +231,15 @@ export async function selectTraces(input: SelectInput): Promise<Selection> {
 
   const keyOf = (record: TraceShortRecord): string =>
     items.keyOf(record.domain, record.item_id);
-  const wanted = selectsItem(request);
+  const { selects, excluded } = input.chosen ?? itemSelection(request);
   const chosen = short.filter(
-    (record) => wanted(keyOf(record)) && inWindow(record),
+    (record) => selects(keyOf(record)) && inWindow(record),
   );
   const selectors = request.selectors;
   if (selectors === undefined)
     return { shorts: chosen, extended, noRuns: null };
 
   // Excluded items appear in no list of what produced no runs (research R3).
-  const excluded = exclusion(request.exclude);
   const known = [...items.registered, ...items.untraceable];
   const matched = new Set<string>();
   const noMatch: string[] = [];

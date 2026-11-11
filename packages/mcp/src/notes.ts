@@ -34,5 +34,5 @@ export function discardedRunsNote(
     items.length > MAX_NOTE_ITEMS
       ? `; and ${items.length - MAX_NOTE_ITEMS} more`
       : "";
-  return `Note: these automations and scripts keep only their most recent runs, and older runs that may fall in the window are gone: ${named.join("; ")}${more}. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.`;
+  return `Note: these automations and scripts store as many runs as they keep, so older runs from the window may be gone: ${named.join("; ")}${more}. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.`;
 }
