@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HaSocket } from "../src/ha/ws.js";
@@ -18,10 +20,18 @@ interface Reply {
   error?: { message: string };
 }
 
+/** A successful tool result: the parsed document, then the notes that follow it. */
+interface ToolResult {
+  document: unknown;
+  notes: string[];
+}
+
 /** Speaks the MCP stdio protocol (one JSON message per line) with the built server. */
 async function withMcp<T>(
   env: Record<string, string>,
-  body: (call: (name: string, args: object) => Promise<unknown>) => Promise<T>,
+  body: (
+    call: (name: string, args: object) => Promise<ToolResult>,
+  ) => Promise<T>,
 ): Promise<T> {
   // Settings of the machine running the test must not change what the server answers.
   const clean = Object.fromEntries(
@@ -98,9 +108,11 @@ async function withMcp<T>(
     return await body(async (name, args) => {
       const reply = await request("tools/call", { name, arguments: args });
       expect(reply.error).toBeUndefined();
-      const text = reply.result?.content?.[0]?.text ?? "";
+      const [text = "", ...notes] = (reply.result?.content ?? []).map(
+        (block) => block.text,
+      );
       expect(reply.result?.isError, text).not.toBe(true);
-      return JSON.parse(text) as unknown;
+      return { document: JSON.parse(text) as unknown, notes };
     });
   } finally {
     child.kill();
@@ -126,9 +138,11 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
           "DOMUSOPS_HA_URL",
         ]);
 
-        const snapshot = (await withMcp({ ...env }, (call) =>
-          call("ha_snapshot", { detail: "summary" }),
-        )) as {
+        const snapshot = (
+          await withMcp({ ...env }, (call) =>
+            call("ha_snapshot", { detail: "summary" }),
+          )
+        ).document as {
           format?: string;
           by_domain?: Record<string, number>;
           by_integration?: Record<string, { entities: number }>;
@@ -167,3 +181,102 @@ describe.each(CHANNELS)("existing tools against %s", (channel) => {
     8 * MINUTE,
   );
 });
+
+const PROBE = "automation.discard_probe";
+
+/** An automation that keeps 2 runs and runs on demand (specs/008-mcp-reliability US4). */
+function probeConfig(): string {
+  const dir = mkdtempSync(join(tmpdir(), "domusops-discard-"));
+  writeFileSync(
+    join(dir, "configuration.yaml"),
+    "default_config:\nautomation: !include automations.yaml\n",
+  );
+  writeFileSync(
+    join(dir, "automations.yaml"),
+    [
+      '- id: "domusops_discard_probe"',
+      "  alias: Discard probe",
+      "  trace:",
+      "    stored_traces: 2",
+      "  triggers:",
+      "    - trigger: event",
+      "      event_type: domusops_discard_probe",
+      "  actions:",
+      "    - event: domusops_discard_probe_ran",
+      "",
+    ].join("\n"),
+  );
+  return dir;
+}
+
+describe.each(CHANNELS)(
+  "ha_trace's discarded-runs note against %s",
+  (channel) => {
+    it(
+      "names an automation that replaced runs from the window, and not once it is excluded",
+      async () => {
+        expect(existsSync(MCP_ENTRY), "run pnpm build first").toBe(true);
+        const dir = probeConfig();
+        const sandbox = await startSandbox({
+          ...startTarget(channel),
+          config: { dir },
+        });
+        try {
+          const { wsUrl, token } = sandbox.connection();
+          const start = new Date(Date.now() - MINUTE).toISOString();
+          const socket = await HaSocket.connect(wsUrl, token);
+          try {
+            // Three runs, one at a time: the instance keeps the last 2.
+            const seen = new Set<string>();
+            for (let run = 0; run < 3; run++) {
+              await socket.command({
+                type: "call_service",
+                domain: "automation",
+                service: "trigger",
+                target: { entity_id: PROBE },
+              });
+              const limit = Date.now() + MINUTE;
+              for (;;) {
+                const stored = await socket.command<
+                  { run_id: string; state: string }[]
+                >({ type: "trace/list", domain: "automation" });
+                const fresh = stored.find(
+                  (t) => !seen.has(t.run_id) && t.state === "stopped",
+                );
+                if (fresh !== undefined) {
+                  seen.add(fresh.run_id);
+                  break;
+                }
+                if (Date.now() > limit)
+                  throw new Error("the probe did not run");
+                await new Promise((resolve) => setTimeout(resolve, 250));
+              }
+            }
+          } finally {
+            socket.close();
+          }
+
+          const [windowed, excluded] = await withMcp(
+            { ...sandbox.mcpEnv() },
+            async (call) => [
+              await call("ha_trace", { start }),
+              await call("ha_trace", { start, exclude: [PROBE] }),
+            ],
+          );
+          expect(
+            (windowed.document as { counts: { runs: number } }).counts.runs,
+          ).toBe(2);
+          expect(windowed.notes).toHaveLength(1);
+          expect(windowed.notes[0]).toContain(`${PROBE} (keeps 2)`);
+          expect(excluded.notes).toEqual([
+            `Note: excluded ${PROBE}. Counts, the size check and compression_ratio leave them out.`,
+          ]);
+        } finally {
+          await sandbox.stop();
+          rmSync(dir, { recursive: true, force: true });
+        }
+      },
+      8 * MINUTE,
+    );
+  },
+);

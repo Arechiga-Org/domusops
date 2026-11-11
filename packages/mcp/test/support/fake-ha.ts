@@ -30,6 +30,14 @@ export interface FakeHaOptions {
   delayMs?: number;
   /** A run ID whose `trace/get` fails at once, while every other reply waits for `delayMs`. */
   failTraceGet?: string;
+  /**
+   * The `trace.stored_traces` an item's configuration sets, by entity ID; items not listed set
+   * none (specs/008-mcp-reliability US4). `failCommand` makes `automation/config` or
+   * `script/config` fail.
+   */
+  storedTraces?: Record<string, number>;
+  /** Entity IDs of items built from a blueprint: their configuration is a `use_blueprint`. */
+  blueprints?: string[];
 }
 
 export interface FakeHa {
@@ -41,6 +49,8 @@ export interface FakeHa {
   receivedParams: Record<string, unknown>[];
   /** Parameters of every `trace/*` command received, in order (feature 003). */
   receivedTraceParams: Record<string, unknown>[];
+  /** The entity ID of every `automation/config` and `script/config` received, in order. */
+  receivedConfigIds: string[];
   /** When each `trace/get` was received, in order (milliseconds since the epoch). */
   traceGetsAt: number[];
   /** When each command was received, in order (milliseconds since the epoch). */
@@ -145,6 +155,42 @@ function traceReply(
   return { result: found };
 }
 
+/**
+ * Serves `automation/config` and `script/config` the way Home Assistant does: the item's
+ * configuration under `config`, with `trace` only when it sets `stored_traces`.
+ */
+function configReply(
+  type: string,
+  entityId: unknown,
+  options: FakeHaOptions,
+): Reply {
+  const domain = type.slice(0, type.indexOf("/"));
+  const entry = (
+    options.fixture.records.entity_registry as unknown as {
+      entity_id: string;
+      unique_id: string;
+      platform: string;
+    }[]
+  ).find((e) => e.entity_id === entityId && e.platform === domain);
+  if (entry === undefined) {
+    return { error: { code: "not_found", message: "Entity not found" } };
+  }
+  const stored = options.storedTraces?.[entry.entity_id];
+  const blueprint = options.blueprints?.includes(entry.entity_id) === true;
+  return {
+    result: {
+      config: {
+        ...(domain === "automation" ? { id: entry.unique_id } : {}),
+        alias: entry.entity_id,
+        ...(blueprint
+          ? { use_blueprint: { path: "motion_light.yaml", input: {} } }
+          : {}),
+        ...(stored === undefined ? {} : { trace: { stored_traces: stored } }),
+      },
+    },
+  };
+}
+
 function resultFor(type: string, options: FakeHaOptions): unknown {
   const { records } = options.fixture;
   switch (type) {
@@ -183,6 +229,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
     received: [],
     receivedParams: [],
     receivedTraceParams: [],
+    receivedConfigIds: [],
     traceGetsAt: [],
     receivedAt: [],
     authReceived: false,
@@ -206,6 +253,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
         domain?: unknown;
         item_id?: unknown;
         run_id?: unknown;
+        entity_id?: unknown;
       } & LogbookMessage;
       if (message.type === "auth") {
         fake.authReceived = true;
@@ -240,6 +288,26 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
             if (socket.readyState === socket.OPEN) socket.send(text);
           }, delay);
       };
+      // The result message of a reply; `malformed` replaces a successful result.
+      const envelope = (reply: Reply): string =>
+        JSON.stringify(
+          "error" in reply
+            ? {
+                id: message.id,
+                type: "result",
+                success: false,
+                error: reply.error,
+              }
+            : {
+                id: message.id,
+                type: "result",
+                success: true,
+                result:
+                  options.malformed === type
+                    ? "not the expected shape"
+                    : reply.result,
+              },
+        );
       if (immediate) {
         out(
           JSON.stringify({
@@ -279,26 +347,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
           ),
         );
         const reply = traceReply(type, message, options);
-        out(
-          JSON.stringify(
-            "error" in reply
-              ? {
-                  id: message.id,
-                  type: "result",
-                  success: false,
-                  error: reply.error,
-                }
-              : {
-                  id: message.id,
-                  type: "result",
-                  success: true,
-                  result:
-                    options.malformed === type
-                      ? "not the expected shape"
-                      : reply.result,
-                },
-          ),
-        );
+        out(envelope(reply));
         return;
       }
       if (type === "logbook/get_events" && options.logbook !== false) {
@@ -310,29 +359,15 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
           ),
         );
         const reply = logbookResult(message, options);
-        const send = (): void =>
-          out(
-            JSON.stringify(
-              "error" in reply
-                ? {
-                    id: message.id,
-                    type: "result",
-                    success: false,
-                    error: reply.error,
-                  }
-                : {
-                    id: message.id,
-                    type: "result",
-                    success: true,
-                    result:
-                      options.malformed === type
-                        ? "not the expected shape"
-                        : reply.result,
-                  },
-            ),
-          );
+        const send = (): void => out(envelope(reply));
         if (options.logbookDelayMs === undefined) send();
         else setTimeout(send, options.logbookDelayMs);
+        return;
+      }
+      if (type === "automation/config" || type === "script/config") {
+        fake.receivedConfigIds.push(String(message.entity_id));
+        const reply = configReply(type, message.entity_id, options);
+        out(envelope(reply));
         return;
       }
       const result =

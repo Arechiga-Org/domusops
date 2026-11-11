@@ -324,3 +324,67 @@ export async function getTraces(
   );
   return out;
 }
+
+/** What `stored_traces` defaults to when an item does not set it. */
+export const DEFAULT_STORED_TRACES = 5;
+
+/** How many runs of each kind an item keeps (specs/008-mcp-reliability data-model §2). */
+export interface StoredLimit {
+  limit: number;
+  /** The configuration could not be read, and the default is assumed. */
+  assumed: boolean;
+}
+
+async function readStoredLimit(
+  client: HaClient,
+  entityId: string,
+): Promise<StoredLimit> {
+  const command = entityId.startsWith("script.")
+    ? "script/config"
+    : "automation/config";
+  const assumed = { limit: DEFAULT_STORED_TRACES, assumed: true };
+  let result: unknown;
+  try {
+    result = await client.command(command, { entity_id: entityId });
+  } catch {
+    // Whatever the failure (a timeout, a missing command, a refused user, a closed connection),
+    // the limit is assumed and the note says so: it never fails the call (spec FR-011).
+    return assumed;
+  }
+  const config = isObject(result) ? result["config"] : undefined;
+  if (!isObject(config)) return assumed;
+  const trace = config["trace"];
+  const stored = isObject(trace) ? trace["stored_traces"] : undefined;
+  if (typeof stored === "number" && Number.isInteger(stored) && stored > 0) {
+    return { limit: stored, assumed: false };
+  }
+  // The configuration of an item built from a blueprint is the user's `use_blueprint`, not what
+  // the blueprint expands to, which may set the limit itself.
+  return "use_blueprint" in config
+    ? assumed
+    : { limit: DEFAULT_STORED_TRACES, assumed: false };
+}
+
+/**
+ * Reads the `trace.stored_traces` of each automation or script, at most `MAX_IN_FLIGHT` at a
+ * time (research R4). An item that does not set it keeps 5; a read that fails gives 5, marked as
+ * assumed, and never fails the call.
+ */
+export async function readStoredLimits(
+  client: HaClient,
+  entityIds: readonly string[],
+): Promise<Map<string, StoredLimit>> {
+  const out = new Map<string, StoredLimit>();
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const entityId = entityIds[next++];
+      if (entityId === undefined) return;
+      out.set(entityId, await readStoredLimit(client, entityId));
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(MAX_IN_FLIGHT, entityIds.length) }, worker),
+  );
+  return out;
+}

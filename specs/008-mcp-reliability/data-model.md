@@ -30,17 +30,18 @@ result is an empty, valid document.
 
 ## 2. Stored-run limit
 
-Per automation or script, per bucket (`runs`, `not_triggered`):
+Per automation or script, counting its runs only (not-triggered traces are stored apart, with a
+limit of their own, and never replace runs):
 
-| Field    | Source                                                                                                                           |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `count`  | Records of that item and bucket in the `trace/list` result                                                                       |
-| `oldest` | Earliest `timestamp.start` among them                                                                                            |
-| `limit`  | `raw_config.trace.stored_traces` from `automation/config` or `script/config`; 5 when absent; 5 and `assumed` when the read fails |
+| Field    | Source                                                                                                                                                                                     |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `count`  | Runs of that item in the `trace/list` result                                                                                                                                               |
+| `oldest` | Earliest `timestamp.start` among them                                                                                                                                                      |
+| `limit`  | `raw_config.trace.stored_traces` from `automation/config` or `script/config`; 5 when absent; 5 and `assumed` when the read fails, or when the item is built from a blueprint and sets none |
 
-An item is **affected** when the query has a window and, for at least one bucket,
-`count ≥ limit` and `oldest` is after the window start (always true without `start`). Excluded
-items are never affected.
+An item is **affected** when the query has a window, `count ≥ limit`, and `oldest` is after the
+window start (with only `end`, the window starts 24 hours before it). Excluded items are never
+affected.
 
 ## 3. Response notes
 

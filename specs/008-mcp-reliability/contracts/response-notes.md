@@ -20,7 +20,7 @@ Sent by `ha_trace` when the query has a window and at least one selected item is
 (data-model §2). It follows the exclusion note when both are sent.
 
 ```text
-Note: these automations and scripts keep only their most recent runs, and older runs that may fall in the window are gone: <items>. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.
+Note: these automations and scripts store as many runs as they keep, so older runs from the window may be gone: <items>. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.
 ```
 
 - `<items>`: up to 10 entries, ordered by entity ID, `; `-separated, each

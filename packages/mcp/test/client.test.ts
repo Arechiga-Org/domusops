@@ -533,6 +533,8 @@ describe("the command table (FR-027)", () => {
       "trace/list",
       "trace/get",
       "trace/contexts",
+      "automation/config",
+      "script/config",
     ]);
   });
 

@@ -225,8 +225,8 @@ with an automation that stores fewer runs than its maximum and check there is no
 
 - **FR-011**: When a query has a window (`start`, `end` or both), `ha_trace` MUST warn about
   every selected automation or script that stores as many runs as it is allowed and whose
-  oldest stored run started after the window start (with no `start`, after the beginning of
-  time), because runs inside the window may have been discarded.
+  oldest stored run started after the window start (with only `end`, the window starts 24 hours
+  before it), because runs inside the window may have been discarded.
 - **FR-012**: The warning MUST name each affected automation or script, the number of runs it
   keeps, the setting that keeps more, and `ha_logbook_query` as the full history. It MUST NOT
   be raised for an item that stores fewer runs than it is allowed, nor for queries by `run` or
