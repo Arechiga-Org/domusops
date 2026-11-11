@@ -318,9 +318,13 @@ and cannot be changed from a tool call.
 
 ### What the instance keeps
 
-- Home Assistant keeps only the most recent traces of each automation or script (5 by default, a
-  setting of the instance), in memory, and saves them on a clean stop. Stored traces are not a
-  complete history: `ha_logbook_query` is.
+- Home Assistant keeps only the most recent traces of each automation or script (5 by default;
+  `stored_traces` in its `trace:` options keeps more), in memory, and saves them on a clean stop.
+  Stored traces are not a complete history: `ha_logbook_query` is.
+- When `start` or `end` is given, a note after the document names the automations and scripts
+  (at most 10) that already store as many runs as they keep and whose oldest stored run started
+  after the window start, with the number each keeps: runs from the window may be gone, so an
+  empty or short result does not mean nothing ran.
 - Only automations with an `id` in their configuration are traced. The others are listed as
   `untraceable`.
 

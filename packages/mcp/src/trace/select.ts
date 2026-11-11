@@ -134,6 +134,17 @@ export function domainsFor(request: TraceRequest): TraceDomain[] {
   );
 }
 
+/**
+ * Whether a request selects an item, by its key: matched by the selectors (every item without
+ * them), then not excluded (research R3).
+ */
+export function selectsItem(request: TraceRequest): (key: string) => boolean {
+  const excluded = exclusion(request.exclude);
+  const selected =
+    request.selectors === undefined ? () => true : matcher(request.selectors);
+  return (key) => selected(key) && !excluded(key);
+}
+
 /** Selectors and items that produced no runs, with the reason (spec FR-004). */
 export interface NoRuns {
   no_match?: string[];
@@ -214,27 +225,17 @@ export async function selectTraces(input: SelectInput): Promise<Selection> {
 
   const keyOf = (record: TraceShortRecord): string =>
     items.keyOf(record.domain, record.item_id);
-  // Excluded items are dropped after the selectors apply, and appear in no list of what produced
-  // no runs (research R3).
-  const excluded = exclusion(request.exclude);
+  const wanted = selectsItem(request);
+  const chosen = short.filter(
+    (record) => wanted(keyOf(record)) && inWindow(record),
+  );
   const selectors = request.selectors;
-  if (selectors === undefined) {
-    return {
-      shorts: short.filter(
-        (record) => inWindow(record) && !excluded(keyOf(record)),
-      ),
-      extended,
-      noRuns: null,
-    };
-  }
+  if (selectors === undefined)
+    return { shorts: chosen, extended, noRuns: null };
 
+  // Excluded items appear in no list of what produced no runs (research R3).
+  const excluded = exclusion(request.exclude);
   const known = [...items.registered, ...items.untraceable];
-  const selected = matcher(selectors);
-  const chosen = short.filter((record) => {
-    const key = keyOf(record);
-    return selected(key) && !excluded(key) && inWindow(record);
-  });
-
   const matched = new Set<string>();
   const noMatch: string[] = [];
   for (const selector of selectors) {

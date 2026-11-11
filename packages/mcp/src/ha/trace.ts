@@ -324,3 +324,63 @@ export async function getTraces(
   );
   return out;
 }
+
+/** What `stored_traces` defaults to when an item does not set it. */
+export const DEFAULT_STORED_TRACES = 5;
+
+/** How many runs of each kind an item keeps (specs/008-mcp-reliability data-model §2). */
+export interface StoredLimit {
+  limit: number;
+  /** The configuration could not be read, and the default is assumed. */
+  assumed: boolean;
+}
+
+async function readStoredLimit(
+  client: HaClient,
+  entityId: string,
+): Promise<StoredLimit> {
+  const command = entityId.startsWith("script.")
+    ? "script/config"
+    : "automation/config";
+  let result: unknown;
+  try {
+    result = await client.command(command, { entity_id: entityId });
+  } catch {
+    return { limit: DEFAULT_STORED_TRACES, assumed: true };
+  }
+  const config = isObject(result) ? result["config"] : undefined;
+  if (!isObject(config)) return { limit: DEFAULT_STORED_TRACES, assumed: true };
+  const trace = config["trace"];
+  const stored = isObject(trace) ? trace["stored_traces"] : undefined;
+  return {
+    limit:
+      typeof stored === "number" && Number.isInteger(stored) && stored > 0
+        ? stored
+        : DEFAULT_STORED_TRACES,
+    assumed: false,
+  };
+}
+
+/**
+ * Reads the `trace.stored_traces` of each automation or script, at most `MAX_IN_FLIGHT` at a
+ * time (research R4). An item that does not set it keeps 5; a read that fails gives 5, marked as
+ * assumed, and never fails the call.
+ */
+export async function readStoredLimits(
+  client: HaClient,
+  entityIds: readonly string[],
+): Promise<Map<string, StoredLimit>> {
+  const out = new Map<string, StoredLimit>();
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const entityId = entityIds[next++];
+      if (entityId === undefined) return;
+      out.set(entityId, await readStoredLimit(client, entityId));
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(MAX_IN_FLIGHT, entityIds.length) }, worker),
+  );
+  return out;
+}

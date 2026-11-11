@@ -47,6 +47,16 @@ const COMMANDS = {
     budget: "command",
   },
   "trace/contexts": { params: null, budget: "command" },
+  // The configuration of one automation or script, read only for its trace.stored_traces
+  // (specs/008-mcp-reliability research R4); nothing else of it is kept.
+  "automation/config": {
+    params: { required: ["entity_id"], optional: [] },
+    budget: "command",
+  },
+  "script/config": {
+    params: { required: ["entity_id"], optional: [] },
+    budget: "command",
+  },
 } as const satisfies Record<string, CommandSpec>;
 
 export type AllowedCommand = keyof typeof COMMANDS;
@@ -74,7 +84,13 @@ export interface TraceGetParams {
   run_id: string;
 }
 
-export type CommandParams = LogbookParams | TraceListParams | TraceGetParams;
+/** Parameters of `automation/config` and `script/config`: one item (specs/008-mcp-reliability). */
+export interface ItemConfigParams {
+  entity_id: string;
+}
+
+export type CommandParams =
+  LogbookParams | TraceListParams | TraceGetParams | ItemConfigParams;
 
 const TRACE_DOMAIN_VALUES: readonly unknown[] = ["automation", "script"];
 

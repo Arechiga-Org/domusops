@@ -12,6 +12,7 @@ import {
   MAX_IN_FLIGHT,
   readContexts,
   readItems,
+  readStoredLimits,
   readTraceContext,
   refOf,
   type ContextEntry,
@@ -28,8 +29,14 @@ import {
 import { encodeSummary } from "../trace/encode-summary.js";
 import { sizeFloor } from "../trace/size.js";
 import { resolveItems } from "../trace/items.js";
-import { domainsFor, parseRequest, selectTraces } from "../trace/select.js";
-import { exclusionNote, type Response } from "../notes.js";
+import { affected, candidates } from "../trace/discarded.js";
+import {
+  domainsFor,
+  parseRequest,
+  selectsItem,
+  selectTraces,
+} from "../trace/select.js";
+import { discardedRunsNote, exclusionNote, type Response } from "../notes.js";
 
 export interface TraceOptions {
   /** Defaults to `standard`. */
@@ -248,6 +255,21 @@ export async function queryTrace(
     }
     const notes =
       request.exclude === undefined ? [] : [exclusionNote(request.exclude)];
+    // A window is never combined with run or context. Items whose stored runs may no longer reach
+    // its start are named after the document, which they do not change (spec FR-011 to FR-014).
+    if (window !== null) {
+      const found = candidates(
+        short,
+        (record) => items.keyOf(record.domain, record.item_id),
+        selectsItem(request),
+        window.startMs,
+      );
+      const gone = affected(
+        found,
+        await readStoredLimits(client, [...found.keys()]),
+      );
+      if (gone.length > 0) notes.push(discardedRunsNote(gone));
+    }
     return { document: text, notes };
   } finally {
     client.close();
