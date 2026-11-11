@@ -24,6 +24,7 @@ specs/ — Spec Kit feature specs
 
 The four packages are published at 0.1.x: `ha_snapshot`, `ha_logbook_query` and `ha_trace`, the
 sandbox harness, and the `ha-bootstrap` skill with its CLI.
-Current feature: the mcp reliability release, `@domusops/mcp` 0.1.2
-(specs/008-mcp-reliability/), one pull request per user story. Next feature: the scenario and
-assertion DSL (006), not yet specified.
+`@domusops/mcp` 0.1.2 (specs/008-mcp-reliability/) is released. Next: phase 2 of the
+roadmap, the `@domusops/mcp` 0.2.0 read tools, one numbered feature each: `ha_ping` (009),
+`ha_state` (010), `ha_history` (011), `ha_system_log` (012), released together. The scenario and
+assertion DSL (006) follows, not yet specified.
