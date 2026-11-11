@@ -1,7 +1,7 @@
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { expand, expandLogbook, expandTrace } from "@domusops/schema";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { errors } from "../src/errors.js";
 import { encodeStandard as encodeLogbook } from "../src/logbook/encode-standard.js";
 import { encodeSummary as encodeLogbookSummary } from "../src/logbook/encode-summary.js";
@@ -9,10 +9,12 @@ import { encodeFull as encodeSnapshotFull } from "../src/snapshot/encode-full.js
 import { encodeStandard as encodeSnapshot } from "../src/snapshot/encode-standard.js";
 import { encodeSummary as encodeSnapshotSummary } from "../src/snapshot/encode-summary.js";
 import { project } from "../src/snapshot/project.js";
+import { runPing } from "../src/tools/ha-ping.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
 import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
 import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
 import { contextFor } from "./support/logbook.js";
+import { FAKE_TOKEN, startFakeHa, type FakeHa } from "./support/fake-ha.js";
 import { encodeRecords } from "./support/trace-helpers.js";
 
 /**
@@ -73,6 +75,13 @@ describe("the @domusops/mcp README", () => {
 });
 
 describe("the README's tested decoding example", () => {
+  let ping: FakeHa;
+  beforeAll(async () => {
+    ping = await startFakeHa({ fixture: REFERENCE_500 });
+  });
+  afterAll(async () => {
+    await ping.close();
+  });
   const written: string[] = [];
   afterEach(() => {
     while (written.length > 0) rmSync(written.pop()!, { force: true });
@@ -170,6 +179,16 @@ describe("the README's tested decoding example", () => {
   ])("returns a %s summary as it is", async (name, encode) => {
     const doc = JSON.parse(JSON.stringify(encode())) as unknown;
     expect(await decode(doc, `${name}-summary`)).toEqual(doc);
+  });
+
+  it("returns a ping document as it is, since its format has no decoder", async () => {
+    const doc = JSON.parse(
+      await runPing({
+        DOMUSOPS_HA_URL: ping.url,
+        DOMUSOPS_HA_TOKEN: FAKE_TOKEN,
+      }),
+    ) as unknown;
+    expect(await decode(doc, "ping")).toEqual(doc);
   });
 
   it("throws the error text of a failed call instead of parsing it", async () => {

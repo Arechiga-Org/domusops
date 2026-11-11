@@ -280,3 +280,57 @@ describe.each(CHANNELS)(
     );
   },
 );
+
+describe.each(CHANNELS)("ha_ping against %s", (channel) => {
+  it(
+    "reports a default instance as supported, with every tool ready (SC-005, §8)",
+    async () => {
+      expect(existsSync(MCP_ENTRY), "run pnpm build first").toBe(true);
+      const sandbox = await startSandbox({ ...startTarget(channel) });
+      try {
+        const [first, second] = await withMcp(
+          { ...sandbox.mcpEnv() },
+          async (call) => [
+            await call("ha_ping", {}),
+            await call("ha_ping", {}),
+          ],
+        );
+        const document = first?.document as {
+          format: string;
+          instance: {
+            version: string;
+            supported: boolean;
+            time_zone: string;
+          };
+          admin: boolean;
+          integrations: Record<string, boolean>;
+          tools: Record<string, { ready: boolean; reasons?: string[] }>;
+          next_steps?: string[];
+          compression_ratio: number;
+        };
+        expect(document.format).toBe("domusops.ping/0.1");
+        expect(document.instance.supported).toBe(true);
+        expect(document.instance.version).toMatch(/^\d{4}\.\d+\.\d+/);
+        expect(document.instance.time_zone).not.toBe("");
+        expect(document.admin).toBe(true);
+        expect(document.integrations).toEqual({
+          logbook: true,
+          trace: true,
+        });
+        expect(document.tools).toEqual({
+          ha_snapshot: { ready: true },
+          ha_logbook_query: { ready: true },
+          ha_trace: { ready: true },
+        });
+        expect(document.next_steps).toBeUndefined();
+        expect(document.compression_ratio).toBeGreaterThanOrEqual(3);
+        expect(first?.notes).toEqual([]);
+        // The same instance gives the same document.
+        expect(second?.document).toEqual(document);
+      } finally {
+        await sandbox.stop();
+      }
+    },
+    8 * MINUTE,
+  );
+});

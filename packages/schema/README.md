@@ -24,19 +24,21 @@ An ES module with bundled type declarations.
 | Snapshot of an instance      | `domusops.snapshot/0.1` | `summary`, `standard`, `full` | `expand` (`standard` and `full` documents) |
 | Logbook of an instance       | `domusops.logbook/0.1`  | `summary`, `standard`         | `expandLogbook` (`standard` documents)     |
 | Automation and script traces | `domusops.trace/0.1`    | `summary`, `standard`         | `expandTrace` (`standard` documents)       |
+| Connection check             | `domusops.ping/0.1`     | none                          | none: it is read as it is                  |
 
 A `summary` document counts and lists what exists but does not carry the rows, so it has nothing to
 decode: check `document.detail` before calling a decoder.
 
 For each format the package exports:
 
-- the identifier as a constant (`FORMAT`, `LOGBOOK_FORMAT`, `TRACE_FORMAT`);
+- the identifier as a constant (`FORMAT`, `LOGBOOK_FORMAT`, `TRACE_FORMAT`, `PING_FORMAT`);
 - the TypeScript types of its documents (`StandardDocument`, `LogbookStandardDocument`,
-  `TraceStandardDocument` and the summary and envelope types);
+  `TraceStandardDocument`, `PingDocument` and the summary and envelope types);
 - a JSON Schema that describes the document (`snapshotJsonSchema`, `logbookJsonSchema`,
-  `traceJsonSchema`);
+  `traceJsonSchema`, `pingJsonSchema`);
 - the reference decoder, which restores the rows a document was made from, so a consumer can check
-  that nothing was lost in the compression.
+  that nothing was lost in the compression. The ping document is not templated or compressed, so
+  it has none.
 
 ```ts
 import {

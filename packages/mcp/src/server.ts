@@ -3,8 +3,6 @@ import {
   LOGBOOK_DETAIL_LEVELS,
   TRACE_DETAIL_LEVELS,
 } from "@domusops/schema";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
@@ -12,8 +10,10 @@ import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
 import { MAX_SELECTORS } from "./logbook/selectors.js";
 import type { Response } from "./notes.js";
+import { packageVersion, SERVER_NAME } from "./package-info.js";
 import { queryLogbook } from "./tools/ha-logbook-query.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
+import { runPing } from "./tools/ha-ping.js";
 import { queryTrace } from "./tools/ha-trace.js";
 
 // Copied from specs/001-ha-snapshot/contracts/ha_snapshot.tool.json, the tool contract.
@@ -95,42 +95,14 @@ export interface ServerOptions {
   timeouts?: Partial<Timeouts>;
 }
 
-/**
- * Reads `version` from a `package.json`. There is no fallback: a server that cannot tell its
- * version refuses to start rather than report an invented one, and the error names the file.
- */
-export function readVersion(file: URL): string {
-  const path = fileURLToPath(file);
-  let text: string;
-  try {
-    text = readFileSync(file, "utf8");
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`cannot read ${path}: ${reason}`);
-  }
-  let version: unknown;
-  try {
-    version = (JSON.parse(text) as { version?: unknown } | null)?.version;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`${path} is not valid JSON: ${reason}`);
-  }
-  if (typeof version !== "string" || version === "")
-    throw new Error(`${path} has no version`);
-  return version;
-}
-
-let ownVersion: string | undefined;
-
-/** The installed package's version, read once from its `package.json` (one level above both `src/` and `dist/`). */
-function packageVersion(): string {
-  ownVersion ??= readVersion(new URL("../package.json", import.meta.url));
-  return ownVersion;
-}
+// Copied from specs/009-ha-ping/contracts/ha_ping.tool.json, the tool contract.
+const PING_TITLE = "Connection check for Home Assistant";
+const PING_DESCRIPTION =
+  "Read-only check of whether this server can work with the connected Home Assistant instance, before any real query. Reads only the current user's administrator flag and the instance's core configuration: no entities, registries, history or traces. Returns compact JSON in the domusops.ping/0.1 format: the server's name and version; the instance's version, the minimum this server supports, whether it is supported, and its time zone (start and end without an offset are read in it); whether the token's user is an administrator; which integrations the other tools need are loaded; and, for every other tool, whether it is ready and, if not, why (version_unsupported, not_admin, integration_missing:<name>), with next_steps saying what to change. A missing configuration, an unreachable address, a refused token or a timeout is an error result with the same remediation as the other tools. The token, the instance's address and location, and user names are never returned. Every response reports its compression_ratio. Requires DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN.";
 
 export function createServer(options: ServerOptions = {}): McpServer {
   const server = new McpServer({
-    name: "domusops-mcp",
+    name: SERVER_NAME,
     version: packageVersion(),
   });
 
@@ -262,6 +234,30 @@ export function createServer(options: ServerOptions = {}): McpServer {
             : { timeouts: options.timeouts }),
         }),
       ),
+  );
+
+  server.registerTool(
+    "ha_ping",
+    {
+      title: PING_TITLE,
+      description: PING_DESCRIPTION,
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    () =>
+      asToolResult("ha_ping", async () => ({
+        document: await runPing(options.env ?? process.env, {
+          ...(options.timeouts === undefined
+            ? {}
+            : { timeouts: options.timeouts }),
+        }),
+        notes: [],
+      })),
   );
 
   return server;
