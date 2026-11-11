@@ -41,7 +41,7 @@ Reasons, in this order:
 3. `integration_missing:<name>`: the tool needs integration `<name>` and it is not loaded, one
    entry per missing integration in name order.
 
-What each tool needs is the requirements table of research R4.
+What each tool needs is the requirements table of research R4. `<tools>` in the `not_admin` sentence are the tools that need an administrator, in registration order, comma-separated.
 
 ## 3. Next steps
 
@@ -50,7 +50,7 @@ The distinct reasons across all tools, in the order above, each mapped to one se
 | Reason                       | Sentence                                                                                         |
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |
 | `version_unsupported`        | `Upgrade the instance to <minimum> or later`                                                     |
-| `not_admin`                  | `Use a token of an administrator user: every tool reads administrator data`                      |
+| `not_admin`                  | `Use a token of an administrator user, which <tools> need`                                       |
 | `integration_missing:<name>` | `Enable the <name> integration in Home Assistant (it is part of default_config), then try again` |
 
 ## 4. Validation

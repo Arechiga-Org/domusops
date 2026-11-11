@@ -1,10 +1,10 @@
 import { errors } from "../errors.js";
 import { HaClient, type Timeouts } from "../ha/client.js";
 import { readConfig } from "../ha/config.js";
+import { readCore, readCurrentUser } from "../ha/instance.js";
 import { packageVersion } from "../package-info.js";
 import { encodePing } from "../ping/encode.js";
 import { measureRowsBytes } from "../snapshot/ratio.js";
-import { isObject } from "../util/json.js";
 
 export interface PingOptions {
   timeouts?: Partial<Timeouts>;
@@ -13,8 +13,9 @@ export interface PingOptions {
 /**
  * The whole `ha_ping` pipeline: configuration, one connection that accepts any version, the
  * current user and the core configuration, and the encoding. Of those two answers only the
- * administrator flag, the time zone and the loaded integrations are kept (research R1). Resolves
- * with the minified document, or throws a `ToolError`.
+ * administrator flag, the time zone and the loaded integrations are kept (research R1). Unlike
+ * the other tools it does not refuse a user who is not an administrator: that is a finding.
+ * Resolves with the minified document, or throws a `ToolError`.
  */
 export async function runPing(
   env: Readonly<Record<string, string | undefined>>,
@@ -29,29 +30,16 @@ export async function runPing(
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
   });
   try {
-    const haVersion = client.haVersion;
-    const user = await client.command("auth/current_user");
-    if (!isObject(user)) {
+    const user = await readCurrentUser(client);
+    const core = await readCore(client);
+    const { components, timeZone, haVersion } = core.instance;
+    // A list that is not of names would show every integration as missing.
+    const names = components.filter(
+      (name): name is string => typeof name === "string",
+    );
+    if (names.length !== components.length) {
       throw errors.protocolError(
-        "the current user was not an object",
-        haVersion,
-      );
-    }
-    const core = await client.command("get_config");
-    if (!isObject(core)) {
-      throw errors.protocolError(
-        "the core config was not an object",
-        haVersion,
-      );
-    }
-    const timeZone = core["time_zone"];
-    if (typeof timeZone !== "string" || timeZone === "") {
-      throw errors.protocolError("the core config has no time zone", haVersion);
-    }
-    const components = core["components"];
-    if (!Array.isArray(components)) {
-      throw errors.protocolError(
-        "the core config has no list of components",
+        "the core config lists a component that is not a name",
         haVersion,
       );
     }
@@ -59,11 +47,9 @@ export async function runPing(
       serverVersion: packageVersion(),
       instanceVersion: haVersion,
       timeZone,
-      admin: user["is_admin"] === true,
-      components: components.filter(
-        (name): name is string => typeof name === "string",
-      ),
-      rawBytes: measureRowsBytes([user, core]),
+      admin: user.isAdmin,
+      components: names,
+      rawBytes: measureRowsBytes([user.raw, core.raw]),
     });
   } finally {
     client.close();

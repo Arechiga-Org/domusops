@@ -14,19 +14,33 @@ export interface Instance {
   components: readonly unknown[];
 }
 
-/**
- * Requires an administrator user (one shared configuration and error set for every tool, 002
- * research R2), then reads the core config: the time zone times are resolved in, and the list of
- * loaded integrations, so a tool can tell that its integration is missing.
- */
-export async function readInstance(client: HaClient): Promise<Instance> {
-  const haVersion = client.haVersion;
+/** The current user as `auth/current_user` answered, and whether they are an administrator. */
+export interface CurrentUser {
+  raw: Record<string, unknown>;
+  isAdmin: boolean;
+}
+
+/** Reads the current user. Does not require an administrator: `readInstance` does. */
+export async function readCurrentUser(client: HaClient): Promise<CurrentUser> {
   const user = await client.command("auth/current_user");
   if (!isObject(user)) {
-    throw errors.protocolError("the current user was not an object", haVersion);
+    throw errors.protocolError(
+      "the current user was not an object",
+      client.haVersion,
+    );
   }
-  if (user["is_admin"] !== true) throw errors.notAdmin("history");
+  return { raw: user, isAdmin: user["is_admin"] === true };
+}
 
+/** The core configuration as `get_config` answered, and the part of it tools use. */
+export interface Core {
+  raw: Record<string, unknown>;
+  instance: Instance;
+}
+
+/** Reads the core config: the time zone times are resolved in, and the loaded integrations. */
+export async function readCore(client: HaClient): Promise<Core> {
+  const haVersion = client.haVersion;
   const config = await client.command("get_config");
   if (!isObject(config)) {
     throw errors.protocolError("the core config was not an object", haVersion);
@@ -43,10 +57,24 @@ export async function readInstance(client: HaClient): Promise<Instance> {
     );
   }
   return {
-    haVersion,
-    timeZone,
-    latitude: config["latitude"],
-    longitude: config["longitude"],
-    components,
+    raw: config,
+    instance: {
+      haVersion,
+      timeZone,
+      latitude: config["latitude"],
+      longitude: config["longitude"],
+      components,
+    },
   };
+}
+
+/**
+ * Requires an administrator user (one shared configuration and error set for every tool, 002
+ * research R2), then reads the core config: the time zone times are resolved in, and the list of
+ * loaded integrations, so a tool can tell that its integration is missing.
+ */
+export async function readInstance(client: HaClient): Promise<Instance> {
+  const user = await readCurrentUser(client);
+  if (!user.isAdmin) throw errors.notAdmin("history");
+  return (await readCore(client)).instance;
 }

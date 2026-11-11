@@ -27,7 +27,7 @@ and the response carries a `compression_ratio` with a CI floor of 3 (R7).
 **Testing**:
 
 - Vitest against the simulated instance (`packages/mcp/test/support/fake-ha.ts`, with the
-  reference fixture's `get_config` given the `logbook`, `recorder` and `trace` components where a
+  reference fixture's `get_config` given the `logbook` and `trace` components where a
   test needs them).
 - New test files: `packages/mcp/test/ping.test.ts`, `packages/mcp/test/ping-json-schema.test.ts`.
 - Existing files gain cases: `tool.test.ts` (the tool's contract), `readme.test.ts` (the decoding

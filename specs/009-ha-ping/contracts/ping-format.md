@@ -16,7 +16,7 @@ Published in `@domusops/schema` as `PING_FORMAT`, its TypeScript types and `ping
     "time_zone": "Europe/Amsterdam"
   },
   "admin": true,
-  "integrations": { "logbook": true, "recorder": true, "trace": true },
+  "integrations": { "logbook": true, "trace": true },
   "tools": {
     "ha_snapshot": { "ready": true },
     "ha_logbook_query": { "ready": true },
@@ -39,7 +39,7 @@ Published in `@domusops/schema` as `PING_FORMAT`, its TypeScript types and `ping
     "time_zone": "Europe/Amsterdam"
   },
   "admin": false,
-  "integrations": { "logbook": true, "recorder": true, "trace": false },
+  "integrations": { "logbook": true, "trace": false },
   "tools": {
     "ha_snapshot": { "ready": false, "reasons": ["not_admin"] },
     "ha_logbook_query": { "ready": false, "reasons": ["not_admin"] },
@@ -49,7 +49,7 @@ Published in `@domusops/schema` as `PING_FORMAT`, its TypeScript types and `ping
     }
   },
   "next_steps": [
-    "Use a token of an administrator user: every tool reads administrator data",
+    "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace need",
     "Enable the trace integration in Home Assistant (it is part of default_config), then try again"
   ],
   "compression_ratio": 4.02

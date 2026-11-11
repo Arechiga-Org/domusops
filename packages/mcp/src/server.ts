@@ -95,9 +95,6 @@ export interface ServerOptions {
   timeouts?: Partial<Timeouts>;
 }
 
-// Kept here for the callers that import it from the server module.
-export { readVersion } from "./package-info.js";
-
 // Copied from specs/009-ha-ping/contracts/ha_ping.tool.json, the tool contract.
 const PING_TITLE = "Connection check for Home Assistant";
 const PING_DESCRIPTION =

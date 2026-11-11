@@ -49,17 +49,21 @@ were checked against a sandbox instance of 2026.10.0 with `default_config` on 20
 - **Decision**: a table in `packages/mcp/src/ping/requirements.ts`, one entry per tool the server
   offers except `ha_ping`, in registration order:
 
-  | Tool               | Administrator | Integrations          |
-  | ------------------ | ------------- | --------------------- |
-  | `ha_snapshot`      | yes           | none                  |
-  | `ha_logbook_query` | yes           | `logbook`, `recorder` |
-  | `ha_trace`         | yes           | `trace`               |
+  | Tool               | Administrator | Integrations |
+  | ------------------ | ------------- | ------------ |
+  | `ha_snapshot`      | yes           | none         |
+  | `ha_logbook_query` | yes           | `logbook`    |
+  | `ha_trace`         | yes           | `trace`      |
 
   Every tool also needs a supported version. Features 010 to 012 add their own rows (spec
   FR-006, FR-019). A test checks that the table names every registered tool except `ha_ping`, so a
   new tool cannot be forgotten.
 
 - **Why**: the table states capabilities; there is no workflow in it (constitution §3).
+- **Matching the tools**: a row lists only what the tool itself checks. `ha_logbook_query` checks
+  `logbook` (`ha/logbook.ts`), not `recorder`: on a real instance `logbook` cannot load without
+  `recorder`, and the ping must say what the tool will find, so `recorder` is not listed. A
+  tool's check and its row are changed together.
 
 ## R5. Remediation text
 

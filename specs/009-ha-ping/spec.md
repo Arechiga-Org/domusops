@@ -55,7 +55,7 @@ and each existing tool is ready; the call reads no entity, registry, history or 
 
 **Acceptance Scenarios**:
 
-1. **Given** a correctly configured server and a supported instance with the logbook, recorder
+1. **Given** a correctly configured server and a supported instance with the logbook
    and trace integrations loaded, **When** the agent calls `ha_ping`, **Then** the response
    states the server's name and version, the instance's version and time zone, that it is
    supported, that the
@@ -128,7 +128,7 @@ that problem and the tools it affects, and says what to change.
 - **FR-004**: The response MUST state whether the token's user is an administrator, without
   naming the user.
 - **FR-005**: The response MUST state, for each integration a listed tool depends on (today
-  `logbook` and `recorder` for `ha_logbook_query`, `trace` for `ha_trace`), whether it is
+  `logbook` for `ha_logbook_query`, `trace` for `ha_trace`), whether it is
   loaded.
 - **FR-006**: The response MUST state, for every tool the server offers except `ha_ping`
   itself (today `ha_snapshot`, `ha_logbook_query` and `ha_trace`), whether it is ready, and when

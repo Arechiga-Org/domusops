@@ -19,7 +19,7 @@ afterEach(async () => {
   while (running.length > 0) await running.pop()?.close();
 });
 
-const NEEDED = ["logbook", "recorder", "trace"];
+const NEEDED = ["logbook", "trace"];
 
 /** The reference instance with the given integrations loaded among its many others. */
 function instance(loaded: readonly string[] = NEEDED): Fixture {
@@ -68,7 +68,7 @@ describe("ha_ping on a healthy instance", () => {
         time_zone: "Europe/Amsterdam",
       },
       admin: true,
-      integrations: { logbook: true, recorder: true, trace: true },
+      integrations: { logbook: true, trace: true },
       tools: {
         ha_snapshot: { ready: true },
         ha_logbook_query: { ready: true },
@@ -135,8 +135,7 @@ describe("ha_ping on a healthy instance", () => {
 });
 
 describe("ha_ping on an instance with a setup problem", () => {
-  const dotted = (): Fixture =>
-    instance(["logbook", "recorder", "trace.sensor"]);
+  const dotted = (): Fixture => instance(["logbook", "trace.sensor"]);
 
   it("names a user who is not an administrator in every tool, with one sentence (User Story 2, scenario 1)", async () => {
     const { document } = await ping(instance(), { isAdmin: false });
@@ -145,17 +144,13 @@ describe("ha_ping on an instance with a setup problem", () => {
       expect(tool).toEqual({ ready: false, reasons: ["not_admin"] });
     }
     expect(document.next_steps).toEqual([
-      "Use a token of an administrator user: every tool reads administrator data",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace need",
     ]);
   });
 
   it("names a missing integration only in the tools that need it (scenario 2)", async () => {
-    const { document } = await ping(instance(["logbook", "recorder"]));
-    expect(document.integrations).toEqual({
-      logbook: true,
-      recorder: true,
-      trace: false,
-    });
+    const { document } = await ping(instance(["logbook"]));
+    expect(document.integrations).toEqual({ logbook: true, trace: false });
     expect(document.tools).toEqual({
       ha_snapshot: { ready: true },
       ha_logbook_query: { ready: true },
@@ -166,13 +161,10 @@ describe("ha_ping on an instance with a setup problem", () => {
     ]);
   });
 
-  it.each([
-    ["logbook", ["recorder", "trace"]],
-    ["recorder", ["logbook", "trace"]],
-  ])("a missing %s affects only ha_logbook_query", async (missing, loaded) => {
-    const { document } = await ping(instance(loaded));
+  it("a missing logbook affects only ha_logbook_query", async () => {
+    const { document } = await ping(instance(["trace"]));
     expect(document.tools["ha_logbook_query"]?.reasons).toEqual([
-      `integration_missing:${missing}`,
+      "integration_missing:logbook",
     ]);
     expect(document.tools["ha_trace"]).toEqual({ ready: true });
     expect(document.tools["ha_snapshot"]).toEqual({ ready: true });
@@ -209,7 +201,7 @@ describe("ha_ping on an instance with a setup problem", () => {
   });
 
   it("lists reasons in the order of the data model, and one sentence per distinct reason", async () => {
-    const { document } = await ping(instance(["recorder"]), {
+    const { document } = await ping(instance([]), {
       haVersion: "2024.12.4",
       isAdmin: false,
     });
@@ -220,7 +212,7 @@ describe("ha_ping on an instance with a setup problem", () => {
     ]);
     expect(document.next_steps).toEqual([
       "Upgrade the instance to 2025.1.0 or later",
-      "Use a token of an administrator user: every tool reads administrator data",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace need",
       "Enable the logbook integration in Home Assistant (it is part of default_config), then try again",
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
     ]);
@@ -311,6 +303,62 @@ describe("ha_ping failures before the instance answers", () => {
   );
 });
 
+describe("ha_ping reads the same core configuration as the other tools", () => {
+  it("does not need the recorder to report ha_logbook_query ready, as the tool does not (research R4)", async () => {
+    const { document } = await ping(instance(["logbook", "trace"]));
+    expect(document.tools["ha_logbook_query"]).toEqual({ ready: true });
+  });
+
+  it("gives a protocol error when the components are not all names, rather than showing every integration missing", async () => {
+    const fixture = instance();
+    const config = fixture.records.config as Record<string, unknown>;
+    const bad: Fixture = {
+      ...fixture,
+      records: {
+        ...fixture.records,
+        config: { ...config, components: [...NEEDED, { name: "trace" }] },
+      },
+    };
+    const ha = await startFakeHa({ fixture: bad });
+    running.push(ha);
+    const error = await runPing({
+      DOMUSOPS_HA_URL: ha.url,
+      DOMUSOPS_HA_TOKEN: FAKE_TOKEN,
+    }).then(
+      () => ({ kind: "did not fail" }),
+      (failure: { kind?: string }) => failure,
+    );
+    expect(error.kind).toBe("protocol_error");
+  });
+});
+
+describe("encodePing: the administrator sentence", () => {
+  it("names only the tools that need an administrator", () => {
+    const text = encodePing(
+      {
+        serverVersion: "0.2.0",
+        instanceVersion: "2026.10.0",
+        timeZone: "Europe/Amsterdam",
+        admin: false,
+        components: [],
+        rawBytes: 2_500,
+      },
+      {
+        ha_a: { admin: true, integrations: [] },
+        ha_b: { admin: false, integrations: [] },
+      },
+    );
+    const document = JSON.parse(text) as PingDocument;
+    expect(document.tools).toEqual({
+      ha_a: { ready: false, reasons: ["not_admin"] },
+      ha_b: { ready: true },
+    });
+    expect(document.next_steps).toEqual([
+      "Use a token of an administrator user, which ha_a need",
+    ]);
+  });
+});
+
 describe("encodePing", () => {
   const BASE = {
     serverVersion: "0.2.0",
@@ -325,7 +373,7 @@ describe("encodePing", () => {
     // The six tools the release lists, and the five integrations they need between them.
     const table = {
       ha_snapshot: { admin: true, integrations: [] },
-      ha_logbook_query: { admin: true, integrations: ["logbook", "recorder"] },
+      ha_logbook_query: { admin: true, integrations: ["logbook"] },
       ha_trace: { admin: true, integrations: ["trace"] },
       ha_state: { admin: true, integrations: [] },
       ha_history: { admin: true, integrations: ["history", "recorder"] },

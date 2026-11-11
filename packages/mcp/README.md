@@ -366,7 +366,7 @@ It returns a small document (about 500 bytes, under 2,000 in the worst case):
     "time_zone": "Europe/Amsterdam"
   },
   "admin": true,
-  "integrations": { "logbook": true, "recorder": true, "trace": true },
+  "integrations": { "logbook": true, "trace": true },
   "tools": {
     "ha_snapshot": { "ready": true },
     "ha_logbook_query": { "ready": true },
@@ -378,7 +378,7 @@ It returns a small document (about 500 bytes, under 2,000 in the worst case):
 
 - `instance` has the instance's version, the least version this server supports, whether the
   instance meets it, and its time zone, in which a `start` or `end` without an offset is read.
-- `admin` is whether the token's user is an administrator. Every tool needs one.
+- `admin` is whether the token's user is an administrator. Today every tool needs one.
 - `integrations` says whether each integration the tools need is loaded.
 - `tools` has an entry for every other tool: `ready`, and when it is not, `reasons`:
   `version_unsupported`, `not_admin`, or `integration_missing:<name>`. `next_steps` then says what

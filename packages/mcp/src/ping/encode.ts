@@ -22,13 +22,18 @@ export interface PingInput {
 
 const byName = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
-/** The one sentence a reason maps to (data-model §3). */
-function nextStep(reason: PingReason): string {
+/** The kinds of reason, in the order their sentences come (data-model §3). */
+const KINDS = ["version_unsupported", "not_admin", "integration_missing"];
+
+const kindOf = (reason: PingReason): string => reason.split(":")[0] as string;
+
+/** The one sentence a reason maps to (data-model §3); `adminTools` are those that need an administrator. */
+function nextStep(reason: PingReason, adminTools: readonly string[]): string {
   if (reason === "version_unsupported") {
     return `Upgrade the instance to ${MIN_VERSION} or later`;
   }
   if (reason === "not_admin") {
-    return "Use a token of an administrator user: every tool reads administrator data";
+    return `Use a token of an administrator user, which ${adminTools.join(", ")} need`;
   }
   const name = reason.slice("integration_missing:".length);
   return `Enable the ${name} integration in Home Assistant (it is part of default_config), then try again`;
@@ -50,6 +55,9 @@ export function encodePing(
     ),
   ].sort(byName);
 
+  const adminTools = Object.entries(requirements)
+    .filter(([, need]) => need.admin)
+    .map(([name]) => name);
   const tools: PingDocument["tools"] = {};
   const distinct = new Set<PingReason>();
   for (const [name, need] of Object.entries(requirements)) {
@@ -68,8 +76,11 @@ export function encodePing(
 
   // Version first, then administrator, then each missing integration in name order.
   const steps = [...distinct]
-    .sort((a, b) => rank(a) - rank(b) || byName(a, b))
-    .map(nextStep);
+    .sort(
+      (a, b) =>
+        KINDS.indexOf(kindOf(a)) - KINDS.indexOf(kindOf(b)) || byName(a, b),
+    )
+    .map((reason) => nextStep(reason, adminTools));
 
   const document: PingDocument = {
     format: PING_FORMAT,
@@ -89,8 +100,4 @@ export function encodePing(
     compression_ratio: 0,
   };
   return finalize(document, input.rawBytes);
-}
-
-function rank(reason: PingReason): number {
-  return reason === "version_unsupported" ? 0 : reason === "not_admin" ? 1 : 2;
 }

@@ -13,7 +13,7 @@ pnpm exec vitest run packages/mcp/test/ping.test.ts packages/mcp/test/ping-json-
 
 Expected:
 
-- a healthy instance: `admin` true, `instance.supported` true, the three integrations loaded,
+- a healthy instance: `admin` true, `instance.supported` true, the integrations loaded,
   every tool `ready`, no `next_steps`, and the server's name and version equal to the handshake's
   (spec User Story 1);
 - a user who is not an administrator, an instance without `trace`, an instance below the
@@ -44,7 +44,7 @@ DOMUSOPS_CONTAINER_TESTS=1 DOMUSOPS_SANDBOX_RELEASE=2026.10.0 \
 ```
 
 Expected: on a sandbox instance with `default_config`, `ha_ping` reports the release's version as
-supported, an administrator, the three integrations loaded, every tool ready, a time zone, and a
+supported, an administrator, the integrations loaded, every tool ready, a time zone, and a
 `compression_ratio` of at least 3. Repeat with the previous stable release; CI runs stable,
 previous stable and beta.
 

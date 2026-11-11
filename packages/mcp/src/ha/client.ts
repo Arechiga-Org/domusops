@@ -1,5 +1,5 @@
 import { errors, ToolError } from "../errors.js";
-import { isSupported, MIN_VERSION } from "./version.js";
+import { isSupported, MIN_VERSION, parseVersion } from "./version.js";
 
 /** What the client knows about one command it may send. */
 interface CommandSpec {
@@ -238,9 +238,17 @@ export class HaClient {
           if (typeof message.ha_version === "string")
             haVersion = message.ha_version;
           try {
-            // An unparseable version fails here whatever the minimum is.
-            const supported = isSupported(haVersion, minVersion ?? MIN_VERSION);
-            if (minVersion !== null && !supported) {
+            if (minVersion === null) {
+              // Any version connects, but one that cannot be read is a protocol error.
+              if (parseVersion(haVersion) === null) {
+                fail(
+                  errors.protocolError(
+                    `unrecognised Home Assistant version "${haVersion}"`,
+                  ),
+                );
+                return;
+              }
+            } else if (!isSupported(haVersion, minVersion)) {
               fail(errors.versionUnsupported(haVersion, minVersion));
               return;
             }

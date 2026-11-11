@@ -315,7 +315,6 @@ describe.each(CHANNELS)("ha_ping against %s", (channel) => {
         expect(document.admin).toBe(true);
         expect(document.integrations).toEqual({
           logbook: true,
-          recorder: true,
           trace: true,
         });
         expect(document.tools).toEqual({
