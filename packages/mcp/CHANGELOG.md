@@ -1,5 +1,14 @@
 # @domusops/mcp
 
+## 0.1.2
+
+### Patch Changes
+
+- cdc0812: A `ha_trace` call with `start` or `end` now says which automations and scripts may have discarded runs from the window: a text block after the unchanged document names each one (at most 10) that already stores as many runs as it keeps, with its `stored_traces` limit, and explains how to keep more. An empty result is no longer mistaken for "nothing ran". The limit is read with `automation/config` or `script/config`, only for those candidates. Calls without a window return exactly what they did before.
+- 0cf960a: `ha_logbook_query` and `ha_trace` accept `exclude`, a list of entity IDs and `*` patterns in the same form as `entities`, applied after it: the matching entities, automations and scripts are left out of the result, its counts, its size check and its `compression_ratio`, so a broad pattern stays usable and a result refused for size can fit. When `exclude` is given, a text block after the unchanged document lists what was excluded. Calls without `exclude` return exactly what they did before.
+- b3fca9e: The README now explains how to run the server: installed as a development dependency of the configuration repository (recommended, pinned by the lockfile, no download at start), globally, or on demand with `npx`. A Claude Code section covers registering and approving the server, keeping the token out of version control, and what to check when it does not connect. A new section names the `@domusops/schema` decoder for each tool and detail level, with an example that CI runs.
+- 37c3412: The server reports its real version during the connection handshake instead of `0.0.0`, so a client can tell which release answered. The version is read from the installed package; a server that cannot read it refuses to start.
+
 ## 0.1.1
 
 ### Patch Changes

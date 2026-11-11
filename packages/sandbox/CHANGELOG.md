@@ -1,5 +1,15 @@
 # @domusops/sandbox
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [cdc0812]
+- Updated dependencies [0cf960a]
+- Updated dependencies [b3fca9e]
+- Updated dependencies [37c3412]
+  - @domusops/mcp@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
