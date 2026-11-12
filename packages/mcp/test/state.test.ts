@@ -197,7 +197,7 @@ describe("ha_state: errors", () => {
     const { error, ha } = await failure({}, { fake: { isAdmin: false } });
     expectKind(error, "not_admin");
     expect(error.nextStep).toContain("silently incomplete");
-    expect(ha?.received).toEqual(["auth/current_user"]);
+    expect(ha?.received).not.toContain("get_states");
   });
 
   it.each([

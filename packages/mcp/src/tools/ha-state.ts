@@ -73,13 +73,15 @@ export async function queryState(
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
   });
   try {
-    // A user who is not an administrator can receive a filtered set of states, so the check comes
-    // before the states are read (research R1).
-    const user = await readCurrentUser(client);
-    if (!user.isAdmin) throw errors.notAdmin("states");
-    // Both reads start together and settle in this order, so which error is reported when both
-    // fail does not depend on timing.
+    // The user and the core config are read together. A user who is not an administrator can
+    // receive a filtered set of states, so the states are read only after the check (research R1).
+    // The reads settle in the order they are sent, so which error is reported when several fail
+    // does not depend on timing.
+    const current = readCurrentUser(client);
     const core = readCore(client);
+    core.catch(() => undefined);
+    const user = await current;
+    if (!user.isAdmin) throw errors.notAdmin("states");
     const states = readStates(client);
     states.catch(() => undefined);
     const { instance } = await core;

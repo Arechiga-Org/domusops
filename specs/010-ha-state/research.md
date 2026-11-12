@@ -14,8 +14,8 @@ IDs, redaction) on the reference fixture `REFERENCE_500` of `packages/mcp/test/f
   - A user who is not an administrator can receive a filtered set of states, which is why
     `ha_snapshot` refuses one (`retrieve.ts`).
   - `auth/current_user`, `get_config` and `get_states` are already on the client's allowlist.
-- **Decision**: on one connection, `readCurrentUser` (refusing a user who is not an
-  administrator), then `get_config` and `get_states` together. From `get_config` the tool keeps
+- **Decision**: on one connection, `readCurrentUser` and `get_config` together, then, once the
+  user is known to be an administrator, `get_states`. From `get_config` the tool keeps
   the time zone and the instance's coordinates (for redaction rule C3) through `readCore`.
   Selection is local.
 - **Why**: the only read that answers FR-006; no new command (FR-016). `readCore` and
