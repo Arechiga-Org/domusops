@@ -343,13 +343,16 @@ describe.each(CHANNELS)("ha_state against %s", (channel) => {
       expect(existsSync(MCP_ENTRY), "run pnpm build first").toBe(true);
       const sandbox = await startSandbox({ ...startTarget(channel) });
       try {
-        const [home, again, full, summary] = await withMcp(
+        const [home, again, full, zones, summary] = await withMcp(
           { ...sandbox.mcpEnv() },
           async (call) => [
             await call("ha_state", { entities: ["zone.home"] }),
             await call("ha_state", { entities: ["zone.home"] }),
             await call("ha_state", {}),
-            await call("ha_state", { detail: "summary" }),
+            // Entities appear while a fresh instance settles, so the two calls compared read
+            // only zones, which the configuration fixes.
+            await call("ha_state", { entities: ["zone.*"] }),
+            await call("ha_state", { entities: ["zone.*"], detail: "summary" }),
           ],
         );
         const zone = home?.document as {
@@ -371,11 +374,14 @@ describe.each(CHANNELS)("ha_state against %s", (channel) => {
           compression_ratio: number;
           entities: Record<string, Record<string, unknown[]>>;
         };
-        const listed = Object.values(standard.entities)
+        const listed = Object.values(
+          (zones?.document as typeof standard).entities,
+        )
           .flatMap((groups) => Object.values(groups))
           .reduce((sum, rows) => sum + rows.length, 0);
         const counts = (summary?.document as { counts: { entities: number } })
           .counts;
+        expect(listed).toBeGreaterThan(0);
         expect(counts.entities).toBe(listed);
         // Measured at 2.00 for the 17 entities of 2026.10.0 (specs/010-ha-state research R10).
         expect(standard.compression_ratio).toBeGreaterThan(1);
