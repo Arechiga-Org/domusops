@@ -321,12 +321,64 @@ describe.each(CHANNELS)("ha_ping against %s", (channel) => {
           ha_snapshot: { ready: true },
           ha_logbook_query: { ready: true },
           ha_trace: { ready: true },
+          ha_state: { ready: true },
         });
         expect(document.next_steps).toBeUndefined();
         expect(document.compression_ratio).toBeGreaterThanOrEqual(3);
         expect(first?.notes).toEqual([]);
         // The same instance gives the same document.
         expect(second?.document).toEqual(document);
+      } finally {
+        await sandbox.stop();
+      }
+    },
+    8 * MINUTE,
+  );
+});
+
+describe.each(CHANNELS)("ha_state against %s", (channel) => {
+  it(
+    "reads zone.home redacted, and a summary that counts what standard lists (SC-007, §8)",
+    async () => {
+      expect(existsSync(MCP_ENTRY), "run pnpm build first").toBe(true);
+      const sandbox = await startSandbox({ ...startTarget(channel) });
+      try {
+        const [home, again, full, summary] = await withMcp(
+          { ...sandbox.mcpEnv() },
+          async (call) => [
+            await call("ha_state", { entities: ["zone.home"] }),
+            await call("ha_state", { entities: ["zone.home"] }),
+            await call("ha_state", {}),
+            await call("ha_state", { detail: "summary" }),
+          ],
+        );
+        const zone = home?.document as {
+          format: string;
+          entities: Record<string, Record<string, unknown[]>>;
+        };
+        expect(zone.format).toBe("domusops.state/0.1");
+        const [record] = zone.entities["zone"]?.["_"] ?? [];
+        expect(record).toMatchObject({
+          id: "home",
+          latitude: "[redacted]",
+          longitude: "[redacted]",
+        });
+        expect(home?.notes).toEqual([]);
+        // The same entity, unchanged, gives the same document.
+        expect(again?.document).toEqual(home?.document);
+
+        const standard = full?.document as {
+          compression_ratio: number;
+          entities: Record<string, Record<string, unknown[]>>;
+        };
+        const listed = Object.values(standard.entities)
+          .flatMap((groups) => Object.values(groups))
+          .reduce((sum, rows) => sum + rows.length, 0);
+        const counts = (summary?.document as { counts: { entities: number } })
+          .counts;
+        expect(counts.entities).toBe(listed);
+        // Measured at 2.00 for the 17 entities of 2026.10.0 (specs/010-ha-state research R10).
+        expect(standard.compression_ratio).toBeGreaterThan(1);
       } finally {
         await sandbox.stop();
       }
