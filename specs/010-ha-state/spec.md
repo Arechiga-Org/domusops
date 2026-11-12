@@ -197,7 +197,8 @@ the counts match the instance, and the result stays small however many entities 
   a valid empty document and a note.
 - **FR-014**: The tool MUST accept `detail`, with `summary` (counts per domain of entities, of
   unavailable ones and of unknown ones, plus the total, with no attributes) and `standard` (the
-  default, FR-006). The summary MUST stay under 4,000 bytes whatever the size of the home.
+  default, FR-006). The summary MUST stay under 4,000 bytes whatever the size of the home, not
+  counting the filters it repeats from the call, whose size the input limits bound.
   `attributes` is not combinable with `summary`, which carries no attributes.
 - **FR-015**: The filters of FR-002 to FR-005 MUST apply to the summary as well, so its counts
   cover only the selected entities.
@@ -255,7 +256,7 @@ the counts match the instance, and the result stays small however many entities 
   and the same result decodes back to every entity's state and attributes, apart from
   redaction.
 - **SC-003**: A `summary` result is under 4,000 bytes whatever the number of entities and
-  domains of the home.
+  domains of the home, not counting the filters it repeats from the call.
 - **SC-004**: A query that exceeds the limit never returns entities: 100% of such queries are
   refused, with the number of entities matched and a hint that names the inputs that narrow it.
 - **SC-005**: On a synthetic fixture that seeds every redaction rule into entity attributes,

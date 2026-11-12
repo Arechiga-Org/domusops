@@ -456,4 +456,30 @@ describe("ha_state: the summary (User Story 3)", () => {
     expect(document.by_domain).toEqual({});
     expect(response.notes).toEqual(["Note: no entity matched the query."]);
   });
+
+  it("repeats every filter at its limit, which the 4,000-byte bound leaves out (FR-014)", async () => {
+    const full = (prefix: string, length: number): string[] =>
+      Array.from({ length: 100 }, (_, i) =>
+        `${prefix}${i}`.padEnd(length, "x"),
+      );
+    const entities = full("light.p", 128);
+    const domain = full("d", 64);
+    const state = full("s", 255);
+    const { response } = await query({
+      detail: "summary",
+      entities,
+      domain,
+      state,
+    });
+    const { selectors, domains, states, ...rest } = summary(response);
+    expect({ selectors, domains, states }).toEqual({
+      selectors: entities,
+      domains: domain,
+      states: state,
+    });
+    const bytes = (text: string): number =>
+      new TextEncoder().encode(text).length;
+    expect(bytes(response.document)).toBeGreaterThan(40_000);
+    expect(bytes(JSON.stringify(rest))).toBeLessThan(4000);
+  });
 });

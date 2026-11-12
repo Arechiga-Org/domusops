@@ -126,7 +126,10 @@ anchorMs)`. `st.user_id` is the user ID as the instance gives it. `parent_id` an
   envelope. There are no attributes and no times besides the envelope's.
 - **Why**: "where is something broken" in one call (User Story 3). A row is about 25 bytes. A
   home has a few dozen entity domains, so the document stays far under 4,000 bytes (FR-014). A
-  test builds 120 domains and asserts the bound.
+  test builds 120 domains and asserts the bound. The envelope repeats the call's filters
+  (`selectors`, `domains`, `states`), which the input limits bound instead: with every list at
+  its limit they add about 45 KB, so the bound leaves them out, and a summary is still never
+  refused.
 
 ## R10. Compression ratio and its floor
 
