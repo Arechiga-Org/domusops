@@ -85,9 +85,9 @@ their states, attributes and times, and reads nothing else about the home.
 5. **Given** an instance whose time zone is not UTC, **When** the agent passes a window without
    an offset, **Then** it is read in the instance's time zone, and every time in the response is
    in that zone, as in the logbook, trace and state documents.
-6. **Given** a change whose cause the instance's history records, **When** the agent reads it,
-   **Then** the response gives the context identifiers in the form `ha_trace` and
-   `ha_logbook_query` accept for their `context` input (FR-010).
+6. **Given** a change the agent wants the cause of, **When** it reads the history, **Then** the
+   response carries no context, since the instance's history records none, and the README says
+   to read `ha_logbook_query` over the same window for causes (FR-010).
 
 ---
 
@@ -205,11 +205,12 @@ entities are named, per entity that changed; the counts match the recorded histo
   states the maximum, before the history is read.
 - **FR-005**: For each selected entity, the response MUST carry, in time order, every recorded
   change in the window: its state, its attributes (after FR-009) and its change times
-  (`last_changed`, `last_updated`). By default every change is listed, including those that
-  changed only attributes; an optional `significant_only` input keeps only the changes the
-  instance considers significant. The state each listed entity had at the start of the window
-  MUST be given as its first entry, so that the first change in the window has a known starting
-  point; which entities are listed is set by FR-012.
+  (`last_changed`, `last_updated`). By default every change is listed, including those that changed
+  only attributes; an optional `significant_only` input keeps only the changes the instance
+  considers significant. The state each listed entity had at the start of the window MUST be given
+  as its first entry, so that the first change in the window has a known starting point; which
+  entities are listed is set by FR-012. The instance does not give the start state's own change
+  times; its `last_changed` is given when a later entry reveals it, and is otherwise unknown.
 - **FR-006**: Each change MUST carry every attribute by default, as in `ha_state`. An optional
   `attributes` input, a list of attribute names, keeps only those; a named attribute an entity
   does not have is simply absent. With `attributes`, a change MUST be listed only when its state
@@ -226,18 +227,18 @@ entities are named, per entity that changed; the counts match the recorded histo
   in every change, under the same rules `ha_snapshot` and `ha_state` apply to attribute values,
   and the redacted field MUST still be listed. Names of people and users stay visible, as in
   `ha_state` (its FR-011).
-- **FR-010**: When the instance's history gives a change's context, the response MUST carry its
-  identifiers in the form `ha_trace` and `ha_logbook_query` accept in their `context` input. When
-  it does not, the response carries no context and the tool reads no other source for it; the
-  README says how to find a change's cause with `ha_logbook_query` over the same window.
+- **FR-010**: The instance's history records no context for a change (measured on the supported
+  releases, research R1), so the response MUST carry none and the tool MUST read no other source for
+  it; the README says how to find a change's cause with `ha_logbook_query` over the same window.
+  Should a future release add context to the history, carrying it is a new format version.
 - **FR-011**: The response MUST be bounded: a result larger than a documented limit, with the same
   default as the other tools (100,000 bytes) and an environment variable of its own to raise it,
   MUST be refused with an error result, never returned in part, and the message MUST say how many
   entities and changes matched and how to narrow the query or raise the limit.
-- **FR-012**: An entity selected by a pattern, or by omitting `entities`, that did not change in
-  the window MUST be left out. An entity named by exact ID that did not change MUST appear with its
-  starting state and no changes. An exact ID with no recorded history, or with no entity, MUST
-  NOT be an error: a note names those IDs, at most 10, with the count of the rest. A query that selects
+- **FR-012**: An entity selected by a pattern, or by omitting `entities`, that did not change in the
+  window MUST be left out. An entity named by exact ID that did not change MUST appear with its
+  starting state and no changes. An exact ID with no recorded history, or with no entity, MUST NOT
+  be an error: a note names those IDs, at most 10, with the count of the rest. A query that selects
   nothing MUST return a valid empty document and a note.
 - **FR-013**: The tool MUST accept `detail`, with `summary` and `standard` (the default, FR-005).
   The summary carries no attributes. It always gives, per domain, the number of entities that
@@ -249,12 +250,12 @@ entities are named, per entity that changed; the counts match the recorded histo
 - **FR-014**: The tool MUST check that the history integration is loaded and, when it is not,
   return an error result that names it and says what to change, as `ha_logbook_query` does for
   the logbook integration.
-- **FR-015**: The tool MUST read only the current user (to check for an administrator, as the
-  other tools do), the instance's core configuration (time zone, loaded integrations and the
-  instance's own coordinates), the current entity IDs when a pattern needs expanding, and the
-  recorded history of the selected entities in the window. The history read is a new read-only
-  command on the server's allowlist, justified in the plan with its exact parameters; any other
-  new command MUST also be a read and be justified. It MUST NOT read registries, the logbook,
+- **FR-015**: The tool MUST read only the current user (to check for an administrator, as the other
+  tools do), the instance's core configuration (time zone, loaded integrations and the instance's
+  own coordinates), the current entity IDs when a pattern needs expanding or `entities` is absent,
+  and the recorded history of the selected entities in the window. The history read is a new
+  read-only command on the server's allowlist, justified in the plan with its exact parameters; any
+  other new command MUST also be a read and be justified. It MUST NOT read registries, the logbook,
   traces or the system log, and MUST make one connection per call.
 - **FR-016**: The tool MUST NOT change anything on the instance, and MUST declare itself
   read-only and idempotent to the client.
@@ -283,9 +284,12 @@ entities are named, per entity that changed; the counts match the recorded histo
 ### Key Entities
 
 - **Change**: one recorded state of an entity in the window: its state, its attributes after
-  redaction and its change times, and its context when the history gives one.
+  redaction and its change times.
 - **Entity history**: the starting state and the changes of one entity in the window, in time
   order; for an entity named by exact ID that did not change, the starting state alone.
+- **Listed entity**: a selected entity that appears in the `standard` result: one that changed in
+  the window, or one named by exact ID that has a start state (FR-012). The plan calls the
+  selected entities before the history is read "candidates".
 - **History overview**: the `summary` result: per domain, and per entity when `entities` is
   given, the number of changes, of state changes and of attribute-only changes, and the totals.
 - **History document**: the result of the tool in the new published format, with its notes and
@@ -329,8 +333,8 @@ entities are named, per entity that changed; the counts match the recorded histo
 - By default every change is listed, including attribute-only ones (FR-005): the tool exists for
   attribute timelines, and the instance's notion of significance drops most attribute-only
   changes. `significant_only` is opt-in. This answers the feature request's open question 4.
-- The instance's recorded history may not carry each change's context; the plan establishes what
-  it carries, and FR-010 covers both outcomes without reading another source.
+- The instance's recorded history carries no context for a change (research R1); causes come from
+  `ha_logbook_query` (FR-010).
 - The patterns of FR-002 follow the matcher the other tools share: anchored, case-sensitive, `*`
   matching any run of characters.
 - The 10-day maximum window matches the instance's default history retention; a home that keeps
