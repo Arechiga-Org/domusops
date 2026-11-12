@@ -138,7 +138,8 @@ anchorMs)`. `st.user_id` is the user ID as the instance gives it. `parent_id` an
   CI asserts a floor of 2 for `standard` on the whole fixture and on `sensor.*`, the domain
   SC-002 names. The sandbox test asserts the ratio is reported and above 1 on each release's
   full instance. The sandbox bound is confirmed by measurement before the container test is
-  written (T030a).
+  written (T030a): on a `default_config` sandbox of 2026.10.0, an unfiltered `standard` call
+  gives 2.00 for 17 entities, so the container test asserts above 1.
 - **Why**: §4 has no exemption. The fixture is the worst case for times, which readable local
   form makes costly, and 2 leaves room for the implementation without hiding a regression. The
   floor is lower than the logbook's 5 and the trace's 3 because a state is already a compact
