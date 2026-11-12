@@ -121,8 +121,8 @@ description: "Task list for ha_state (feature 010, second tool of 0.2.0)"
 - [X] T031 In `packages/sandbox/test/mcp.container.test.ts`, add a test per channel: on a sandbox with `default_config` and the built server, `ha_state` with `entities: ["zone.home"]` returns a `domusops.state/0.1` document holding `zone.home` with its `latitude` and `longitude` redacted; a `summary` without filters whose `counts.entities` equals the number of entities in the full `standard` result; a `compression_ratio` for the full instance at the bound T030a set; the same call twice is byte-identical (SC-007, §8)
 - [X] T032 [P] In the root `README.md`, add the `ha_state` row to the tool table
 - [X] T033 Run the gate (`pnpm lint && pnpm typecheck && pnpm test`), then `pnpm build` and the container test on `DOMUSOPS_SANDBOX_RELEASE=2026.10.0` and `2026.9.4` (never the unpinned stable channel); confirm that no existing output test of `ha_snapshot`, `ha_logbook_query` or `ha_trace` was edited (SC-008); run Prettier only on the touched files, never on `tasks.md`
-- [ ] T034 Mark these tasks `[X]` as they complete, and ask the maintainer before any commit, push or pull request; after the pull request, run `/code-review` and triage the findings before pushing fixes
-- [ ] T035 After the maintainer merges, update `CLAUDE.md`'s current focus to point at feature 011 (`ha_history`); the 0.2.0 release itself waits for features 011 and 012
+- [X] T034 Mark these tasks `[X]` as they complete, and ask the maintainer before any commit, push or pull request; after the pull request, run `/code-review` and triage the findings before pushing fixes
+- [X] T035 After the maintainer merges, update `CLAUDE.md`'s current focus to point at feature 011 (`ha_history`); the 0.2.0 release itself waits for features 011 and 012
 
 ---
 
