@@ -15,6 +15,7 @@ export const ERROR_KINDS = [
   "traces_unavailable",
   "run_not_found",
   "selection_invalid",
+  "input_invalid",
 ] as const;
 
 export type ErrorKind = (typeof ERROR_KINDS)[number];
@@ -126,14 +127,20 @@ export const errors = {
     );
   },
 
-  /** `snapshot` explains the filtered states a non-administrator would get; the others do not read states. */
-  notAdmin(subject: "snapshot" | "history" = "snapshot"): ToolError {
+  /**
+   * `snapshot` and `states` explain the filtered states a non-administrator would get; `history`
+   * covers the logbook and traces, which do not read states.
+   */
+  notAdmin(subject: "snapshot" | "states" | "history" = "snapshot"): ToolError {
+    const remediation = {
+      snapshot: `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the snapshot silently incomplete`,
+      states: `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the result silently incomplete`,
+      history: `Use a token of an administrator user. The logbook and the automation traces are administrator data, and a non-administrator user cannot read them reliably`,
+    }[subject];
     return new ToolError(
       "not_admin",
       "The token belongs to a user without administrator privileges",
-      subject === "snapshot"
-        ? `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the snapshot silently incomplete`
-        : `Use a token of an administrator user. The logbook and the automation traces are administrator data, and a non-administrator user cannot read them reliably`,
+      remediation,
     );
   },
 
@@ -219,6 +226,24 @@ export const errors = {
       "selection_invalid",
       `The selection is not valid: ${problem}`,
       "Give either run (32 lowercase hexadecimal characters) or context (a 26-character context ID, a compact ID from ha_trace or ha_logbook_query, or at most 64 printable ASCII characters), and no entities, exclude, start, or end with them; detail combines with anything",
+    );
+  },
+
+  /** An `ha_state` input outside its limits, or `attributes` with `summary` (specs/010-ha-state R3). */
+  inputInvalid(problem: string): ToolError {
+    return new ToolError(
+      "input_invalid",
+      `The input is not valid: ${problem}`,
+      "Give domain as 1 to 100 entries of 1 to 64 characters of a-z, 0-9 and _; state as 1 to 100 entries of 1 to 255 characters; attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard",
+    );
+  },
+
+  /** A `standard` state result above the size limit (specs/010-ha-state FR-012, research R8). */
+  tooLargeStates(entities: number, bytes: number, limit: number): ToolError {
+    return new ToolError(
+      "too_large",
+      `The result has ${entities} entities and would be ${bytes} bytes, above the limit of ${limit} bytes`,
+      "Use detail=summary to see where the entities are, or narrow the query with entities, domain, state, exclude, or attributes; to allow larger results, raise DOMUSOPS_STATE_MAX_BYTES",
     );
   },
 

@@ -73,6 +73,7 @@ describe("ha_ping on a healthy instance", () => {
         ha_snapshot: { ready: true },
         ha_logbook_query: { ready: true },
         ha_trace: { ready: true },
+        ha_state: { ready: true },
       },
     });
     expect(Object.keys(document)).toEqual([
@@ -144,7 +145,7 @@ describe("ha_ping on an instance with a setup problem", () => {
       expect(tool).toEqual({ ready: false, reasons: ["not_admin"] });
     }
     expect(document.next_steps).toEqual([
-      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace need",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state need",
     ]);
   });
 
@@ -155,6 +156,7 @@ describe("ha_ping on an instance with a setup problem", () => {
       ha_snapshot: { ready: true },
       ha_logbook_query: { ready: true },
       ha_trace: { ready: false, reasons: ["integration_missing:trace"] },
+      ha_state: { ready: true },
     });
     expect(document.next_steps).toEqual([
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
@@ -168,6 +170,16 @@ describe("ha_ping on an instance with a setup problem", () => {
     ]);
     expect(document.tools["ha_trace"]).toEqual({ ready: true });
     expect(document.tools["ha_snapshot"]).toEqual({ ready: true });
+  });
+
+  it("needs an administrator and no integration for ha_state (specs/010-ha-state FR-020)", async () => {
+    const ready = await ping(instance([]));
+    expect(ready.document.tools["ha_state"]).toEqual({ ready: true });
+    const refused = await ping(instance([]), { isAdmin: false });
+    expect(refused.document.tools["ha_state"]).toEqual({
+      ready: false,
+      reasons: ["not_admin"],
+    });
   });
 
   it("does not count a platform of an integration as the integration (research R2)", async () => {
@@ -212,7 +224,7 @@ describe("ha_ping on an instance with a setup problem", () => {
     ]);
     expect(document.next_steps).toEqual([
       "Upgrade the instance to 2025.1.0 or later",
-      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace need",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state need",
       "Enable the logbook integration in Home Assistant (it is part of default_config), then try again",
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
     ]);

@@ -1,6 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
+import { notFoundNote, nothingMatchedNote } from "../src/notes.js";
 import { createServer } from "../src/server.js";
 import { runLogbookQuery } from "../src/tools/ha-logbook-query.js";
 import { runTrace } from "../src/tools/ha-trace.js";
@@ -132,5 +133,24 @@ describe("ha_trace responses", () => {
     expect(result.isError).toBe(true);
     expect(result.content).toHaveLength(1);
     expect(result.content[0]?.text).toMatch(/selection_invalid/);
+  });
+});
+
+describe("the ha_state notes (specs/010-ha-state research R13)", () => {
+  it("names the IDs not found, in the order given", () => {
+    expect(notFoundNote(["light.kitchn", "light.hallwy"])).toBe(
+      "Note: no entity has the ID light.kitchn, light.hallwy.",
+    );
+  });
+
+  it("names at most ten IDs and counts the rest", () => {
+    const ids = Array.from({ length: 13 }, (_, i) => `sensor.missing_${i}`);
+    expect(notFoundNote(ids)).toBe(
+      `Note: no entity has the ID ${ids.slice(0, 10).join(", ")}, and 3 more.`,
+    );
+  });
+
+  it("says when nothing matched", () => {
+    expect(nothingMatchedNote()).toBe("Note: no entity matched the query.");
   });
 });

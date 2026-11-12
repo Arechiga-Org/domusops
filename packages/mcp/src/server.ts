@@ -1,6 +1,7 @@
 import {
   DETAIL_LEVELS,
   LOGBOOK_DETAIL_LEVELS,
+  STATE_DETAIL_LEVELS,
   TRACE_DETAIL_LEVELS,
 } from "@domusops/schema";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -9,11 +10,19 @@ import { z } from "zod";
 import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
 import { MAX_SELECTORS } from "./logbook/selectors.js";
+import {
+  characterCount,
+  DOMAIN,
+  MAX_ATTRIBUTE_LENGTH,
+  MAX_ENTRIES,
+  MAX_STATE_LENGTH,
+} from "./state/inputs.js";
 import type { Response } from "./notes.js";
 import { packageVersion, SERVER_NAME } from "./package-info.js";
 import { queryLogbook } from "./tools/ha-logbook-query.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 import { runPing } from "./tools/ha-ping.js";
+import { queryState } from "./tools/ha-state.js";
 import { queryTrace } from "./tools/ha-trace.js";
 
 // Copied from specs/001-ha-snapshot/contracts/ha_snapshot.tool.json, the tool contract.
@@ -94,6 +103,36 @@ export interface ServerOptions {
   env?: Readonly<Record<string, string | undefined>>;
   timeouts?: Partial<Timeouts>;
 }
+
+// Copied from specs/010-ha-state/contracts/ha_state.tool.json, the tool contract.
+const STATE_TITLE = "Entity states for Home Assistant";
+const STATE_DESCRIPTION =
+  "Read-only current state of the entities of the connected Home Assistant instance: for each one its state, its attributes, when it last changed, was last updated and last reported, and the context of the change. Returned as compact JSON in the domusops.state/0.1 format, grouped by domain and templated, with times in the instance's local time. entities takes exact entity IDs or * patterns (light.*, *_motion); without it, every entity is considered. domain keeps only those domains (light, sensor); state keeps only entities whose state is one of the values given (on, unavailable). exclude takes the same IDs and patterns as entities and leaves those entities out, after the other filters; a note after the document lists what was excluded. attributes keeps only the attributes named (brightness, friendly_name) and never changes which entities are returned. An exact ID with no entity is named in a note, not an error. The context IDs (st.context, st.parent_id) can be passed to the context input of ha_trace and ha_logbook_query to see what caused a change. detail=summary gives, per domain, how many entities there are and how many are unavailable and unknown, and stays small for any home; standard (default) lists every selected entity and is at least 2x smaller than the raw states on a 500-entity reference instance (asserted in CI). A standard result larger than 100000 bytes (DOMUSOPS_STATE_MAX_BYTES) is refused with the entity count: use summary, entities, domain, state, exclude, or attributes. ha_snapshot is the full inventory with registries, devices and areas; this tool is the filtered live view. Secrets, coordinates, and e-mail addresses are always redacted. Every response reports its compression_ratio. Requires DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN (administrator user).";
+const STATE_ENTITIES_DESCRIPTION =
+  "Entity IDs or patterns with * (light.kitchen, light.*, *_battery). Without it, every entity is considered.";
+const STATE_DOMAIN_DESCRIPTION =
+  "Domains to keep (light, sensor). Combined with entities, an entity must match both.";
+const STATE_STATE_DESCRIPTION =
+  "State values to keep, compared exactly (on, off, unavailable, unknown).";
+const STATE_EXCLUDE_DESCRIPTION =
+  "Entity IDs or patterns to leave out, in the same form as entities (*_firmware, button.*). Applied after the other filters.";
+const STATE_ATTRIBUTES_DESCRIPTION =
+  "Attribute names to keep (brightness, friendly_name). Without it, every attribute is returned. Not combinable with detail=summary.";
+const STATE_DETAIL_DESCRIPTION =
+  "summary: counts per domain, with unavailable and unknown. standard (default): every selected entity with its state, attributes, times and context.";
+
+/**
+ * A non-empty string of at most `max` characters. zod's `max` counts UTF-16 units, so the limit is
+ * checked in characters and advertised as `maxLength`, which JSON Schema also counts in characters.
+ */
+const withinCharacters = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .refine((text) => characterCount(text) <= max, {
+      message: `Must be at most ${max} characters`,
+    })
+    .meta({ maxLength: max });
 
 // Copied from specs/009-ha-ping/contracts/ha_ping.tool.json, the tool contract.
 const PING_TITLE = "Connection check for Home Assistant";
@@ -229,6 +268,70 @@ export function createServer(options: ServerOptions = {}): McpServer {
           ...(end === undefined ? {} : { end }),
           ...(run === undefined ? {} : { run }),
           ...(context === undefined ? {} : { context }),
+          ...(options.timeouts === undefined
+            ? {}
+            : { timeouts: options.timeouts }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "ha_state",
+    {
+      title: STATE_TITLE,
+      description: STATE_DESCRIPTION,
+      inputSchema: {
+        entities: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_SELECTORS)
+          .optional()
+          .describe(STATE_ENTITIES_DESCRIPTION),
+        domain: z
+          .array(z.string().regex(DOMAIN))
+          .min(1)
+          .max(MAX_ENTRIES)
+          .optional()
+          .describe(STATE_DOMAIN_DESCRIPTION),
+        state: z
+          .array(withinCharacters(MAX_STATE_LENGTH))
+          .min(1)
+          .max(MAX_ENTRIES)
+          .optional()
+          .describe(STATE_STATE_DESCRIPTION),
+        exclude: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_SELECTORS)
+          .optional()
+          .describe(STATE_EXCLUDE_DESCRIPTION),
+        attributes: z
+          .array(withinCharacters(MAX_ATTRIBUTE_LENGTH))
+          .min(1)
+          .max(MAX_ENTRIES)
+          .optional()
+          .describe(STATE_ATTRIBUTES_DESCRIPTION),
+        detail: z
+          .enum(STATE_DETAIL_LEVELS)
+          .default("standard")
+          .describe(STATE_DETAIL_DESCRIPTION),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    ({ entities, domain, state, exclude, attributes, detail }) =>
+      asToolResult("ha_state", () =>
+        queryState(options.env ?? process.env, {
+          detail,
+          ...(entities === undefined ? {} : { entities }),
+          ...(domain === undefined ? {} : { domain }),
+          ...(state === undefined ? {} : { state }),
+          ...(exclude === undefined ? {} : { exclude }),
+          ...(attributes === undefined ? {} : { attributes }),
           ...(options.timeouts === undefined
             ? {}
             : { timeouts: options.timeouts }),
