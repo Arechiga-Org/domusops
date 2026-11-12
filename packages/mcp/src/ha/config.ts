@@ -84,3 +84,17 @@ export function readTraceLimit(
 ): number {
   return readLimit(env, TRACE_LIMIT_VARIABLE, DEFAULT_TRACE_LIMIT);
 }
+
+export const STATE_LIMIT_VARIABLE = "DOMUSOPS_STATE_MAX_BYTES";
+export const DEFAULT_STATE_LIMIT = 100_000;
+
+/**
+ * Size limit of a `standard` state result, in bytes (specs/010-ha-state FR-012, research R8). Its
+ * own setting; `summary` is never checked against it. Read on every invocation; configuration
+ * only, never a tool parameter.
+ */
+export function readStateLimit(
+  env: Readonly<Record<string, string | undefined>>,
+): number {
+  return readLimit(env, STATE_LIMIT_VARIABLE, DEFAULT_STATE_LIMIT);
+}

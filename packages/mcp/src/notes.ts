@@ -18,6 +18,24 @@ export function exclusionNote(selectors: readonly string[]): string {
 export const MAX_NOTE_ITEMS = 10;
 
 /**
+ * Sent by `ha_state` when exact IDs in `entities` name no entity (specs/010-ha-state FR-013,
+ * research R13). Past the tenth, only their number is given.
+ */
+export function notFoundNote(ids: readonly string[]): string {
+  const named = ids.slice(0, MAX_NOTE_ITEMS).join(", ");
+  const more =
+    ids.length > MAX_NOTE_ITEMS
+      ? `, and ${ids.length - MAX_NOTE_ITEMS} more`
+      : "";
+  return `Note: no entity has the ID ${named}${more}.`;
+}
+
+/** Sent by `ha_state` when the query selected no entity, after the not-found note if any. */
+export function nothingMatchedNote(): string {
+  return "Note: no entity matched the query.";
+}
+
+/**
  * Sent by `ha_trace` when a windowed query selected items whose stored runs may no longer reach
  * the window start. `items` is in entity-ID order; past the tenth, only their number is given.
  */
