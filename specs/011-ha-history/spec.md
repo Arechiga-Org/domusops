@@ -34,6 +34,23 @@ color changed) without falling back to the raw API. It complements the two tools
   state at the start of the window is included, and every change is listed unless
   `significant_only` is given (FR-005).
 
+### Session 2026-11-12
+
+- Q: Is an entity that did not change in the window included with the state it had at the start
+  of the window, or left out? → A: Included with its starting state only when it was named by
+  exact ID in `entities`; an entity selected by a pattern, or by omitting `entities`, appears
+  only if it changed in the window (FR-005, FR-012).
+- Q: Without `entities`, may the `summary` be refused for its size, or is it always answered? →
+  A: Always answered: the summary gives totals per domain, and rows per entity only when the call
+  has `entities`; without `entities` it is never refused and stays small (FR-013).
+- Q: With `attributes`, is a change still listed when neither its state nor any listed attribute
+  changed? → A: No. With `attributes`, a change is listed only when its state or a listed
+  attribute changed; the others are left out, and the document gives how many were left out
+  (FR-006).
+- Q: Are change times given to the second, as in the other documents, or to the millisecond? → A:
+  To the second, as in the logbook, trace and state documents; changes within the same second
+  keep their recorded order (FR-007, FR-008).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Following an entity's changes through a window (Priority: P1)
@@ -95,16 +112,19 @@ from one change to the next, and a query over the limit is refused with the coun
    after `entities`, with the same patterns and rules as `ha_logbook_query`, `ha_trace` and
    `ha_state`, and a note after the document lists what was excluded.
 2. **Given** an `attributes` list, **When** the agent passes it, **Then** each change carries
-   only those attributes, and the changes listed are still every recorded change of the selected
-   entities in the window.
+   only those attributes, a change in which neither the state nor a listed attribute changed is
+   left out, and the document gives how many changes were left out per entity.
 3. **Given** a query that matches more changes than fit in the limit, **When** the agent calls
    the tool, **Then** it gets an error result, as from the other tools, that gives the number of
    entities and changes matched and says how to narrow the query (a shorter window, fewer
    entities, `exclude`, `attributes`, `detail=summary`) or raise the limit, and no partial list.
-4. **Given** an exact entity ID that has no recorded change in the window, or that does not
-   exist, **When** the agent asks for it, **Then** the response is not an error: a note names the
-   IDs without history.
-5. **Given** a window larger than the maximum, or a start after its end, **When** the agent calls
+4. **Given** an entity named by exact ID that did not change in the window, **When** the agent
+   asks for it, **Then** the response gives the state it had at the start of the window and no
+   changes; an entity selected only by a pattern that did not change is left out.
+5. **Given** an exact entity ID with no recorded history, or that does not exist, **When** the
+   agent asks for it, **Then** the response is not an error: a note names the IDs without
+   history.
+6. **Given** a window larger than the maximum, or a start after its end, **When** the agent calls
    the tool, **Then** it gets a validation error that states the rule, before anything is read.
 
 ---
@@ -118,19 +138,21 @@ small call answers it.
 **Why this priority**: It turns a refused query into a narrower one in a single step. The detailed
 read of stories 1 and 2 is the core.
 
-**Independent Test**: On a simulated instance, the summary lists every selected entity that
-changed in the window with its number of changes, the counts match the recorded history, and the
-result stays small.
+**Independent Test**: On a simulated instance, the summary gives the counts per domain and, when
+entities are named, per entity that changed; the counts match the recorded history, and without
+`entities` the result stays under 4,000 bytes.
 
 **Acceptance Scenarios**:
 
 1. **Given** a window and a set of entities, **When** the agent asks for the summary, **Then** the
-   response lists, per entity, how many changes were recorded, how many of them changed the state
-   and how many changed only attributes, plus the totals, and carries no attributes.
+   response lists, per entity that changed, how many changes were recorded, how many of them
+   changed the state and how many changed only attributes, plus the same counts per domain and
+   the totals, and carries no attributes.
 2. **Given** the same filters as in story 2, **When** they are combined with the summary,
    **Then** the counts cover only the selected entities.
-3. **Given** no `entities`, **When** the agent asks for the summary of a window, **Then** it lists
-   every entity of the home that changed in that window, and the result stays small.
+3. **Given** no `entities`, **When** the agent asks for the summary of a window, **Then** it gives
+   the counts per domain for the whole home, with no rows per entity, and is never refused;
+   the agent then names a busy domain with a pattern to see its entities.
 
 ---
 
@@ -185,15 +207,20 @@ result stays small.
   change in the window: its state, its attributes (after FR-009) and its change times
   (`last_changed`, `last_updated`). By default every change is listed, including those that
   changed only attributes; an optional `significant_only` input keeps only the changes the
-  instance considers significant. The state each entity had at the start of the window MUST be
-  given as its first entry, so that the first change in the window has a known starting point.
+  instance considers significant. The state each listed entity had at the start of the window
+  MUST be given as its first entry, so that the first change in the window has a known starting
+  point; which entities are listed is set by FR-012.
 - **FR-006**: Each change MUST carry every attribute by default, as in `ha_state`. An optional
   `attributes` input, a list of attribute names, keeps only those; a named attribute an entity
-  does not have is simply absent, and the changes listed do not depend on it.
+  does not have is simply absent. With `attributes`, a change MUST be listed only when its state
+  or one of the listed attributes differs from the entity's previous listed entry; the other
+  changes are left out, and the document MUST give, per entity, how many were left out. The
+  starting state of FR-005 is always listed.
 - **FR-007**: Entities MUST appear in entity-ID order and changes in time order, so that two calls
   over the same past window give byte-identical responses.
-- **FR-008**: Every timestamp MUST be in the instance's local time zone, in the form the logbook,
-  trace and state documents use.
+- **FR-008**: Every timestamp MUST be in the instance's local time zone, to the second, in the
+  form the logbook, trace and state documents use. Changes of one entity within the same second
+  keep the order the instance recorded them in.
 - **FR-009**: Secrets, credentials, tokens (including the configured one), e-mail addresses,
   coordinates (the instance's own and any in an attribute) and URL credentials MUST be redacted
   in every change, under the same rules `ha_snapshot` and `ha_state` apply to attribute values,
@@ -207,13 +234,18 @@ result stays small.
   default as the other tools (100,000 bytes) and an environment variable of its own to raise it,
   MUST be refused with an error result, never returned in part, and the message MUST say how many
   entities and changes matched and how to narrow the query or raise the limit.
-- **FR-012**: An exact ID with no recorded change in the window, or with no entity, MUST NOT be an
-  error: a note names those IDs, at most 10, with the count of the rest. A query that selects
+- **FR-012**: An entity selected by a pattern, or by omitting `entities`, that did not change in
+  the window MUST be left out. An entity named by exact ID that did not change MUST appear with its
+  starting state and no changes. An exact ID with no recorded history, or with no entity, MUST
+  NOT be an error: a note names those IDs, at most 10, with the count of the rest. A query that selects
   nothing MUST return a valid empty document and a note.
-- **FR-013**: The tool MUST accept `detail`, with `summary` (per entity, the number of changes,
-  of state changes and of attribute-only changes, plus the totals, with no attributes) and
-  `standard` (the default, FR-005). `attributes` is not combinable with `summary`. The summary is
-  not subject to the size limit of FR-011.
+- **FR-013**: The tool MUST accept `detail`, with `summary` and `standard` (the default, FR-005).
+  The summary carries no attributes. It always gives, per domain, the number of entities that
+  changed, of changes, of state changes and of attribute-only changes, plus the totals. When the
+  call has `entities`, it also gives the same counts per selected entity that changed. Without
+  `entities` the summary MUST NOT be refused and MUST stay under 4,000 bytes whatever the size of
+  the home; with `entities`, its rows per entity are subject to the limit of FR-011, and a refusal
+  suggests the summary without `entities`. `attributes` is not combinable with `summary`.
 - **FR-014**: The tool MUST check that the history integration is loaded and, when it is not,
   return an error result that names it and says what to change, as `ha_logbook_query` does for
   the logbook integration.
@@ -228,9 +260,9 @@ result stays small.
   read-only and idempotent to the client.
 - **FR-017**: The response MUST be a compact JSON document in a new published, versioned format
   in `@domusops/schema`, with its types, its JSON Schema, a reference decoder that restores every
-  change with its full attributes (apart from redaction), and a row in the package README.
-  Attributes unchanged from one change to the next of the same entity MUST NOT be repeated, and
-  repeated shapes MUST NOT be repeated per change.
+  change with its full attributes (apart from redaction, and times to the second), and a row in
+  the package README. Attributes unchanged from one change to the next of the same entity MUST
+  NOT be repeated, and repeated shapes MUST NOT be repeated per change.
 - **FR-018**: The response MUST carry a `compression_ratio`, measured as for the other tools
   against the raw instance answers it read, and CI MUST assert a floor for the `standard` detail
   on the reference instance (constitution §4).
@@ -253,9 +285,9 @@ result stays small.
 - **Change**: one recorded state of an entity in the window: its state, its attributes after
   redaction and its change times, and its context when the history gives one.
 - **Entity history**: the starting state and the changes of one entity in the window, in time
-  order.
-- **History overview**: the `summary` result: per entity, the number of changes, of state changes
-  and of attribute-only changes, and the totals.
+  order; for an entity named by exact ID that did not change, the starting state alone.
+- **History overview**: the `summary` result: per domain, and per entity when `entities` is
+  given, the number of changes, of state changes and of attribute-only changes, and the totals.
 - **History document**: the result of the tool in the new published format, with its notes and
   its compression ratio.
 
