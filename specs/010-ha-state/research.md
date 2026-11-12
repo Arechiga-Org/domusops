@@ -45,6 +45,7 @@ IDs, redaction) on the reference fixture `REFERENCE_500` of `packages/mcp/test/f
   - `domain`: 1 to 100 entries, each 1 to 64 characters of `[a-z0-9_]`.
   - `state`: 1 to 100 entries, each 1 to 255 characters (the instance's own limit for a state).
   - `attributes`: 1 to 100 entries, each 1 to 128 characters.
+  - Lengths count characters (code points), as the instance does, so an emoji counts once.
   - `detail`: `summary` or `standard`.
   - `attributes` with `detail=summary` is refused.
   - Duplicates are removed, keeping the first.

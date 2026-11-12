@@ -376,6 +376,18 @@ describe("ha_state: narrowing (User Story 2)", () => {
     expect(ha?.connections).toBe(0);
   });
 
+  it("selects a state of 255 characters outside the BMP (R3)", async () => {
+    const value = "\u{1F600}".repeat(255);
+    const { response } = await query(
+      { state: [value] },
+      { fixture: fixtureOf([...SMALL_HOME, stateOf("sensor.mood", value)]) },
+    );
+    expect(idsOf(response)).toEqual(["sensor.mood"]);
+    await expect(query({ state: [value + "\u{1F600}"] })).rejects.toMatchObject(
+      { kind: "input_invalid" },
+    );
+  });
+
   it("accepts the longest valid entries", async () => {
     const { response } = await query({
       domain: [long(64)],

@@ -446,4 +446,16 @@ describe("ha_state: the tool", () => {
       "Note: no entity has the ID light.not_here.",
     ]);
   });
+
+  it("counts a state's length in characters, not UTF-16 units", async () => {
+    const client = await connected();
+    const call = async (state: string): Promise<CallResult> =>
+      (await client.callTool({
+        name: "ha_state",
+        arguments: { state: [state], detail: "summary" },
+      })) as CallResult;
+    // 255 emoji are 510 UTF-16 units, a valid state on the instance.
+    expect((await call("\u{1F600}".repeat(255))).isError).toBeFalsy();
+    expect((await call("\u{1F600}".repeat(256))).isError).toBe(true);
+  });
 });

@@ -6,7 +6,14 @@ export const MAX_ENTRIES = 100;
 /** The longest state value, as the instance itself limits it. */
 export const MAX_STATE_LENGTH = 255;
 export const MAX_ATTRIBUTE_LENGTH = 128;
-const DOMAIN = /^[a-z0-9_]{1,64}$/;
+/** An entity domain. The advertised input schema uses the same expression. */
+export const DOMAIN = /^[a-z0-9_]{1,64}$/;
+
+/**
+ * The length of `text` in characters (code points), as the instance counts a state's length, not
+ * in UTF-16 units: a character outside the Basic Multilingual Plane, such as an emoji, counts once.
+ */
+export const characterCount = (text: string): number => [...text].length;
 
 export interface StateInputs {
   domains?: string[];
@@ -37,12 +44,14 @@ function parseList(
 
 const lengthBetween =
   (max: number) =>
-  (entry: string): string | null =>
-    entry.length === 0
+  (entry: string): string | null => {
+    const length = characterCount(entry);
+    return length === 0
       ? "has an empty entry"
-      : entry.length > max
-        ? `has an entry of ${entry.length} characters, and the limit is ${max}`
+      : length > max
+        ? `has an entry of ${length} characters, and the limit is ${max}`
         : null;
+  };
 
 /**
  * Validates `domain`, `state`, `attributes` and `detail` before anything is read

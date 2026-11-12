@@ -11,6 +11,8 @@ import { errors, ToolError } from "./errors.js";
 import type { Timeouts } from "./ha/client.js";
 import { MAX_SELECTORS } from "./logbook/selectors.js";
 import {
+  characterCount,
+  DOMAIN,
   MAX_ATTRIBUTE_LENGTH,
   MAX_ENTRIES,
   MAX_STATE_LENGTH,
@@ -118,6 +120,19 @@ const STATE_ATTRIBUTES_DESCRIPTION =
   "Attribute names to keep (brightness, friendly_name). Without it, every attribute is returned. Not combinable with detail=summary.";
 const STATE_DETAIL_DESCRIPTION =
   "summary: counts per domain, with unavailable and unknown. standard (default): every selected entity with its state, attributes, times and context.";
+
+/**
+ * A non-empty string of at most `max` characters. zod's `max` counts UTF-16 units, so the limit is
+ * checked in characters and advertised as `maxLength`, which JSON Schema also counts in characters.
+ */
+const withinCharacters = (max: number) =>
+  z
+    .string()
+    .min(1)
+    .refine((text) => characterCount(text) <= max, {
+      message: `Must be at most ${max} characters`,
+    })
+    .meta({ maxLength: max });
 
 // Copied from specs/009-ha-ping/contracts/ha_ping.tool.json, the tool contract.
 const PING_TITLE = "Connection check for Home Assistant";
@@ -273,13 +288,13 @@ export function createServer(options: ServerOptions = {}): McpServer {
           .optional()
           .describe(STATE_ENTITIES_DESCRIPTION),
         domain: z
-          .array(z.string().regex(/^[a-z0-9_]{1,64}$/))
+          .array(z.string().regex(DOMAIN))
           .min(1)
           .max(MAX_ENTRIES)
           .optional()
           .describe(STATE_DOMAIN_DESCRIPTION),
         state: z
-          .array(z.string().min(1).max(MAX_STATE_LENGTH))
+          .array(withinCharacters(MAX_STATE_LENGTH))
           .min(1)
           .max(MAX_ENTRIES)
           .optional()
@@ -291,7 +306,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
           .optional()
           .describe(STATE_EXCLUDE_DESCRIPTION),
         attributes: z
-          .array(z.string().min(1).max(MAX_ATTRIBUTE_LENGTH))
+          .array(withinCharacters(MAX_ATTRIBUTE_LENGTH))
           .min(1)
           .max(MAX_ENTRIES)
           .optional()
