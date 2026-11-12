@@ -26,7 +26,7 @@ color changed) without falling back to the raw API. It complements the two tools
   `summary` of the whole home shows which entities were busy (FR-002, FR-013).
 - Q: What are the default and the maximum window? → A: The default is the 24 hours before `end`,
   as in `ha_logbook_query`; the maximum is 10 days, the instance's default history retention, and
-  a longer window is a validation error before anything is read (FR-004).
+  a longer window is a validation error before the history is read (FR-004).
 - Q: Does each change carry every attribute by default, or only the attributes a caller lists? →
   A: Every attribute by default, as in `ha_state`; `attributes` keeps only the ones named, and
   unchanged attributes are not repeated from one change to the next (FR-006, FR-017).
@@ -125,7 +125,7 @@ from one change to the next, and a query over the limit is refused with the coun
    agent asks for it, **Then** the response is not an error: a note names the IDs without
    history.
 6. **Given** a window larger than the maximum, or a start after its end, **When** the agent calls
-   the tool, **Then** it gets a validation error that states the rule, before anything is read.
+   the tool, **Then** it gets a validation error that states the rule, before the history is read.
 
 ---
 
@@ -162,7 +162,7 @@ entities are named, per entity that changed; the counts match the recorded histo
   same validation error, with the same wording, as in the other tools.
 - `start` or `end` is malformed, `start` is after `end`, or `end` is in the future: the same
   handling as `ha_logbook_query` (a validation error, and a future `end` clamped to now).
-- The window is longer than 10 days: a validation error that states the maximum, before anything
+- The window is longer than 10 days: a validation error that states the maximum, before the history
   is read. An instance that keeps more history is read in windows of at most 10 days.
 - No `entities` on a large home: the `standard` result is usually refused by the size limit, with
   the counts and the hint to use `detail=summary` or name entities.
@@ -202,7 +202,7 @@ entities are named, per entity that changed; the counts match the recorded histo
   them (a time without an offset is read in the instance's time zone, a future `end` is clamped
   to now). `end` defaults to now and `start` to 24 hours before `end`. A window longer than 10
   days, the instance's default history retention, MUST be refused with a validation error that
-  states the maximum, before anything is read.
+  states the maximum, before the history is read.
 - **FR-005**: For each selected entity, the response MUST carry, in time order, every recorded
   change in the window: its state, its attributes (after FR-009) and its change times
   (`last_changed`, `last_updated`). By default every change is listed, including those that

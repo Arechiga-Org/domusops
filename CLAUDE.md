@@ -27,5 +27,5 @@ sandbox harness, and the `ha-bootstrap` skill with its CLI.
 Current work: phase 2 of the roadmap, the `@domusops/mcp` 0.2.0 read tools, one numbered feature
 each, released together. `ha_ping` (009) and `ha_state` (010) are merged; the Version Packages
 pull request stays open until the rest land. Current feature: `ha_history` (011,
-specs/011-ha-history/, not yet specified). Then `ha_system_log` (012). The scenario and assertion
+specs/011-ha-history/, specified and planned). Then `ha_system_log` (012). The scenario and assertion
 DSL (006) follows, not yet specified.
