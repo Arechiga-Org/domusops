@@ -16,7 +16,6 @@ const envelope = {
   selectors: strings,
   domains: strings,
   states: strings,
-  attributes: strings,
 } as const;
 
 const envelopeRequired = [
@@ -60,6 +59,8 @@ const standardDocument = {
   properties: {
     ...envelope,
     detail: { const: "standard" },
+    // `attributes` is never combined with `summary`, so only `standard` repeats it.
+    attributes: strings,
     templates: {
       type: "object",
       additionalProperties: {

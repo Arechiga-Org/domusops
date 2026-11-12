@@ -35,6 +35,10 @@ describe("the state format", () => {
     ["the standard example", standard],
     ["the summary example", summary],
     [
+      "a standard document with attributes",
+      { ...standard, attributes: ["brightness"] },
+    ],
+    [
       "an empty standard document",
       { ...standard, templates: {}, entities: {} },
     ],
@@ -53,6 +57,10 @@ describe("the state format", () => {
     ],
     ["a summary without counts", without(summary, "counts")],
     ["a summary without by_domain", without(summary, "by_domain")],
+    [
+      "a summary with attributes (FR-014)",
+      { ...summary, attributes: ["brightness"] },
+    ],
     [
       "a by_domain row of two numbers",
       { ...summary, by_domain: { light: [3, 0] } },

@@ -25,7 +25,7 @@ export interface StateEnvelope {
   domains?: string[];
   /** `state` as parsed, when given. */
   states?: string[];
-  /** `attributes` as parsed, when given (`standard` only). */
+  /** `attributes` as parsed, when given (`standard` documents only). */
   attributes?: string[];
 }
 
@@ -36,7 +36,11 @@ export interface StateStandardDocument extends StateEnvelope {
   entities: Record<string, Groups>;
 }
 
-export interface StateSummaryDocument extends StateEnvelope {
+/** A summary never carries `attributes`, which `summary` refuses. */
+export interface StateSummaryDocument extends Omit<
+  StateEnvelope,
+  "attributes"
+> {
   detail: "summary";
   counts: { entities: number; domains: number };
   /** domain -> `[entities, unavailable, unknown]`. */
