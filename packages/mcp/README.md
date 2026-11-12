@@ -132,6 +132,8 @@ published format; any later blocks are notes about the query, not part of the do
 | `ha_logbook_query` | `standard`         | `expandLogbook`               |
 | `ha_trace`         | `summary`          | none: read as it is           |
 | `ha_trace`         | `standard`         | `expandTrace`                 |
+| `ha_state`         | `summary`          | none: read as it is           |
+| `ha_state`         | `standard`         | `expandState`                 |
 | `ha_ping`          | none               | none: read as it is           |
 
 `@domusops/schema` comes with the server; install it on its own
@@ -141,13 +143,19 @@ document of any tool result, and throws the error text of a failed call:
 <!-- tested example -->
 
 ```js
-import { expand, expandLogbook, expandTrace } from "@domusops/schema";
+import {
+  expand,
+  expandLogbook,
+  expandState,
+  expandTrace,
+} from "@domusops/schema";
 
 // A document whose format has no decoder (a summary, or a ping) is read as it is.
 const decoders = {
   "domusops.snapshot/0.1": expand,
   "domusops.logbook/0.1": expandLogbook,
   "domusops.trace/0.1": expandTrace,
+  "domusops.state/0.1": expandState,
 };
 
 // The first text block of a tool result is the document; later blocks are notes.
@@ -346,6 +354,62 @@ reference set, which CI asserts; `summary` is far smaller. The format is version
 are in `@domusops/schema`. See
 [`specs/003-ha-trace/data-model.md`](../../specs/003-ha-trace/data-model.md).
 
+## `ha_state`
+
+A read-only view of what entities are doing right now: for each one its state, its attributes,
+when it last changed, was last updated and last reported, and the context of the change. Use it
+for questions such as "why is the porch light still on?" or "what is the thermostat set to?",
+without downloading the whole `ha_snapshot` inventory. `ha_snapshot` is the full inventory with
+registries, devices and areas; `ha_state` is the filtered live view.
+
+It uses the same server, the same `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`, and the same
+administrator-token requirement as the other tools: a user who is not an administrator can
+receive a filtered set of states, which would make the result silently incomplete. It reads the
+current user, the core configuration and the current states, on one connection, and nothing else.
+
+### Input
+
+| Property     | Meaning                                                                                                                                |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `entities`   | Up to 100 entity IDs or patterns of at most 128 characters, where `*` matches anything (`light.*`, `*_battery`). Default: every entity |
+| `domain`     | Up to 100 domains to keep (`light`, `sensor`), each 1 to 64 characters of `a-z`, `0-9` and `_`                                         |
+| `state`      | Up to 100 state values to keep, compared exactly (`on`, `unavailable`), each 1 to 255 characters                                       |
+| `exclude`    | Entity IDs or patterns to leave out, in the same form as `entities` (`*_firmware`, `button.*`). Applied after the other filters        |
+| `attributes` | Up to 100 attribute names to keep (`brightness`, `friendly_name`). Default: every attribute. Not with `summary`                        |
+| `detail`     | `summary` (counts per domain, with `unavailable` and `unknown`) or `standard` (every selected entity; the default)                     |
+
+The filters apply in that order: `entities`, `domain`, `state`, then `exclude`. `attributes`
+only trims each entity's attributes; it never changes which entities are returned. An exact ID
+in `entities` that names no entity is listed in a note after the document, not an error, and a
+query that selects nothing returns an empty document and a note. When `exclude` is given, a note
+lists what was excluded. A problem with `domain`, `state` or `attributes` is an `input_invalid`
+error; with `entities` or `exclude`, a `selector_invalid` error, as in the other tools.
+
+Every time is in the instance's time zone, to the second. The context IDs (`st.context`,
+`st.parent_id`) are in the compact form that the `context` input of `ha_trace` and
+`ha_logbook_query` accepts, so an agent can follow what caused a change.
+
+### Size limit
+
+A `standard` result larger than 100,000 bytes is refused with an error that states the entity
+count and how to narrow the query. It is never truncated. Set `DOMUSOPS_STATE_MAX_BYTES` in the
+server configuration to change the limit; it is separate from the logbook and trace limits and
+cannot be changed from a tool call. `summary` is never refused: it stays small for any home.
+
+### Redaction and format
+
+The redaction of `ha_snapshot` applies to every state and attribute: credentials, the
+configured token, coordinates (the instance's own and any other) and e-mail addresses are
+replaced by `[redacted]`, and the field is kept. Entity IDs, names, and user IDs are kept.
+
+Every response carries a `compression_ratio`. `standard` groups entities by domain and shares
+repeated attribute sets in templates; it is at least 2 times smaller than the raw states on the
+reference set, which CI asserts. It is lower than for the other tools because a state is already
+compact and every time is written in readable local form. The format is versioned
+(`domusops.state/0.1`) and public; its types, JSON Schema, and a reference decoder (`expandState`)
+are in `@domusops/schema`. See
+[`specs/010-ha-state/contracts/state-format.md`](../../specs/010-ha-state/contracts/state-format.md).
+
 ## `ha_ping`
 
 A cheap, read-only check of whether this server can work with the instance, to run before any
@@ -370,7 +434,8 @@ It returns a small document (about 500 bytes, under 2,000 in the worst case):
   "tools": {
     "ha_snapshot": { "ready": true },
     "ha_logbook_query": { "ready": true },
-    "ha_trace": { "ready": true }
+    "ha_trace": { "ready": true },
+    "ha_state": { "ready": true }
   },
   "compression_ratio": 5.71
 }

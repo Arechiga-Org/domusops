@@ -1,6 +1,11 @@
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { expand, expandLogbook, expandTrace } from "@domusops/schema";
+import {
+  expand,
+  expandLogbook,
+  expandState,
+  expandTrace,
+} from "@domusops/schema";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { errors } from "../src/errors.js";
 import { encodeStandard as encodeLogbook } from "../src/logbook/encode-standard.js";
@@ -10,6 +15,7 @@ import { encodeStandard as encodeSnapshot } from "../src/snapshot/encode-standar
 import { encodeSummary as encodeSnapshotSummary } from "../src/snapshot/encode-summary.js";
 import { project } from "../src/snapshot/project.js";
 import { runPing } from "../src/tools/ha-ping.js";
+import { runState } from "../src/tools/ha-state.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
 import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
 import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
@@ -93,9 +99,10 @@ describe("the README's tested decoding example", () => {
     const block = codeBlocks().find((b) => b.index > marker);
     expect(block?.lang).toBe("js");
     const body = block?.body ?? "";
-    expect(body.match(/^import .* from "@domusops\/schema";$/gm)).toHaveLength(
-      1,
-    );
+    // One import, on one line or wrapped by the formatter.
+    expect(
+      body.match(/^import \{[^}]*\} from "@domusops\/schema";$/gm),
+    ).toHaveLength(1);
     return body;
   }
 
@@ -157,6 +164,26 @@ describe("the README's tested decoding example", () => {
     expect(await decode(doc, "snapshot-full")).toEqual(
       expand(JSON.parse(JSON.stringify(doc))),
     );
+  });
+
+  it("decodes a standard state document with expandState", async () => {
+    const doc = JSON.parse(
+      await runState(
+        { DOMUSOPS_HA_URL: ping.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+        { entities: ["light.*"] },
+      ),
+    ) as Parameters<typeof expandState>[0];
+    expect(await decode(doc, "state")).toEqual(expandState(doc));
+  });
+
+  it("returns a state summary as it is", async () => {
+    const doc = JSON.parse(
+      await runState(
+        { DOMUSOPS_HA_URL: ping.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+        { detail: "summary" },
+      ),
+    ) as unknown;
+    expect(await decode(doc, "state-summary")).toEqual(doc);
   });
 
   it.each([

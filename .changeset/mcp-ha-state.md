@@ -1,0 +1,5 @@
+---
+"@domusops/mcp": minor
+---
+
+Adds `ha_state`, a read-only tool that returns what entities are doing right now: for each one its state, its attributes, when it last changed, was last updated and last reported, and the context of the change, so an agent no longer downloads the whole `ha_snapshot` inventory or falls back to the raw API to read one entity. `entities` and `exclude` take the same IDs and patterns as `ha_logbook_query` and `ha_trace`; `domain` and `state` narrow the selection; `attributes` keeps only the attributes named. `detail=summary` gives, per domain, how many entities there are and how many are `unavailable` and `unknown`. Times are in the instance's local time, and the context IDs can be passed to the `context` input of `ha_trace` and `ha_logbook_query`. A `standard` result above 100,000 bytes (`DOMUSOPS_STATE_MAX_BYTES`) is refused with the entity count, and a problem with `domain`, `state` or `attributes` is the new `input_invalid` error. The snapshot's redaction applies; names stay visible. `ha_ping` lists the new tool; the other tools' outputs do not change.
