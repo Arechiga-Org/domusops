@@ -81,13 +81,16 @@ export function sortRecords(records: RawRecords): RawRecords {
   };
 }
 
-interface DecodedItem {
+export interface DecodedItem {
   head: unknown[];
   fields: JsonObject;
 }
 
-/** Decodes the rows and inline objects of one groups object into head values and flat fields. */
-function decodeGroups(
+/**
+ * Decodes the rows and inline objects of one groups object into head values and flat fields.
+ * Exported for `state/expand.ts`; the package index does not re-export it.
+ */
+export function decodeGroups(
   groups: Record<string, unknown[]>,
   templates: Record<string, Template>,
   headKeys: readonly string[],
