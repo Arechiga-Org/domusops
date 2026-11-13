@@ -2,13 +2,14 @@ import type { HistoryDetailLevel } from "@domusops/schema";
 import { errors } from "../errors.js";
 import { HaClient, type Timeouts } from "../ha/client.js";
 import { readConfig, readHistoryLimit } from "../ha/config.js";
-import { readHistory } from "../ha/history.js";
+import { readHistory, type HistoryAnswer } from "../ha/history.js";
 import { readCore, readCurrentUser } from "../ha/instance.js";
 import { readStates } from "../ha/states.js";
 import { encodeStandardHistory } from "../history/encode-standard.js";
 import { encodeSummaryHistory } from "../history/encode-summary.js";
 import {
   entityHistories,
+  isStartEntry,
   keepAttributes,
   redactHistories,
 } from "../history/entries.js";
@@ -33,6 +34,17 @@ import { byteLength, finalize } from "../snapshot/ratio.js";
 
 /** The longest window a call may read: 10 days, the instance's default retention (FR-004). */
 const MAX_WINDOW_MS = 10 * 86_400_000;
+
+/**
+ * The raw size of what a document describes: the entries of `ids` as received, before redaction
+ * (research R12). Entities read but not listed, such as the start states of unchanged entities a
+ * pattern matched, do not count, so they cannot inflate the ratio.
+ */
+function rawBytesOf(answer: HistoryAnswer, ids: readonly string[]): number {
+  return byteLength(
+    JSON.stringify(Object.fromEntries(ids.map((id) => [id, answer[id]]))),
+  );
+}
 
 /**
  * The window's length on the instance's wall clock, so a daylight-saving change inside it neither
@@ -177,8 +189,6 @@ export async function queryHistory(
       // The summary needs only the states and `lc` (research R11).
       no_attributes: inputs.detail === "summary",
     });
-    // The raw size is the history as received, before redaction (research R12).
-    const rawBytes = byteLength(JSON.stringify(answer));
     const { listed, noHistory } = listing(
       entityHistories(answer, window.startMs),
       chosen,
@@ -195,7 +205,13 @@ export async function queryHistory(
         window.startMs,
         withEntities,
       );
-      const text = finalize(document, rawBytes);
+      const counted = Object.keys(answer).filter((id) => {
+        const entries = answer[id] ?? [];
+        return (
+          entries.length > (isStartEntry(entries[0], window.startMs) ? 1 : 0)
+        );
+      });
+      const text = finalize(document, rawBytesOf(answer, counted));
       const bytes = byteLength(text);
       if (withEntities && bytes > limit) {
         throw errors.tooLargeHistory(
@@ -221,7 +237,13 @@ export async function queryHistory(
       inputs.attributes === undefined
         ? redacted
         : keepAttributes(redacted, inputs.attributes);
-    const text = finalize(encodeStandardHistory(frame, kept), rawBytes);
+    const text = finalize(
+      encodeStandardHistory(frame, kept),
+      rawBytesOf(
+        answer,
+        listed.map((history) => history.entityId),
+      ),
+    );
     // A result above the limit is an error, never a truncated result (FR-011).
     const bytes = byteLength(text);
     if (bytes > limit) {

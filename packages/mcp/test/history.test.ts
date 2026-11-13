@@ -812,6 +812,27 @@ describe("ha_history: review fixes of PR #39", () => {
     ]);
   });
 
+  it("measures compression on the listed entities only, not on unchanged ones read for a pattern (R12)", async () => {
+    const withUnchanged = await query({ entities: ["switch.*"] });
+    const without = await query({
+      entities: ["switch.*"],
+      exclude: ["switch.kettle"],
+    });
+    expect(withUnchanged.ha.receivedHistoryParams[0]?.["entity_ids"]).toContain(
+      "switch.kettle",
+    );
+    expect(withUnchanged.response.document).toBe(without.response.document);
+    for (const detail of ["summary"] as const) {
+      const a = await query({ entities: ["switch.*"], detail });
+      const b = await query({
+        entities: ["switch.*"],
+        exclude: ["switch.kettle"],
+        detail,
+      });
+      expect(a.response.document).toBe(b.response.document);
+    }
+  });
+
   it("gives an empty by_entity when entities match nothing in a summary", async () => {
     const { response } = await query({
       entities: ["climate.*"],

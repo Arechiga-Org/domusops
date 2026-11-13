@@ -424,18 +424,19 @@ describe.each(CHANNELS)("ha_history against %s", (channel) => {
         let start: string;
         let end: string;
         try {
-          // Let the new entities settle, then switch the light in seconds of its own.
+          // Let the new entities settle, then switch the light eight times.
           await new Promise((resolve) => setTimeout(resolve, 1500));
           start = new Date().toISOString();
           await new Promise((resolve) => setTimeout(resolve, 1100));
-          for (const service of ["turn_off", "turn_on", "turn_off"]) {
+          for (let n = 0; n < 8; n++) {
+            const service = n % 2 === 0 ? "turn_off" : "turn_on";
             await socket.command({
               type: "call_service",
               domain: "light",
               service,
               service_data: { entity_id: "light.hall" },
             });
-            await new Promise((resolve) => setTimeout(resolve, 1100));
+            await new Promise((resolve) => setTimeout(resolve, 400));
           }
           // The recorder commits about every second; the window ends after it has.
           await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -471,11 +472,9 @@ describe.each(CHANNELS)("ha_history against %s", (channel) => {
         expect(document.format).toBe("domusops.history/0.1");
         const light = document.entities["light.hall"];
         expect(light?.start?.[0]).toBe("on");
-        expect(rowsOf(light).map((row) => row[1])).toEqual([
-          "off",
-          "on",
-          "off",
-        ]);
+        expect(rowsOf(light).map((row) => row[1])).toEqual(
+          Array.from({ length: 8 }, (_, n) => (n % 2 === 0 ? "off" : "on")),
+        );
         // Named by exact ID and unchanged: its start state only.
         expect(document.entities["switch.quiet"]).toEqual({
           start: [
@@ -498,7 +497,7 @@ describe.each(CHANNELS)("ha_history against %s", (channel) => {
         expect(
           (counted?.document as { by_entity: Record<string, number[]> })
             .by_entity,
-        ).toEqual({ "light.hall": [3, 3, 0] });
+        ).toEqual({ "light.hall": [8, 8, 0] });
         const summary = home?.document as {
           by_domain: Record<string, number[]>;
           by_entity?: unknown;
@@ -506,8 +505,8 @@ describe.each(CHANNELS)("ha_history against %s", (channel) => {
         expect(summary.by_domain["light"]?.[0]).toBeGreaterThanOrEqual(1);
         expect(summary.by_entity).toBeUndefined();
 
-        // Measured at 7.32 on 2026.10.0: the start states of the unchanged entities are read but
-        // not listed (specs/011-ha-history research R12).
+        // Measured at 1.87 on 2026.10.0, counting only the listed light (specs/011-ha-history
+        // research R12).
         expect(
           (everything?.document as { compression_ratio: number })
             .compression_ratio,

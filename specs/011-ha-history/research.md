@@ -202,11 +202,14 @@ attribute_only }`, `by_domain: { <domain>: [entities, changes, state_changes, at
   is written, as for `ha_state`.
 - **Measured** (T035, 2026-11-12): on the reference fixture the implementation gives 8.30 for the
   whole day, 8.50 for the power sensor, 9.59 for the temperature sensors, 6.08 for the binary
-  sensors, 5.39 for the lights and 4.25 for the phone. On a `default_config` sandbox of 2026.10.0
-  with a virtual light switched three times in an eight-second window, an unfiltered `standard`
-  call gives 7.32 (the start states of the unchanged entities are read but not listed), an
-  unfiltered `summary` 4.87, and a `standard` call for the light and one switch 0.96: the envelope
-  outweighs four raw entries. The container test asserts above 1 on the unfiltered call. The same
+  sensors, 5.39 for the lights and 4.25 for the phone. A first count measured the whole answer,
+  start states of unchanged entities included, and gave 7.32 for an unfiltered `standard` call on
+  a sandbox; the review of #39 aligned the code with this entry, so only the listed entities (for
+  a summary, the entities with a change) count. Re-measured on a `default_config` sandbox of
+  2026.10.0 with a virtual light switched eight times: an unfiltered `standard` call gives 1.87,
+  a `standard` call for the light and one unchanged switch 1.64, and an unfiltered `summary` 1.21.
+  With three changes the envelope nearly outweighs the raw entries, so the container test
+  switches the light eight times and asserts above 1 on the unfiltered call. The same
   probe confirmed the simulated instance of R16: the start state's `lu` equals the window start
   to the millisecond, a state change has no `lc`, an unknown ID is absent, and `no_attributes`
   keeps `lc`.
