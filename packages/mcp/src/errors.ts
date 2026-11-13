@@ -131,11 +131,14 @@ export const errors = {
    * `snapshot` and `states` explain the filtered states a non-administrator would get; `history`
    * covers the logbook and traces, which do not read states.
    */
-  notAdmin(subject: "snapshot" | "states" | "history" = "snapshot"): ToolError {
+  notAdmin(
+    subject: "snapshot" | "states" | "history" | "entity_history" = "snapshot",
+  ): ToolError {
     const remediation = {
       snapshot: `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the snapshot silently incomplete`,
       states: `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the result silently incomplete`,
       history: `Use a token of an administrator user. The logbook and the automation traces are administrator data, and a non-administrator user cannot read them reliably`,
+      entity_history: `Use a token of an administrator user. Every DomusOps tool requires one, so a result never depends on what a restricted user may read`,
     }[subject];
     return new ToolError(
       "not_admin",
@@ -183,12 +186,19 @@ export const errors = {
     );
   },
 
-  historyUnavailable(): ToolError {
-    return new ToolError(
-      "history_unavailable",
-      "The instance does not provide logbook history",
-      "Enable the logbook and recorder integrations in Home Assistant (both are part of default_config), then try again",
-    );
+  /** `logbook` for `ha_logbook_query`; `states` for `ha_history` (specs/011-ha-history R2). */
+  historyUnavailable(subject: "logbook" | "states" = "logbook"): ToolError {
+    return subject === "logbook"
+      ? new ToolError(
+          "history_unavailable",
+          "The instance does not provide logbook history",
+          "Enable the logbook and recorder integrations in Home Assistant (both are part of default_config), then try again",
+        )
+      : new ToolError(
+          "history_unavailable",
+          "The instance does not provide recorded state history",
+          "Enable the history and recorder integrations in Home Assistant (both are part of default_config), then try again",
+        );
   },
 
   tooLarge(events: number, bytes: number, limit: number): ToolError {
@@ -229,12 +239,49 @@ export const errors = {
     );
   },
 
-  /** An `ha_state` input outside its limits, or `attributes` with `summary` (specs/010-ha-state R3). */
-  inputInvalid(problem: string): ToolError {
+  /**
+   * An input outside its limits, or `attributes` with `summary`: `state` for `ha_state`
+   * (specs/010-ha-state R3), `history` for `ha_history` (specs/011-ha-history R4).
+   */
+  inputInvalid(
+    problem: string,
+    subject: "state" | "history" = "state",
+  ): ToolError {
     return new ToolError(
       "input_invalid",
       `The input is not valid: ${problem}`,
-      "Give domain as 1 to 100 entries of 1 to 64 characters of a-z, 0-9 and _; state as 1 to 100 entries of 1 to 255 characters; attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard",
+      subject === "state"
+        ? "Give domain as 1 to 100 entries of 1 to 64 characters of a-z, 0-9 and _; state as 1 to 100 entries of 1 to 255 characters; attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard"
+        : "Give attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard",
+    );
+  },
+
+  /** A history window above the maximum (specs/011-ha-history FR-004, research R5). */
+  windowTooLong(): ToolError {
+    return new ToolError(
+      "window_invalid",
+      "The time window is not valid: it is longer than 10 days",
+      "Use a window of at most 10 days; read a longer period in several calls",
+    );
+  },
+
+  /**
+   * A history result above the size limit (specs/011-ha-history FR-011, research R10): a `standard`
+   * result, or a `summary` with rows per entity.
+   */
+  tooLargeHistory(
+    entities: number,
+    changes: number,
+    bytes: number,
+    limit: number,
+    detail: "summary" | "standard",
+  ): ToolError {
+    return new ToolError(
+      "too_large",
+      `The result has ${entities} entities and ${changes} changes and would be ${bytes} bytes, above the limit of ${limit} bytes`,
+      detail === "standard"
+        ? "Use detail=summary to see which entities are busy, or narrow the query with a shorter window, fewer entities, exclude, or attributes; to allow larger results, raise DOMUSOPS_HISTORY_MAX_BYTES"
+        : "Leave out entities to get the counts per domain, or narrow the query with fewer entities or exclude; to allow larger results, raise DOMUSOPS_HISTORY_MAX_BYTES",
     );
   },
 

@@ -19,7 +19,7 @@ afterEach(async () => {
   while (running.length > 0) await running.pop()?.close();
 });
 
-const NEEDED = ["logbook", "trace"];
+const NEEDED = ["logbook", "trace", "history"];
 
 /** The reference instance with the given integrations loaded among its many others. */
 function instance(loaded: readonly string[] = NEEDED): Fixture {
@@ -68,12 +68,13 @@ describe("ha_ping on a healthy instance", () => {
         time_zone: "Europe/Amsterdam",
       },
       admin: true,
-      integrations: { logbook: true, trace: true },
+      integrations: { history: true, logbook: true, trace: true },
       tools: {
         ha_snapshot: { ready: true },
         ha_logbook_query: { ready: true },
         ha_trace: { ready: true },
         ha_state: { ready: true },
+        ha_history: { ready: true },
       },
     });
     expect(Object.keys(document)).toEqual([
@@ -136,7 +137,8 @@ describe("ha_ping on a healthy instance", () => {
 });
 
 describe("ha_ping on an instance with a setup problem", () => {
-  const dotted = (): Fixture => instance(["logbook", "trace.sensor"]);
+  const dotted = (): Fixture =>
+    instance(["logbook", "trace.sensor", "history"]);
 
   it("names a user who is not an administrator in every tool, with one sentence (User Story 2, scenario 1)", async () => {
     const { document } = await ping(instance(), { isAdmin: false });
@@ -145,18 +147,23 @@ describe("ha_ping on an instance with a setup problem", () => {
       expect(tool).toEqual({ ready: false, reasons: ["not_admin"] });
     }
     expect(document.next_steps).toEqual([
-      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state need",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history need",
     ]);
   });
 
   it("names a missing integration only in the tools that need it (scenario 2)", async () => {
-    const { document } = await ping(instance(["logbook"]));
-    expect(document.integrations).toEqual({ logbook: true, trace: false });
+    const { document } = await ping(instance(["logbook", "history"]));
+    expect(document.integrations).toEqual({
+      history: true,
+      logbook: true,
+      trace: false,
+    });
     expect(document.tools).toEqual({
       ha_snapshot: { ready: true },
       ha_logbook_query: { ready: true },
       ha_trace: { ready: false, reasons: ["integration_missing:trace"] },
       ha_state: { ready: true },
+      ha_history: { ready: true },
     });
     expect(document.next_steps).toEqual([
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
@@ -180,6 +187,21 @@ describe("ha_ping on an instance with a setup problem", () => {
       ready: false,
       reasons: ["not_admin"],
     });
+  });
+
+  it("needs an administrator and the history integration for ha_history (specs/011-ha-history FR-019)", async () => {
+    expect((await ping()).document.tools["ha_history"]).toEqual({
+      ready: true,
+    });
+    const { document } = await ping(instance(["logbook", "trace"]));
+    expect(document.integrations["history"]).toBe(false);
+    expect(document.tools["ha_history"]).toEqual({
+      ready: false,
+      reasons: ["integration_missing:history"],
+    });
+    expect(document.next_steps).toEqual([
+      "Enable the history integration in Home Assistant (it is part of default_config), then try again",
+    ]);
   });
 
   it("does not count a platform of an integration as the integration (research R2)", async () => {
@@ -224,7 +246,8 @@ describe("ha_ping on an instance with a setup problem", () => {
     ]);
     expect(document.next_steps).toEqual([
       "Upgrade the instance to 2025.1.0 or later",
-      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state need",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history need",
+      "Enable the history integration in Home Assistant (it is part of default_config), then try again",
       "Enable the logbook integration in Home Assistant (it is part of default_config), then try again",
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
     ]);

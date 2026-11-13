@@ -2,6 +2,7 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   expand,
+  expandHistory,
   expandLogbook,
   expandState,
   expandTrace,
@@ -15,12 +16,14 @@ import { encodeStandard as encodeSnapshot } from "../src/snapshot/encode-standar
 import { encodeSummary as encodeSnapshotSummary } from "../src/snapshot/encode-summary.js";
 import { project } from "../src/snapshot/project.js";
 import { runPing } from "../src/tools/ha-ping.js";
+import { runHistory } from "../src/tools/ha-history.js";
 import { runState } from "../src/tools/ha-state.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
 import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
 import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
 import { contextFor } from "./support/logbook.js";
 import { FAKE_TOKEN, startFakeHa, type FakeHa } from "./support/fake-ha.js";
+import { NOW_MS, SMALL_HOME, WINDOW } from "./support/history.js";
 import { encodeRecords } from "./support/trace-helpers.js";
 
 /**
@@ -174,6 +177,21 @@ describe("the README's tested decoding example", () => {
       ),
     ) as Parameters<typeof expandState>[0];
     expect(await decode(doc, "state")).toEqual(expandState(doc));
+  });
+
+  it("decodes a standard history document with expandHistory", async () => {
+    const ha = await startFakeHa({ fixture: SMALL_HOME });
+    try {
+      const doc = JSON.parse(
+        await runHistory(
+          { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+          { ...WINDOW, now: NOW_MS },
+        ),
+      ) as Parameters<typeof expandHistory>[0];
+      expect(await decode(doc, "history")).toEqual(expandHistory(doc));
+    } finally {
+      await ha.close();
+    }
   });
 
   it("returns a state summary as it is", async () => {

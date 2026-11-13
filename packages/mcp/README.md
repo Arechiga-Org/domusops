@@ -134,6 +134,8 @@ published format; any later blocks are notes about the query, not part of the do
 | `ha_trace`         | `standard`         | `expandTrace`                 |
 | `ha_state`         | `summary`          | none: read as it is           |
 | `ha_state`         | `standard`         | `expandState`                 |
+| `ha_history`       | `summary`          | none: read as it is           |
+| `ha_history`       | `standard`         | `expandHistory`               |
 | `ha_ping`          | none               | none: read as it is           |
 
 `@domusops/schema` comes with the server; install it on its own
@@ -145,6 +147,7 @@ document of any tool result, and throws the error text of a failed call:
 ```js
 import {
   expand,
+  expandHistory,
   expandLogbook,
   expandState,
   expandTrace,
@@ -156,6 +159,7 @@ const decoders = {
   "domusops.logbook/0.1": expandLogbook,
   "domusops.trace/0.1": expandTrace,
   "domusops.state/0.1": expandState,
+  "domusops.history/0.1": expandHistory,
 };
 
 // The first text block of a tool result is the document; later blocks are notes.
@@ -410,6 +414,68 @@ compact and every time is written in readable local form. The format is versione
 are in `@domusops/schema`. See
 [`specs/010-ha-state/contracts/state-format.md`](../../specs/010-ha-state/contracts/state-format.md).
 
+## `ha_history`
+
+A read-only timeline of how entities changed over a time window: for each one, the state it had
+at the start of the window, then every recorded change with its time, its state and the attributes
+that changed. Use it for questions such as "when did the phone's battery start to drop?" or "at
+what time did the porch light change color?". `ha_logbook_query` gives the events with their
+causes but no attributes, and `ha_state` gives only the current state; `ha_history` is the
+attribute timeline.
+
+It uses the same server, the same `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`, and the same
+administrator-token requirement as the other tools, and it needs the instance's `history`
+integration (part of `default_config`). It reads the current user, the core configuration, the
+current entity IDs when a pattern or no `entities` needs expanding, and the recorded history of
+the selected entities, on one connection, and nothing else.
+
+### Input
+
+| Property           | Meaning                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `entities`         | Up to 100 entity IDs or patterns of at most 128 characters, where `*` matches anything (`light.*`, `*_battery`). Default: every current entity |
+| `exclude`          | Entity IDs or patterns to leave out, in the same form as `entities` (`*_power`, `sun.*`). Applied after `entities`                             |
+| `start`, `end`     | The window, ISO 8601; without an offset the instance's time zone applies. Default: the 24 hours before now. At most 10 days                    |
+| `attributes`       | Up to 100 attribute names to keep (`battery_level`, `brightness`). Default: every attribute. Not with `summary`                                |
+| `significant_only` | `true` keeps only the changes the instance considers significant, which leaves out most attribute-only changes. Default: `false`               |
+| `detail`           | `summary` (counts of changes per domain, and per entity when `entities` is given) or `standard` (every change; the default)                    |
+
+Patterns are matched against the entities the instance has now; an entity removed since can still
+be read by its exact ID. An entity that changed in the window is listed; one that did not is
+listed, with only its state at the start of the window, when it was named by exact ID, and left
+out when a pattern matched it. An exact ID with no recorded history is named in a note after the
+document, not an error. With `attributes`, a change in which neither the state nor a listed
+attribute changed is left out, and the entity's `skipped` says how many were. A window longer
+than 10 days is a `window_invalid` error; read a longer period in several calls.
+
+Every time is in the instance's time zone, to the second; changes in the same second keep their
+order. The history the instance records carries no cause: to see what caused a change, call
+`ha_logbook_query` over the same window. History older than the instance's retention (10 days by
+default) is gone, and nothing says that more existed.
+
+### Size limit
+
+A `standard` result larger than 100,000 bytes is refused with an error that states the number of
+entities and changes and how to narrow the query. It is never truncated. A sensor that reports
+every few seconds can fill the limit alone in a day: use `detail=summary` to see which entities
+are busy, a shorter window, `exclude`, or `attributes`. Set `DOMUSOPS_HISTORY_MAX_BYTES` in the
+server configuration to change the limit; it is separate from the other tools' limits and cannot
+be changed from a tool call. A `summary` without `entities` is never refused: it stays small for
+any home. With `entities` its rows per entity are subject to the limit.
+
+### Redaction and format
+
+The redaction of `ha_snapshot` applies to every state and attribute of every change:
+credentials, the configured token, coordinates (the instance's own and any other) and e-mail
+addresses are replaced by `[redacted]`, and the field is kept. Entity IDs and names are kept.
+
+Every response carries a `compression_ratio`. `standard` gives each entity's attributes in full
+once, at the start of the window, and then only what changed; it is at least 5 times smaller than
+the raw history on the reference set, which CI asserts. The format is versioned
+(`domusops.history/0.1`) and public; its types, JSON Schema, and a reference decoder
+(`expandHistory`) are in `@domusops/schema`. See
+[`specs/011-ha-history/contracts/history-format.md`](../../specs/011-ha-history/contracts/history-format.md).
+
 ## `ha_ping`
 
 A cheap, read-only check of whether this server can work with the instance, to run before any
@@ -430,12 +496,13 @@ It returns a small document (about 500 bytes, under 2,000 in the worst case):
     "time_zone": "Europe/Amsterdam"
   },
   "admin": true,
-  "integrations": { "logbook": true, "trace": true },
+  "integrations": { "history": true, "logbook": true, "trace": true },
   "tools": {
     "ha_snapshot": { "ready": true },
     "ha_logbook_query": { "ready": true },
     "ha_trace": { "ready": true },
-    "ha_state": { "ready": true }
+    "ha_state": { "ready": true },
+    "ha_history": { "ready": true }
   },
   "compression_ratio": 5.71
 }

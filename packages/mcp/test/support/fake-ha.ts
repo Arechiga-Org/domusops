@@ -20,6 +20,10 @@ export interface FakeHaOptions {
   logbook?: boolean;
   /** Milliseconds the instance takes to answer `logbook/get_events`. */
   logbookDelayMs?: number;
+  /** `false` makes the instance answer `unknown_command` to the history command (no history). */
+  history?: boolean;
+  /** Milliseconds the instance takes to answer `history/history_during_period`. */
+  historyDelayMs?: number;
   /** `false` makes the instance answer `unknown_command` to the `trace/*` commands (feature 003). */
   traces?: boolean;
   /** Makes the `trace/*` commands fail with `unauthorized`, as they do for a non-administrator. */
@@ -49,6 +53,8 @@ export interface FakeHa {
   receivedParams: Record<string, unknown>[];
   /** Parameters of every `trace/*` command received, in order (feature 003). */
   receivedTraceParams: Record<string, unknown>[];
+  /** Parameters of every `history/history_during_period` received, in order (feature 011). */
+  receivedHistoryParams: Record<string, unknown>[];
   /** How many connections the instance accepted, authenticated or not (spec 009 FR-008). */
   connections: number;
   /** The entity ID of every `automation/config` and `script/config` received, in order. */
@@ -103,6 +109,87 @@ function logbookResult(
 }
 
 type Reply = { error: { code: string; message: string } } | { result: unknown };
+
+const HISTORY_KEYS = new Set([
+  "id",
+  "type",
+  "start_time",
+  "end_time",
+  "entity_ids",
+  "include_start_time_state",
+  "significant_changes_only",
+  "minimal_response",
+  "no_attributes",
+]);
+
+/** The instance's `valid_entity_id`; the history command refuses a call with any other ID. */
+const ENTITY_ID = /^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$/;
+
+/**
+ * Serves `history/history_during_period` the way the measured releases do (specs/011-ha-history
+ * research R1): the start state with `lu` set to the start and no `lc`, `lc` only when the state
+ * did not change, attribute-only entries dropped by `significant_changes_only` (its default), empty
+ * attributes with `no_attributes`, and entities with nothing to give left out.
+ */
+function historyReply(
+  message: Record<string, unknown>,
+  options: FakeHaOptions,
+): Reply {
+  const stray = Object.keys(message).find((key) => !HISTORY_KEYS.has(key));
+  if (stray !== undefined) {
+    return {
+      error: {
+        code: "invalid_format",
+        message: `extra keys not allowed @ data['${stray}']`,
+      },
+    };
+  }
+  if (!Array.isArray(message["entity_ids"])) {
+    return {
+      error: {
+        code: "invalid_format",
+        message: "required key not provided @ data['entity_ids']",
+      },
+    };
+  }
+  const invalid = (message["entity_ids"] as unknown[]).some(
+    (id) => typeof id !== "string" || !ENTITY_ID.test(id),
+  );
+  if (invalid) {
+    return {
+      error: { code: "invalid_entity_ids", message: "Invalid entity_ids" },
+    };
+  }
+  const start = Date.parse(String(message["start_time"])) / 1000;
+  const end =
+    message["end_time"] === undefined
+      ? Date.now() / 1000
+      : Date.parse(String(message["end_time"])) / 1000;
+  const withStart = message["include_start_time_state"] !== false;
+  const significant = message["significant_changes_only"] !== false;
+  const noAttributes = message["no_attributes"] === true;
+  const result: Record<string, unknown[]> = {};
+  for (const id of message["entity_ids"] as string[]) {
+    const recorded = options.fixture.history?.[id] ?? [];
+    const entries: unknown[] = [];
+    const before = recorded.filter((entry) => entry.lu < start).at(-1);
+    if (withStart && before !== undefined) {
+      entries.push({ s: before.s, a: noAttributes ? {} : before.a, lu: start });
+    }
+    for (const entry of recorded) {
+      if (entry.lu < start || entry.lu >= end) continue;
+      if (significant && entry.lc !== entry.lu) continue;
+      entries.push({
+        s: entry.s,
+        a: noAttributes ? {} : entry.a,
+        lu: entry.lu,
+        ...(entry.lc === entry.lu ? {} : { lc: entry.lc }),
+      });
+    }
+    if (entries.length > 0) result[id] = entries;
+  }
+  return { result };
+}
 
 const SHORT_OMITTED = new Set([
   "trace",
@@ -231,6 +318,7 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
     received: [],
     receivedParams: [],
     receivedTraceParams: [],
+    receivedHistoryParams: [],
     receivedConfigIds: [],
     connections: 0,
     traceGetsAt: [],
@@ -366,6 +454,24 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
         const send = (): void => out(envelope(reply));
         if (options.logbookDelayMs === undefined) send();
         else setTimeout(send, options.logbookDelayMs);
+        return;
+      }
+      if (
+        type === "history/history_during_period" &&
+        options.history !== false &&
+        options.malformed !== type
+      ) {
+        fake.receivedHistoryParams.push(
+          Object.fromEntries(
+            Object.entries(message).filter(
+              ([key]) => key !== "id" && key !== "type",
+            ),
+          ),
+        );
+        const reply = historyReply(message as Record<string, unknown>, options);
+        const send = (): void => out(envelope(reply));
+        if (options.historyDelayMs === undefined) send();
+        else setTimeout(send, options.historyDelayMs);
         return;
       }
       if (type === "automation/config" || type === "script/config") {

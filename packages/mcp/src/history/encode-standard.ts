@@ -1,0 +1,124 @@
+import {
+  deepEqual,
+  type HistoryBuckets,
+  type HistoryEntityEntry,
+  type HistoryRow,
+  type HistoryStandardDocument,
+  type JsonObject,
+} from "@domusops/schema";
+import {
+  formatLocalIso,
+  formatOffset,
+  localParts,
+} from "../logbook/local-time.js";
+import { pad, put } from "../util/json.js";
+import type { HistoryFrame } from "./envelope.js";
+import type { EntityHistory } from "./entries.js";
+
+const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+interface Listed {
+  state: string;
+  attributes: JsonObject;
+}
+
+interface ListedChange extends Listed {
+  stateChanged: boolean;
+}
+
+/**
+ * A change as a delta against the entity's previous listed entry (data-model §3): the state when
+ * the instance recorded a state change, even to the same value, or `null`; the attributes added or
+ * changed; the attributes removed in name order; trailing `null` values dropped. Without a previous
+ * entry, the state and every attribute are given.
+ */
+function rowOf(
+  time: string,
+  previous: Listed | undefined,
+  change: ListedChange,
+): HistoryRow {
+  const state =
+    previous === undefined ||
+    change.stateChanged ||
+    previous.state !== change.state
+      ? change.state
+      : null;
+  const set: JsonObject = {};
+  let changed = false;
+  for (const [key, value] of Object.entries(change.attributes)) {
+    if (
+      previous === undefined ||
+      !Object.hasOwn(previous.attributes, key) ||
+      !deepEqual(previous.attributes[key], value)
+    ) {
+      put(set, key, value);
+      changed = true;
+    }
+  }
+  const unset =
+    previous === undefined
+      ? []
+      : Object.keys(previous.attributes)
+          .filter((key) => !Object.hasOwn(change.attributes, key))
+          .sort(compare);
+  const row: (string | JsonObject | string[] | null)[] = [
+    time,
+    state,
+    changed ? set : null,
+    unset.length > 0 ? unset : null,
+  ];
+  while (row.length > 1 && row[row.length - 1] === null) row.pop();
+  return row as HistoryRow;
+}
+
+/**
+ * The `standard` document (data-model §3, research R6, R7): per entity, in the order given, which
+ * `entityHistories` makes entity-ID order, the start state,
+ * then the changes bucketed by local date and hour, each one a delta against the previous listed
+ * entry. The `compression_ratio` is a placeholder for `finalize` to fill.
+ */
+export function encodeStandardHistory(
+  frame: HistoryFrame,
+  histories: readonly EntityHistory[],
+): HistoryStandardDocument {
+  const { timeZone, offsetMinutes } = frame;
+  const entities: Record<string, HistoryEntityEntry> = {};
+  for (const history of histories) {
+    const entry: HistoryEntityEntry = {};
+    let previous: Listed | undefined;
+    if (history.start !== undefined) {
+      const { state, attributes, since } = history.start;
+      entry.start =
+        since === undefined
+          ? [state, attributes]
+          : [
+              state,
+              attributes,
+              formatLocalIso(Math.floor(since), timeZone, offsetMinutes),
+            ];
+      previous = history.start;
+    }
+    const changes: HistoryBuckets = {};
+    for (const change of history.changes) {
+      const local = localParts(Math.floor(change.at), timeZone);
+      const hour = `${pad(local.hour)}:00`;
+      const hourKey =
+        local.offsetMinutes === offsetMinutes
+          ? hour
+          : `${hour}${formatOffset(local.offsetMinutes)}`;
+      const day = (changes[local.date] ??= {});
+      (day[hourKey] ??= []).push(
+        rowOf(`${pad(local.minute)}:${pad(local.second)}`, previous, change),
+      );
+      previous = change;
+    }
+    if (history.changes.length > 0) entry.changes = changes;
+    if (history.skipped > 0) entry.skipped = history.skipped;
+    entities[history.entityId] = entry;
+  }
+  return {
+    ...frame.envelope,
+    detail: "standard",
+    entities,
+  } as HistoryStandardDocument;
+}
