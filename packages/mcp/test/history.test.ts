@@ -732,3 +732,119 @@ describe("ha_history: the summary (User Story 3, FR-013)", () => {
     ).toThrow(/detail=standard/);
   });
 });
+
+describe("ha_history: review fixes of PR #39", () => {
+  /** A sensor with `force_update`: the same value again is a state change on the instance. */
+  const FORCED = historyFixture({
+    "sensor.forced": [
+      { s: "21.5", a: { unit: "C" }, lu: W0 - 60, lc: W0 - 60 },
+      { s: "21.5", a: { unit: "C" }, lu: W0 + 60.5, lc: W0 + 60.5 },
+      { s: "21.5", a: { unit: "F" }, lu: W0 + 120.5, lc: W0 + 60.5 },
+    ],
+  });
+
+  it("lists a forced update to the same state as a state change", async () => {
+    const { response } = await query(
+      { entities: ["sensor.forced"] },
+      { fixture: FORCED },
+    );
+    const document = standard(response);
+    expect(document.entities["sensor.forced"]?.changes).toEqual({
+      "2026-09-28": {
+        "08:00": [
+          ["01:00", "21.5"],
+          ["02:00", null, { unit: "F" }],
+        ],
+      },
+    });
+    const [, forced, after] = expandHistory(document)[0]?.entries ?? [];
+    expect(forced?.last_changed).toBe("2026-09-28T08:01:00+02:00");
+    expect(after?.last_changed).toBe("2026-09-28T08:01:00+02:00");
+  });
+
+  it("keeps a forced update with attributes and counts it as a state change in the summary", async () => {
+    const filtered = await query(
+      { entities: ["sensor.forced"], attributes: ["unit"] },
+      { fixture: FORCED },
+    );
+    expect(standard(filtered.response).entities["sensor.forced"]).toMatchObject(
+      {
+        changes: {
+          "2026-09-28": {
+            "08:00": [
+              ["01:00", "21.5"],
+              ["02:00", null, { unit: "F" }],
+            ],
+          },
+        },
+      },
+    );
+    const counted = await query(
+      { entities: ["sensor.forced"], detail: "summary" },
+      { fixture: FORCED },
+    );
+    expect(
+      (JSON.parse(counted.response.document) as HistorySummaryDocument)
+        .by_entity,
+    ).toEqual({ "sensor.forced": [2, 1, 1] });
+  });
+
+  it("never sends an ID the instance would refuse, and notes it instead", async () => {
+    const invalid = ["light", "sensor.foo_", "sensor.a__b", "a.b.c"];
+    const { response, ha } = await query({
+      entities: ["light.porch", ...invalid],
+    });
+    expect(ha.receivedHistoryParams[0]?.["entity_ids"]).toEqual([
+      "light.porch",
+    ]);
+    expect(Object.keys(standard(response).entities)).toEqual(["light.porch"]);
+    expect(response.notes).toEqual([
+      `Note: no recorded history for the ID ${invalid.join(", ")}.`,
+    ]);
+  });
+
+  it("notes an invalid ID when it is the only one, without reading history", async () => {
+    const { response, ha } = await query({ entities: ["light"] });
+    expect(ha.received).not.toContain("history/history_during_period");
+    expect(response.notes).toEqual([
+      "Note: no recorded history for the ID light.",
+      "Note: no entity matched the query.",
+    ]);
+  });
+
+  it("gives an empty by_entity when entities match nothing in a summary", async () => {
+    const { response } = await query({
+      entities: ["climate.*"],
+      detail: "summary",
+    });
+    expect(
+      (JSON.parse(response.document) as HistorySummaryDocument).by_entity,
+    ).toEqual({});
+  });
+
+  it("allows 10 local days across a daylight-saving change, and refuses one second more", async () => {
+    // 2026-10-25: 03:00 CEST becomes 02:00 CET in Europe/Madrid, so these 10 local days last
+    // 10 days and 1 hour.
+    const ha = await startFakeHa({ fixture: SMALL_HOME });
+    cleanups.push(() => ha.close());
+    const env = { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN };
+    const now = Date.UTC(2026, 10, 1);
+    await queryHistory(env, {
+      entities: ["light.porch"],
+      start: "2026-10-20T00:00",
+      end: "2026-10-30T00:00",
+      now,
+      timeouts: SHORT,
+    });
+    expect(ha.received).toContain("history/history_during_period");
+    await expect(
+      queryHistory(env, {
+        entities: ["light.porch"],
+        start: "2026-10-20T00:00",
+        end: "2026-10-30T00:00:01",
+        now,
+        timeouts: SHORT,
+      }),
+    ).rejects.toMatchObject({ kind: "window_invalid" });
+  });
+});

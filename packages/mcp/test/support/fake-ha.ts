@@ -122,6 +122,9 @@ const HISTORY_KEYS = new Set([
   "no_attributes",
 ]);
 
+/** The instance's `valid_entity_id`; the history command refuses a call with any other ID. */
+const ENTITY_ID = /^(?!.+__)(?!_)[\da-z_]+(?<!_)\.(?!_)[\da-z_]+(?<!_)$/;
+
 /**
  * Serves `history/history_during_period` the way the measured releases do (specs/011-ha-history
  * research R1): the start state with `lu` set to the start and no `lc`, `lc` only when the state
@@ -147,6 +150,14 @@ function historyReply(
         code: "invalid_format",
         message: "required key not provided @ data['entity_ids']",
       },
+    };
+  }
+  const invalid = (message["entity_ids"] as unknown[]).some(
+    (id) => typeof id !== "string" || !ENTITY_ID.test(id),
+  );
+  if (invalid) {
+    return {
+      error: { code: "invalid_entity_ids", message: "Invalid entity_ids" },
     };
   }
   const start = Date.parse(String(message["start_time"])) / 1000;

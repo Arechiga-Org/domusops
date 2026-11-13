@@ -53,12 +53,12 @@ research R3 lists appear.
 
 A row, positional, trailing `null` values dropped:
 
-| Position | Value                  | Rule                                                                    |
-| -------- | ---------------------- | ----------------------------------------------------------------------- |
-| 0        | `"MM:SS"`              | Minute and second within the bucket's hour, from `lu`, truncated        |
-| 1        | string or `null`       | The new state, `null` when the state did not change                     |
-| 2        | object or `null`       | Attributes added or changed since the previous listed entry, new values |
-| 3        | string array or `null` | Attributes removed since the previous listed entry, in name order       |
+| Position | Value                  | Rule                                                                                                    |
+| -------- | ---------------------- | ------------------------------------------------------------------------------------------------------- |
+| 0        | `"MM:SS"`              | Minute and second within the bucket's hour, from `lu`, truncated                                        |
+| 1        | string or `null`       | The state when the instance recorded a state change (no `lc`), even to the same value; `null` otherwise |
+| 2        | object or `null`       | Attributes added or changed since the previous listed entry, new values                                 |
+| 3        | string array or `null` | Attributes removed since the previous listed entry, in name order                                       |
 
 A row `["MM:SS"]` is a change in which nothing visible changed (an attribute the filter left out
 is never the reason: such changes are skipped, R9). The first change of an entity without `start`

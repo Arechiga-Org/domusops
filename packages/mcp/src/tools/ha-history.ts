@@ -16,7 +16,12 @@ import { historyFrame } from "../history/envelope.js";
 import { parseHistoryInputs } from "../history/inputs.js";
 import { candidates, listing, needsCurrentIds } from "../history/select.js";
 import { parseSelectors } from "../logbook/selectors.js";
-import { parseWindowInput, resolveWindow } from "../logbook/window.js";
+import { localParts } from "../logbook/local-time.js";
+import {
+  parseWindowInput,
+  resolveWindow,
+  type ResolvedWindow,
+} from "../logbook/window.js";
 import {
   exclusionNote,
   noHistoryNote,
@@ -28,6 +33,22 @@ import { byteLength, finalize } from "../snapshot/ratio.js";
 
 /** The longest window a call may read: 10 days, the instance's default retention (FR-004). */
 const MAX_WINDOW_MS = 10 * 86_400_000;
+
+/**
+ * The window's length on the instance's wall clock, so a daylight-saving change inside it neither
+ * adds nor removes an hour: 10 local days are allowed even when they last 10 days and 1 hour
+ * (research R5).
+ */
+function localLength(window: ResolvedWindow, timeZone: string): number {
+  const wall = (epochMs: number): number => {
+    const p = localParts(epochMs, timeZone);
+    return (
+      Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) +
+      (epochMs % 1000)
+    );
+  };
+  return wall(window.endMs) - wall(window.startMs);
+}
 
 export interface HistoryOptions {
   /** Defaults to `standard`. */
@@ -105,7 +126,7 @@ export async function queryHistory(
     }
     const window = resolveWindow(parsedWindow, now, instance.timeZone);
     // Checked once the time zone is known, before the history is read (research R5).
-    if (window.endMs - window.startMs > MAX_WINDOW_MS) {
+    if (localLength(window, instance.timeZone) > MAX_WINDOW_MS) {
       throw errors.windowTooLong();
     }
 
@@ -128,11 +149,18 @@ export async function queryHistory(
     const notes: string[] = [];
     if (exclude !== undefined) notes.push(exclusionNote(exclude));
     if (chosen.ids.length === 0) {
+      // Exact IDs left here are not valid entity IDs: nothing was ever recorded for them.
+      if (chosen.exact.length > 0) notes.push(noHistoryNote(chosen.exact));
       notes.push(nothingMatchedNote());
       return {
         document: finalize(
           inputs.detail === "summary"
-            ? encodeSummaryHistory(frame, {}, window.startMs, false)
+            ? encodeSummaryHistory(
+                frame,
+                {},
+                window.startMs,
+                selectors !== undefined,
+              )
             : encodeStandardHistory(frame, []),
           0,
         ),

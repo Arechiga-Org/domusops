@@ -35,18 +35,25 @@ interface Listed {
   attributes: JsonObject;
 }
 
+interface ListedChange extends Listed {
+  stateChanged: boolean;
+}
+
 /**
- * A change as a delta against the entity's previous listed entry (data-model §3): the new state or
- * `null`, the attributes added or changed, the attributes removed in name order, trailing `null`
- * values dropped. Without a previous entry, the state and every attribute are given.
+ * A change as a delta against the entity's previous listed entry (data-model §3): the state when
+ * the instance recorded a state change, even to the same value, or `null`; the attributes added or
+ * changed; the attributes removed in name order; trailing `null` values dropped. Without a previous
+ * entry, the state and every attribute are given.
  */
 function rowOf(
   time: string,
   previous: Listed | undefined,
-  change: Listed,
+  change: ListedChange,
 ): HistoryRow {
   const state =
-    previous === undefined || previous.state !== change.state
+    previous === undefined ||
+    change.stateChanged ||
+    previous.state !== change.state
       ? change.state
       : null;
   const set: JsonObject = {};

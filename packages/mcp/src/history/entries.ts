@@ -7,6 +7,11 @@ export interface Change {
   at: number;
   state: string;
   attributes: JsonObject;
+  /**
+   * The instance recorded a state change (the entry has no `lc`). It can be true with the same
+   * state string: an entity with `force_update` sets its state again and its `last_changed` moves.
+   */
+  stateChanged: boolean;
 }
 
 /** One entity's history in the window (data-model §3, before encoding). */
@@ -51,6 +56,7 @@ export function entityHistory(
     at: entry.lu * 1000,
     state: entry.s,
     attributes: entry.a as JsonObject,
+    stateChanged: entry.lc === undefined,
   }));
   if (!hasStart) return { entityId, changes, skipped: 0 };
   const since = rest[0]?.lc;
@@ -170,6 +176,7 @@ export function keepAttributes(
       const next = { ...change, attributes: trimmed(change.attributes, keep) };
       if (
         previous !== undefined &&
+        !next.stateChanged &&
         previous.state === next.state &&
         deepEqual(previous.attributes, next.attributes)
       ) {

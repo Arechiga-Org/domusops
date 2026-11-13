@@ -39,11 +39,18 @@ function encode(
   return encodeStandardHistory(frame, histories) as HistoryStandardDocument;
 }
 
+/** A change; it changed the state, as the instance records it, when `stateChanged` says so. */
 const change = (
   seconds: number,
   state: string,
   attributes: JsonObject,
-): EntityHistory["changes"][number] => ({ at: at(seconds), state, attributes });
+  stateChanged = false,
+): EntityHistory["changes"][number] => ({
+  at: at(seconds),
+  state,
+  attributes,
+  stateChanged,
+});
 
 describe("the standard history document", () => {
   it("has the envelope's keys in order", () => {
@@ -203,8 +210,18 @@ describe("the standard history document", () => {
           entityId: "sensor.x",
           start: { state: "1", attributes: {} },
           changes: [
-            { at: Date.UTC(2026, 9, 25, 0, 30, 0), state: "2", attributes: {} },
-            { at: Date.UTC(2026, 9, 25, 1, 30, 0), state: "3", attributes: {} },
+            {
+              at: Date.UTC(2026, 9, 25, 0, 30, 0),
+              state: "2",
+              attributes: {},
+              stateChanged: true,
+            },
+            {
+              at: Date.UTC(2026, 9, 25, 1, 30, 0),
+              state: "3",
+              attributes: {},
+              stateChanged: true,
+            },
           ],
           skipped: 0,
         },

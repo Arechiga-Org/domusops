@@ -13,11 +13,15 @@ home). Sizes were measured with a prototype of the encoding of R6 on a synthetic
     absent), `entity_ids` (required: a call without it fails with `invalid_format`, an empty list
     answers `{}`), and four flags with these defaults: `include_start_time_state` true,
     `significant_changes_only` true, `minimal_response` false, `no_attributes` false. Any other key
-    fails with `invalid_format`.
+    fails with `invalid_format`. An ID that is not a valid entity ID (`light`, `sensor.foo_`,
+    `sensor.a__b`, `a.b.c`) fails the whole call with `invalid_entity_ids`; a valid ID that names
+    nothing answers `{}` (measured during the review of #39).
   - The answer is an object from entity ID to a list of compressed states, in time order:
     `{ "s": state, "a": attributes, "lu": last_updated, "lc": last_changed }`. Times are seconds
     since the epoch with microseconds. `lc` is present only when it differs from `lu`, that is when
-    the state did not change. There is no context and no `last_reported`.
+    the state did not change. There is no context and no `last_reported`. An entity with
+    `force_update` that sets the same state again records an entry without `lc`: a state change
+    to the same value.
   - An entity with no recorded state in the window is absent from the object, as is an ID that
     names no entity.
   - With `include_start_time_state`, an entity that had a state before `start_time` gets that state
@@ -67,7 +71,9 @@ home). Sizes were measured with a prototype of the encoding of R6 on a synthetic
 - **Decision**: every input is validated before connecting. Then:
   1. Without `entities`, the candidates are the entity IDs of `get_states`. With `entities`, each
      pattern is matched against those IDs with the logbook matcher (`parseSelectors`, `matcher`)
-     and each exact ID is taken as given, whether or not a current state has it.
+     and each exact ID is taken as given, whether or not a current state has it, when it is a
+     valid entity ID by the instance's own rule; any other exact ID is never sent (R1) and is
+     named in the no-history note.
   2. `exclude` (`exclusion`) removes candidates, exact IDs included.
   3. The candidates, in entity-ID order, are the `entity_ids` of the history read. No candidate:
      no history read, an empty document and the nothing-selected note (R14).
@@ -94,7 +100,8 @@ home). Sizes were measured with a prototype of the encoding of R6 on a synthetic
 
 - **Decision**: `resolveWindow` gives the defaults (`end` now, `start` 24 hours before `end`), the
   clamp of a future `end`, and the order check, exactly as for the logbook. Then a window longer
-  than 10 days (864,000,000 ms) is refused with a new `windowTooLong` error: kind `window_invalid`,
+  than 10 days of the instance's wall clock is refused, so a daylight-saving change inside it
+  neither adds nor removes an hour, with a new `windowTooLong` error: kind `window_invalid`,
   "The time window is not valid: it is longer than 10 days", remediation "Use a window of at most
   10 days; read a longer period in several calls". The check runs after the core config is read
   (an offset-less time needs the instance's time zone) and before the history read.
@@ -110,7 +117,8 @@ home). Sizes were measured with a prototype of the encoding of R6 on a synthetic
     state before the window.
   - `changes`: `{ "YYYY-MM-DD": { "HH:00": [row, ...] } }`, buckets by local date and hour as in
     the logbook, the hour key gaining `±HH:MM` when its offset differs from `utc_offset`. A row is
-    `["MM:SS", state, set, unset]`: `state` is `null` when unchanged; `set` holds the attributes
+    `["MM:SS", state, set, unset]`: `state` is given when the instance recorded a state change
+    (no `lc`), even to the same value, and is `null` otherwise; `set` holds the attributes
     added or changed since the entity's previous listed entry, with their new values; `unset`
     lists the attributes removed; trailing `null` values are dropped. The first change of an
     entity without `start` carries its state and every attribute in `set`.
