@@ -314,6 +314,7 @@ describe.each(CHANNELS)("ha_ping against %s", (channel) => {
         expect(document.instance.time_zone).not.toBe("");
         expect(document.admin).toBe(true);
         expect(document.integrations).toEqual({
+          history: true,
           logbook: true,
           trace: true,
         });
@@ -322,6 +323,7 @@ describe.each(CHANNELS)("ha_ping against %s", (channel) => {
           ha_logbook_query: { ready: true },
           ha_trace: { ready: true },
           ha_state: { ready: true },
+          ha_history: { ready: true },
         });
         expect(document.next_steps).toBeUndefined();
         expect(document.compression_ratio).toBeGreaterThanOrEqual(3);
@@ -385,6 +387,131 @@ describe.each(CHANNELS)("ha_state against %s", (channel) => {
         expect(counts.entities).toBe(listed);
         // Measured at 2.00 for the 17 entities of 2026.10.0 (specs/010-ha-state research R10).
         expect(standard.compression_ratio).toBeGreaterThan(1);
+      } finally {
+        await sandbox.stop();
+      }
+    },
+    8 * MINUTE,
+  );
+});
+
+/** The changes of a `domusops.history/0.1` entity entry, in order. */
+type HistoryRow = [string, string | null | undefined, ...unknown[]];
+interface HistoryEntry {
+  start?: [string, Record<string, unknown>];
+  changes?: Record<string, Record<string, HistoryRow[]>>;
+}
+const rowsOf = (entry: HistoryEntry | undefined): HistoryRow[] =>
+  Object.values(entry?.changes ?? {}).flatMap((hours) =>
+    Object.values(hours).flat(),
+  );
+
+describe.each(CHANNELS)("ha_history against %s", (channel) => {
+  it(
+    "follows a light through a past window, and a summary that counts what standard lists (SC-005, SC-006, §8)",
+    async () => {
+      expect(existsSync(MCP_ENTRY), "run pnpm build first").toBe(true);
+      const sandbox = await startSandbox({
+        ...startTarget(channel),
+        devices: [
+          { kind: "light", name: "Hall" },
+          { kind: "switch", name: "Quiet" },
+        ],
+      });
+      try {
+        const { wsUrl, token } = sandbox.connection();
+        const socket = await HaSocket.connect(wsUrl, token);
+        let start: string;
+        let end: string;
+        try {
+          // Let the new entities settle, then switch the light in seconds of its own.
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          start = new Date().toISOString();
+          await new Promise((resolve) => setTimeout(resolve, 1100));
+          for (const service of ["turn_off", "turn_on", "turn_off"]) {
+            await socket.command({
+              type: "call_service",
+              domain: "light",
+              service,
+              service_data: { entity_id: "light.hall" },
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1100));
+          }
+          // The recorder commits about every second; the window ends after it has.
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          end = new Date().toISOString();
+        } finally {
+          socket.close();
+        }
+        const window = { start, end };
+        const [named, again, pattern, counted, home, everything] =
+          await withMcp({ ...sandbox.mcpEnv() }, async (call) => [
+            await call("ha_history", {
+              ...window,
+              entities: ["light.hall", "switch.quiet"],
+            }),
+            await call("ha_history", {
+              ...window,
+              entities: ["light.hall", "switch.quiet"],
+            }),
+            await call("ha_history", { ...window, entities: ["switch.*"] }),
+            await call("ha_history", {
+              ...window,
+              entities: ["light.hall"],
+              detail: "summary",
+            }),
+            await call("ha_history", { ...window, detail: "summary" }),
+            await call("ha_history", window),
+          ]);
+
+        const document = named?.document as {
+          format: string;
+          entities: Record<string, HistoryEntry>;
+        };
+        expect(document.format).toBe("domusops.history/0.1");
+        const light = document.entities["light.hall"];
+        expect(light?.start?.[0]).toBe("on");
+        expect(rowsOf(light).map((row) => row[1])).toEqual([
+          "off",
+          "on",
+          "off",
+        ]);
+        // Named by exact ID and unchanged: its start state only.
+        expect(document.entities["switch.quiet"]).toEqual({
+          start: [
+            "off",
+            expect.objectContaining({ friendly_name: "Quiet" }) as unknown,
+          ],
+        });
+        expect(named?.notes).toEqual([]);
+        // A past window gives the same document.
+        expect(again?.document).toEqual(named?.document);
+
+        // Matched by a pattern and unchanged: left out.
+        expect(
+          (pattern?.document as { entities: Record<string, unknown> }).entities,
+        ).toEqual({});
+        expect(pattern?.notes).toEqual([
+          "Note: no selected entity changed in the window.",
+        ]);
+
+        expect(
+          (counted?.document as { by_entity: Record<string, number[]> })
+            .by_entity,
+        ).toEqual({ "light.hall": [3, 3, 0] });
+        const summary = home?.document as {
+          by_domain: Record<string, number[]>;
+          by_entity?: unknown;
+        };
+        expect(summary.by_domain["light"]?.[0]).toBeGreaterThanOrEqual(1);
+        expect(summary.by_entity).toBeUndefined();
+
+        // Measured at 7.32 on 2026.10.0: the start states of the unchanged entities are read but
+        // not listed (specs/011-ha-history research R12).
+        expect(
+          (everything?.document as { compression_ratio: number })
+            .compression_ratio,
+        ).toBeGreaterThan(1);
       } finally {
         await sandbox.stop();
       }
