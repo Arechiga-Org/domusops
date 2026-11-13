@@ -26,6 +26,7 @@ An ES module with bundled type declarations.
 | Automation and script traces | `domusops.trace/0.1`    | `summary`, `standard`         | `expandTrace` (`standard` documents)       |
 | Connection check             | `domusops.ping/0.1`     | none                          | none: it is read as it is                  |
 | Entity states                | `domusops.state/0.1`    | `summary`, `standard`         | `expandState` (`standard` documents)       |
+| Entity history               | `domusops.history/0.1`  | `summary`, `standard`         | `expandHistory` (`standard` documents)     |
 
 A `summary` document counts and lists what exists but does not carry the rows, so it has nothing to
 decode: check `document.detail` before calling a decoder.
@@ -33,12 +34,12 @@ decode: check `document.detail` before calling a decoder.
 For each format the package exports:
 
 - the identifier as a constant (`FORMAT`, `LOGBOOK_FORMAT`, `TRACE_FORMAT`, `PING_FORMAT`,
-  `STATE_FORMAT`);
+  `STATE_FORMAT`, `HISTORY_FORMAT`);
 - the TypeScript types of its documents (`StandardDocument`, `LogbookStandardDocument`,
-  `TraceStandardDocument`, `PingDocument`, `StateStandardDocument`, `StateRecord` and the summary
-  and envelope types);
+  `TraceStandardDocument`, `PingDocument`, `StateStandardDocument`, `StateRecord`,
+  `HistoryStandardDocument`, `HistoryRecord` and the summary and envelope types);
 - a JSON Schema that describes the document (`snapshotJsonSchema`, `logbookJsonSchema`,
-  `traceJsonSchema`, `pingJsonSchema`, `stateJsonSchema`);
+  `traceJsonSchema`, `pingJsonSchema`, `stateJsonSchema`, `historyJsonSchema`);
 - the reference decoder, which restores the rows a document was made from, so a consumer can check
   that nothing was lost in the compression. The ping document is not templated or compressed, so
   it has none.

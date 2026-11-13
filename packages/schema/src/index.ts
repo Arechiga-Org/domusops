@@ -27,3 +27,6 @@ export * from "./ping/json-schema.js";
 export * from "./state/format.js";
 export * from "./state/expand.js";
 export * from "./state/json-schema.js";
+export * from "./history/format.js";
+export * from "./history/json-schema.js";
+export * from "./history/expand.js";
