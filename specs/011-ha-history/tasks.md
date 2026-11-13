@@ -127,8 +127,8 @@ description: "Task list for ha_history (feature 011, third tool of 0.2.0)"
 - [X] T036 In `packages/sandbox/test/mcp.container.test.ts`, add a test per channel: on a sandbox with `default_config`, a virtual light and a virtual switch, and the built server, switch the light a few times, then `ha_history` with `entities: ["light.<name>", "switch.<name>"]` returns a `domusops.history/0.1` document with the light's start state and its changes in order and the unchanged switch with its start state only; with `entities: ["switch.*"]` the unchanged switch is left out and the nothing-changed note follows; a `summary` with the light's ID whose counts match the `standard` result; a `summary` without `entities` that holds the `light` domain; the `compression_ratio` bound T035 set; the same call over a past window twice is byte-identical (SC-005, SC-006, §8)
 - [X] T037 [P] In the root `README.md`, add the `ha_history` row to the tool table
 - [X] T038 Run the gate (`pnpm lint && pnpm typecheck && pnpm test`), then `pnpm build` and the container test on `DOMUSOPS_SANDBOX_RELEASE=2026.10.0` and `2026.9.4` (never the unpinned stable channel); confirm that no existing output test of `ha_snapshot`, `ha_logbook_query`, `ha_trace` or `ha_state` was edited and that `ha_ping`'s tests changed only by the new tool entry (SC-007); run Prettier only on the touched files, never on `tasks.md`
-- [ ] T039 Mark these tasks `[X]` as they complete, and ask the maintainer before any commit, push or pull request; after the pull request, run `/code-review` and triage the findings before pushing fixes
-- [ ] T040 After the maintainer merges, update `CLAUDE.md`'s current focus to point at feature 012 (`ha_system_log`); the 0.2.0 release itself waits for feature 012
+- [X] T039 Mark these tasks `[X]` as they complete, and ask the maintainer before any commit, push or pull request; after the pull request, run `/code-review` and triage the findings before pushing fixes
+- [X] T040 After the maintainer merges, update `CLAUDE.md`'s current focus to point at feature 012 (`ha_system_log`); the 0.2.0 release itself waits for feature 012
 
 ---
 
