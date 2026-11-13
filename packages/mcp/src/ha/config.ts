@@ -98,3 +98,17 @@ export function readStateLimit(
 ): number {
   return readLimit(env, STATE_LIMIT_VARIABLE, DEFAULT_STATE_LIMIT);
 }
+
+export const HISTORY_LIMIT_VARIABLE = "DOMUSOPS_HISTORY_MAX_BYTES";
+export const DEFAULT_HISTORY_LIMIT = 100_000;
+
+/**
+ * Size limit of a history result, in bytes (specs/011-ha-history FR-011, research R10). Its own
+ * setting; a `summary` without `entities` is never checked against it. Read on every invocation;
+ * configuration only, never a tool parameter.
+ */
+export function readHistoryLimit(
+  env: Readonly<Record<string, string | undefined>>,
+): number {
+  return readLimit(env, HISTORY_LIMIT_VARIABLE, DEFAULT_HISTORY_LIMIT);
+}

@@ -57,6 +57,24 @@ const COMMANDS = {
     params: { required: ["entity_id"], optional: [] },
     budget: "command",
   },
+  // Every flag is sent, so no default of the instance can change the result
+  // (specs/011-ha-history research R1).
+  "history/history_during_period": {
+    params: {
+      required: [
+        "start_time",
+        "end_time",
+        "entity_ids",
+        "include_start_time_state",
+        "significant_changes_only",
+        "no_attributes",
+      ],
+      optional: [],
+    },
+    budget: "overall",
+    timeoutHint:
+      "Use a shorter window, fewer entities, or detail=summary, then try again",
+  },
 } as const satisfies Record<string, CommandSpec>;
 
 export type AllowedCommand = keyof typeof COMMANDS;
@@ -89,8 +107,22 @@ export interface ItemConfigParams {
   entity_id: string;
 }
 
+/** Parameters of `history/history_during_period` (specs/011-ha-history research R1). */
+export interface HistoryParams {
+  start_time: string;
+  end_time: string;
+  entity_ids: string[];
+  include_start_time_state: boolean;
+  significant_changes_only: boolean;
+  no_attributes: boolean;
+}
+
 export type CommandParams =
-  LogbookParams | TraceListParams | TraceGetParams | ItemConfigParams;
+  | LogbookParams
+  | TraceListParams
+  | TraceGetParams
+  | ItemConfigParams
+  | HistoryParams;
 
 const TRACE_DOMAIN_VALUES: readonly unknown[] = ["automation", "script"];
 
@@ -350,9 +382,10 @@ export class HaClient {
   }
 
   /**
-   * Sends one allowlisted command and resolves with its `result`. `params` is accepted for
-   * `logbook/get_events` only. That command may use the whole remaining overall budget, because
-   * its duration grows with the window; every other command keeps the per-command limit.
+   * Sends one allowlisted command and resolves with its `result`. `params` is accepted only for the
+   * commands whose table entry lists them, and must carry exactly those keys. A command with an
+   * `overall` budget (the logbook and history reads, whose duration grows with the window) may use
+   * the whole remaining overall budget; every other command keeps the per-command limit.
    */
   command(type: AllowedCommand, params?: CommandParams): Promise<unknown> {
     if (!isAllowed(type)) {

@@ -30,6 +30,24 @@ export function notFoundNote(ids: readonly string[]): string {
   return `Note: no entity has the ID ${named}${more}.`;
 }
 
+/**
+ * Sent by `ha_history` when exact IDs in `entities` have no recorded history (specs/011-ha-history
+ * FR-012, research R14). Past the tenth, only their number is given.
+ */
+export function noHistoryNote(ids: readonly string[]): string {
+  const named = ids.slice(0, MAX_NOTE_ITEMS).join(", ");
+  const more =
+    ids.length > MAX_NOTE_ITEMS
+      ? `, and ${ids.length - MAX_NOTE_ITEMS} more`
+      : "";
+  return `Note: no recorded history for the ID ${named}${more}.`;
+}
+
+/** Sent by `ha_history` when entities were selected but none of them is listed (research R14). */
+export function nothingChangedNote(): string {
+  return "Note: no selected entity changed in the window.";
+}
+
 /** Sent by `ha_state` when the query selected no entity, after the not-found note if any. */
 export function nothingMatchedNote(): string {
   return "Note: no entity matched the query.";

@@ -560,10 +560,19 @@ describe("the command table (FR-027)", () => {
       "trace/contexts",
       "automation/config",
       "script/config",
+      "history/history_during_period",
     ]);
   });
 
   const WINDOW = { start_time: "2026-09-26T00:00:00Z", end_time: "x" };
+  const HISTORY = {
+    start_time: "2026-09-26T00:00:00Z",
+    end_time: "2026-09-27T00:00:00Z",
+    entity_ids: ["light.porch"],
+    include_start_time_state: true,
+    significant_changes_only: false,
+    no_attributes: false,
+  };
   it.each([
     ["get_states", { domain: "light" }, 'command "get_states" does not take'],
     ["logbook/get_events", {}, 'parameter "start_time" is required'],
@@ -594,6 +603,18 @@ describe("the command table (FR-027)", () => {
       'parameter "extra" is not allowed',
     ],
     ["trace/contexts", { domain: "script" }, "does not take parameters"],
+    [
+      "history/history_during_period",
+      Object.fromEntries(
+        Object.entries(HISTORY).filter(([key]) => key !== "no_attributes"),
+      ),
+      'parameter "no_attributes" is required',
+    ],
+    [
+      "history/history_during_period",
+      { ...HISTORY, minimal_response: false },
+      'parameter "minimal_response" is not allowed',
+    ],
   ])("rejects %s with %j before the socket", async (type, params, text) => {
     const ha = await fake();
     const client = await connect(ha);
@@ -621,5 +642,57 @@ describe("the command table (FR-027)", () => {
     const states = await connect(slowStates);
     const error = await failure(() => states.command("get_states"));
     expect(kindOf(error)).toBe("timeout");
+  });
+});
+
+describe("history command (specs/011-ha-history research R1)", () => {
+  const params = {
+    start_time: "2026-09-26T00:00:00Z",
+    end_time: "2026-09-27T00:00:00Z",
+    entity_ids: ["light.porch"],
+    include_start_time_state: true,
+    significant_changes_only: false,
+    no_attributes: false,
+  };
+
+  it("sends history/history_during_period with exactly its six parameters", async () => {
+    const ha = await fake();
+    const client = await connect(ha);
+    const result = await client.command(
+      "history/history_during_period",
+      params,
+    );
+    expect(result).toEqual({});
+    expect(ha.receivedHistoryParams).toEqual([params]);
+  });
+
+  it("lets the history read outlast the per-command limit", async () => {
+    const ha = await fake({ historyDelayMs: 350 });
+    const client = await HaClient.connect({
+      wsUrl: wsUrl(ha),
+      token: FAKE_TOKEN,
+      timeouts: { connectMs: 300, commandMs: 100, totalMs: 3000 },
+    });
+    clients.push(client);
+    await expect(
+      client.command("history/history_during_period", params),
+    ).resolves.toEqual({});
+  });
+
+  it("times out at the overall limit with a narrowing next step", async () => {
+    const ha = await fake({ historyDelayMs: 1500 });
+    const client = await HaClient.connect({
+      wsUrl: wsUrl(ha),
+      token: FAKE_TOKEN,
+      timeouts: { connectMs: 300, commandMs: 100, totalMs: 500 },
+    });
+    clients.push(client);
+    const error = await failure(() =>
+      client.command("history/history_during_period", params),
+    );
+    expect(error.kind).toBe("timeout");
+    expect(error.nextStep).toBe(
+      "Use a shorter window, fewer entities, or detail=summary, then try again",
+    );
   });
 });

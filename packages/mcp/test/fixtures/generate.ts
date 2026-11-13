@@ -30,6 +30,22 @@ export interface Fixture {
   logbook?: LogbookRow[];
   /** Extended trace records served by the `trace/*` commands (feature 003). */
   traces?: TraceExtendedRecord[];
+  /**
+   * Every recorded state of each entity, in time order, served by `history/history_during_period`
+   * (specs/011-ha-history research R16).
+   */
+  history?: Record<string, RecordedState[]>;
+}
+
+/**
+ * One recorded state as the recorder keeps it: `lu` and `lc` in seconds since the epoch, `lc`
+ * always present (equal to `lu` when the state changed).
+ */
+export interface RecordedState {
+  s: string;
+  a: JsonObject;
+  lu: number;
+  lc: number;
 }
 
 export class Rng {

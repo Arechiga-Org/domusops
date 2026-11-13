@@ -1,7 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
-import { notFoundNote, nothingMatchedNote } from "../src/notes.js";
+import {
+  noHistoryNote,
+  notFoundNote,
+  nothingChangedNote,
+  nothingMatchedNote,
+} from "../src/notes.js";
 import { createServer } from "../src/server.js";
 import { runLogbookQuery } from "../src/tools/ha-logbook-query.js";
 import { runTrace } from "../src/tools/ha-trace.js";
@@ -152,5 +157,26 @@ describe("the ha_state notes (specs/010-ha-state research R13)", () => {
 
   it("says when nothing matched", () => {
     expect(nothingMatchedNote()).toBe("Note: no entity matched the query.");
+  });
+});
+
+describe("the ha_history notes (specs/011-ha-history research R14)", () => {
+  it("names the exact IDs with no recorded history", () => {
+    expect(noHistoryNote(["sensor.attic_humidity"])).toBe(
+      "Note: no recorded history for the ID sensor.attic_humidity.",
+    );
+  });
+
+  it("names at most ten IDs and counts the rest", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `sensor.gone_${i}`);
+    expect(noHistoryNote(ids)).toBe(
+      `Note: no recorded history for the ID ${ids.slice(0, 10).join(", ")}, and 2 more.`,
+    );
+  });
+
+  it("says when no selected entity changed", () => {
+    expect(nothingChangedNote()).toBe(
+      "Note: no selected entity changed in the window.",
+    );
   });
 });
