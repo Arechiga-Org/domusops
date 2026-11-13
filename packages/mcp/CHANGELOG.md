@@ -1,5 +1,20 @@
 # @domusops/mcp
 
+## 0.2.0
+
+### Minor Changes
+
+- ba7b79e: Adds `ha_history`, a read-only tool that returns how entities changed over a time window: for each one the state it had at the start of the window, then every recorded change with its time, its state and the attributes that changed, so an agent can tell when an attribute changed and to what without falling back to the raw API. `entities` and `exclude` take the same IDs and patterns as the other tools; `start` and `end` are read as `ha_logbook_query` reads them, with a default of the last 24 hours and a maximum of 10 days; `attributes` keeps only the attributes named and lists only the changes in which one of them, or the state, changed; `significant_only` keeps only the changes the instance considers significant. `detail=summary` gives the number of changes per domain, and per entity when `entities` is given. Times are in the instance's local time, to the second. A result above 100,000 bytes (`DOMUSOPS_HISTORY_MAX_BYTES`) is refused with the number of entities and changes. The instance's history records no cause; `ha_logbook_query` over the same window gives it. The snapshot's redaction applies; names stay visible. The tool needs the `history` integration, and `ha_ping` lists it; the other tools' outputs do not change.
+- 851fe49: Adds `ha_ping`, a cheap, read-only tool that tells an agent, before any real query, whether the server can work with the connected instance. It reads only the current user and the instance's core configuration, and returns a small `domusops.ping/0.1` document: the server's name and version; the instance's version, the least version the server supports, whether it is supported, and its time zone; whether the token's user is an administrator; which integrations the tools need are loaded; and, for every other tool, whether it is ready and why not, with the steps to fix it. An instance older than the minimum is reported in the document instead of as an error; an unreachable address, a refused token, a timeout or a missing configuration fail as in the other tools. The token, the instance's address and location, and user names are never returned. The other tools' outputs do not change.
+- a87d1c3: Adds `ha_state`, a read-only tool that returns what entities are doing right now: for each one its state, its attributes, when it last changed, was last updated and last reported, and the context of the change, so an agent no longer downloads the whole `ha_snapshot` inventory or falls back to the raw API to read one entity. `entities` and `exclude` take the same IDs and patterns as `ha_logbook_query` and `ha_trace`; `domain` and `state` narrow the selection; `attributes` keeps only the attributes named. `detail=summary` gives, per domain, how many entities there are and how many are `unavailable` and `unknown`. Times are in the instance's local time, and the context IDs can be passed to the `context` input of `ha_trace` and `ha_logbook_query`. A `standard` result above 100,000 bytes (`DOMUSOPS_STATE_MAX_BYTES`) is refused with the entity count, and a problem with `domain`, `state` or `attributes` is the new `input_invalid` error. The snapshot's redaction applies; names stay visible. `ha_ping` lists the new tool; the other tools' outputs do not change.
+
+### Patch Changes
+
+- Updated dependencies [adcc9cf]
+- Updated dependencies [351d2e9]
+- Updated dependencies [dea01a2]
+  - @domusops/schema@0.2.0
+
 ## 0.1.2
 
 ### Patch Changes
