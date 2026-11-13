@@ -167,7 +167,7 @@ describe("the standard history document", () => {
     });
   });
 
-  it("lists entities in ID order and leaves out empty keys", () => {
+  it("keeps the order it is given, and leaves out empty keys", () => {
     const document = encode([
       {
         entityId: "switch.b",
@@ -182,7 +182,8 @@ describe("the standard history document", () => {
         skipped: 0,
       },
     ]);
-    expect(Object.keys(document.entities)).toEqual(["light.a", "switch.b"]);
+    // entityHistories gives entity-ID order; the encoder does not sort again.
+    expect(Object.keys(document.entities)).toEqual(["switch.b", "light.a"]);
     expect(document.entities["light.a"]).toEqual({ start: ["off", {}] });
   });
 

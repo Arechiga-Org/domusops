@@ -12,3 +12,20 @@ export function isObject<T extends object = Record<string, unknown>>(
 /** A number as text, left-padded with zeros to `width` characters. */
 export const pad = (n: number, width = 2): string =>
   String(n).padStart(width, "0");
+
+/**
+ * Sets `key` as an own property of `target` even when it is `__proto__`, which plain assignment
+ * would turn into a prototype change and lose.
+ */
+export function put(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}

@@ -15,7 +15,12 @@ import {
 } from "../history/entries.js";
 import { historyFrame } from "../history/envelope.js";
 import { parseHistoryInputs } from "../history/inputs.js";
-import { candidates, listing, needsCurrentIds } from "../history/select.js";
+import {
+  candidates,
+  listing,
+  needsCurrentIds,
+  withoutHistory,
+} from "../history/select.js";
 import { parseSelectors } from "../logbook/selectors.js";
 import { localParts } from "../logbook/local-time.js";
 import {
@@ -189,10 +194,7 @@ export async function queryHistory(
       // The summary needs only the states and `lc` (research R11).
       no_attributes: inputs.detail === "summary",
     });
-    const { listed, noHistory } = listing(
-      entityHistories(answer, window.startMs),
-      chosen,
-    );
+    const noHistory = withoutHistory(chosen, answer);
     if (noHistory.length > 0) notes.push(noHistoryNote(noHistory));
 
     if (inputs.detail === "summary") {
@@ -226,6 +228,7 @@ export async function queryHistory(
       return { document: text, notes };
     }
 
+    const listed = listing(entityHistories(answer, window.startMs), chosen);
     const redacted = redactHistories(listed, {
       token: config.token,
       coordinates: {

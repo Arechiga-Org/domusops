@@ -1,6 +1,7 @@
 import { deepEqual, type JsonObject } from "@domusops/schema";
 import type { HistoryAnswer, HistoryEntry } from "../ha/history.js";
 import { EXEMPT_KEYS, redactRows } from "../snapshot/redact.js";
+import { put } from "../util/json.js";
 
 /** One recorded state of an entity: `at` in epoch milliseconds. */
 export interface Change {
@@ -139,14 +140,7 @@ function trimmed(
 ): JsonObject {
   const out: JsonObject = {};
   for (const [key, value] of Object.entries(attributes)) {
-    if (keep.has(key)) {
-      Object.defineProperty(out, key, {
-        value,
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
-    }
+    if (keep.has(key)) put(out, key, value);
   }
   return out;
 }

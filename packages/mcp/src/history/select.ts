@@ -57,29 +57,25 @@ export function candidates(
   return { ids: [...ids].sort(compare), exact };
 }
 
-export interface Listing {
-  /** The entities the document lists, in entity-ID order (data-model §5). */
-  listed: EntityHistory[];
-  /** The exact IDs with no recorded history, in request order. */
-  noHistory: string[];
-}
-
 /**
- * An entity that changed in the window is listed; one that did not is listed only when it was
- * named by exact ID (FR-012, clarification of 2026-11-12).
+ * The entities the document lists, in the order given (data-model §5). An entity that changed in
+ * the window is listed; one that did not is listed only when it was named by exact ID (FR-012,
+ * clarification of 2026-11-12).
  */
 export function listing(
   histories: readonly EntityHistory[],
   chosen: Candidates,
-): Listing {
+): EntityHistory[] {
   const exact = new Set(chosen.exact);
-  const recorded = new Set(histories.map((history) => history.entityId));
-  return {
-    listed: histories
-      .filter(
-        (history) => history.changes.length > 0 || exact.has(history.entityId),
-      )
-      .sort((a, b) => compare(a.entityId, b.entityId)),
-    noHistory: chosen.exact.filter((id) => !recorded.has(id)),
-  };
+  return histories.filter(
+    (history) => history.changes.length > 0 || exact.has(history.entityId),
+  );
+}
+
+/** The exact IDs with no recorded history, in request order: absent from the answer. */
+export function withoutHistory(
+  chosen: Candidates,
+  answer: Readonly<Record<string, unknown>>,
+): string[] {
+  return chosen.exact.filter((id) => !Object.hasOwn(answer, id));
 }

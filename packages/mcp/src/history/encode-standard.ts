@@ -11,24 +11,11 @@ import {
   formatOffset,
   localParts,
 } from "../logbook/local-time.js";
-import { pad } from "../util/json.js";
+import { pad, put } from "../util/json.js";
 import type { HistoryFrame } from "./envelope.js";
 import type { EntityHistory } from "./entries.js";
 
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-
-/**
- * Sets `key` as an own property even when it is `__proto__`, which plain assignment would turn into
- * a prototype change and lose.
- */
-function put(target: JsonObject, key: string, value: unknown): void {
-  Object.defineProperty(target, key, {
-    value,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  });
-}
 
 interface Listed {
   state: string;
@@ -85,7 +72,8 @@ function rowOf(
 }
 
 /**
- * The `standard` document (data-model §3, research R6, R7): per entity in ID order, the start state,
+ * The `standard` document (data-model §3, research R6, R7): per entity, in the order given, which
+ * `entityHistories` makes entity-ID order, the start state,
  * then the changes bucketed by local date and hour, each one a delta against the previous listed
  * entry. The `compression_ratio` is a placeholder for `finalize` to fill.
  */
@@ -95,9 +83,7 @@ export function encodeStandardHistory(
 ): HistoryStandardDocument {
   const { timeZone, offsetMinutes } = frame;
   const entities: Record<string, HistoryEntityEntry> = {};
-  for (const history of [...histories].sort((a, b) =>
-    compare(a.entityId, b.entityId),
-  )) {
+  for (const history of histories) {
     const entry: HistoryEntityEntry = {};
     let previous: Listed | undefined;
     if (history.start !== undefined) {

@@ -239,8 +239,10 @@ export const errors = {
     );
   },
 
-  /** An `ha_state` input outside its limits, or `attributes` with `summary` (specs/010-ha-state R3). */
-  /** `state` for `ha_state`; `history` for `ha_history` (specs/011-ha-history R4). */
+  /**
+   * An input outside its limits, or `attributes` with `summary`: `state` for `ha_state`
+   * (specs/010-ha-state R3), `history` for `ha_history` (specs/011-ha-history R4).
+   */
   inputInvalid(
     problem: string,
     subject: "state" | "history" = "state",
