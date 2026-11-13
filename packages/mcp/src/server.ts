@@ -1,5 +1,6 @@
 import {
   DETAIL_LEVELS,
+  HISTORY_DETAIL_LEVELS,
   LOGBOOK_DETAIL_LEVELS,
   STATE_DETAIL_LEVELS,
   TRACE_DETAIL_LEVELS,
@@ -20,6 +21,7 @@ import {
 import type { Response } from "./notes.js";
 import { packageVersion, SERVER_NAME } from "./package-info.js";
 import { queryLogbook } from "./tools/ha-logbook-query.js";
+import { queryHistory } from "./tools/ha-history.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 import { runPing } from "./tools/ha-ping.js";
 import { queryState } from "./tools/ha-state.js";
@@ -120,6 +122,25 @@ const STATE_ATTRIBUTES_DESCRIPTION =
   "Attribute names to keep (brightness, friendly_name). Without it, every attribute is returned. Not combinable with detail=summary.";
 const STATE_DETAIL_DESCRIPTION =
   "summary: counts per domain, with unavailable and unknown. standard (default): every selected entity with its state, attributes, times and context.";
+
+// Copied from specs/011-ha-history/contracts/ha_history.tool.json, the tool contract.
+const HISTORY_TITLE = "Entity history for Home Assistant";
+const HISTORY_DESCRIPTION =
+  "Read-only recorded history of the entities of the connected Home Assistant instance over a time window: for each entity the state it had at the start of the window, then every recorded change with its time, its state and the attributes that changed. Use it to answer when an attribute changed and to what (a battery level, a light's color, a motion attribute). Returned as compact JSON in the domusops.history/0.1 format: unchanged attributes are not repeated from one change to the next, and times are in the instance's local time, to the second, grouped by date and hour. entities takes exact entity IDs or * patterns (light.*, *_battery); without it, every entity the instance has now is considered. An entity named by exact ID is listed even when it did not change (its state at the start of the window); one matched by a pattern is listed only when it changed. An exact ID with no recorded history is named in a note, not an error. exclude takes the same IDs and patterns and leaves those entities out; a note lists what was excluded. start and end are ISO 8601 (without an offset the instance's time zone applies); end defaults to now and start to 24 hours before end; the window may not exceed 10 days. attributes keeps only the attributes named, and then lists only the changes in which the state or one of them changed, with the number left out. significant_only keeps only the changes the instance considers significant (state changes, mostly). The history carries no cause: use ha_logbook_query over the same window for what caused a change. detail=summary gives per domain the number of entities that changed, of changes, of state changes and of attribute-only changes, and with entities the same per entity; without entities it stays small for any home. standard (default) is at least 5x smaller than the raw history on the reference instance (asserted in CI). A result larger than 100000 bytes (DOMUSOPS_HISTORY_MAX_BYTES) is refused with the number of entities and changes: use summary, a shorter window, fewer entities, exclude, or attributes. Secrets, coordinates, and e-mail addresses are always redacted. Every response reports its compression_ratio. Requires DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN (administrator user) and the history integration.";
+const HISTORY_ENTITIES_DESCRIPTION =
+  "Entity IDs or patterns with * (light.kitchen, light.*, *_battery). Without it, every entity the instance has now is considered.";
+const HISTORY_EXCLUDE_DESCRIPTION =
+  "Entity IDs or patterns to leave out, in the same form as entities (*_power, sun.*). Applied after entities.";
+const HISTORY_START_DESCRIPTION =
+  "Window start, ISO 8601 (2026-09-26T03:00, or with an offset). Defaults to 24 hours before end. The window may not exceed 10 days.";
+const HISTORY_END_DESCRIPTION =
+  "Window end, ISO 8601. Defaults to now; a future end is clamped to now.";
+const HISTORY_ATTRIBUTES_DESCRIPTION =
+  "Attribute names to keep (battery_level, brightness). Without it, every attribute is returned. With it, a change is listed only when the state or one of these attributes changed. Not combinable with detail=summary.";
+const HISTORY_SIGNIFICANT_DESCRIPTION =
+  "Keep only the changes the instance considers significant, which leaves out most attribute-only changes. Default false: every recorded change.";
+const HISTORY_DETAIL_DESCRIPTION =
+  "summary: counts of changes per domain, and per entity when entities is given. standard (default): every listed entity's start state and changes.";
 
 /**
  * A non-empty string of at most `max` characters. zod's `max` counts UTF-16 units, so the limit is
@@ -331,6 +352,65 @@ export function createServer(options: ServerOptions = {}): McpServer {
           ...(domain === undefined ? {} : { domain }),
           ...(state === undefined ? {} : { state }),
           ...(exclude === undefined ? {} : { exclude }),
+          ...(attributes === undefined ? {} : { attributes }),
+          ...(options.timeouts === undefined
+            ? {}
+            : { timeouts: options.timeouts }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "ha_history",
+    {
+      title: HISTORY_TITLE,
+      description: HISTORY_DESCRIPTION,
+      inputSchema: {
+        entities: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_SELECTORS)
+          .optional()
+          .describe(HISTORY_ENTITIES_DESCRIPTION),
+        exclude: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_SELECTORS)
+          .optional()
+          .describe(HISTORY_EXCLUDE_DESCRIPTION),
+        start: z.string().optional().describe(HISTORY_START_DESCRIPTION),
+        end: z.string().optional().describe(HISTORY_END_DESCRIPTION),
+        attributes: z
+          .array(withinCharacters(MAX_ATTRIBUTE_LENGTH))
+          .min(1)
+          .max(MAX_ENTRIES)
+          .optional()
+          .describe(HISTORY_ATTRIBUTES_DESCRIPTION),
+        significant_only: z
+          .boolean()
+          .default(false)
+          .describe(HISTORY_SIGNIFICANT_DESCRIPTION),
+        detail: z
+          .enum(HISTORY_DETAIL_LEVELS)
+          .default("standard")
+          .describe(HISTORY_DETAIL_DESCRIPTION),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    ({ entities, exclude, start, end, attributes, significant_only, detail }) =>
+      asToolResult("ha_history", () =>
+        queryHistory(options.env ?? process.env, {
+          detail,
+          significant_only,
+          ...(entities === undefined ? {} : { entities }),
+          ...(exclude === undefined ? {} : { exclude }),
+          ...(start === undefined ? {} : { start }),
+          ...(end === undefined ? {} : { end }),
           ...(attributes === undefined ? {} : { attributes }),
           ...(options.timeouts === undefined
             ? {}

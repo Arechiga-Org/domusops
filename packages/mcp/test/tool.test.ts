@@ -5,6 +5,10 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Timeouts } from "../src/ha/client.js";
 import { REQUIREMENTS } from "../src/ping/requirements.js";
+import {
+  SMALL_HOME as SMALL_HOME_HISTORY,
+  WINDOW as HISTORY_WINDOW,
+} from "./support/history.js";
 import { createServer } from "../src/server.js";
 import {
   EMPTY,
@@ -412,7 +416,6 @@ describe("ha_state: the tool", () => {
     const { tools } = await (await connected()).listTools();
     const names = tools.map((tool) => tool.name);
     expect(names.indexOf("ha_state")).toBe(names.indexOf("ha_trace") + 1);
-    expect(names.indexOf("ha_ping")).toBe(names.indexOf("ha_state") + 1);
     const tool = tools.find((candidate) => candidate.name === "ha_state");
     expect(tool?.title).toBe(contract.title);
     expect(tool?.description).toBe(contract.description);
@@ -457,5 +460,95 @@ describe("ha_state: the tool", () => {
     // 255 emoji are 510 UTF-16 units, a valid state on the instance.
     expect((await call("\u{1F600}".repeat(255))).isError).toBeFalsy();
     expect((await call("\u{1F600}".repeat(256))).isError).toBe(true);
+  });
+});
+
+describe("ha_history: the tool", () => {
+  const contract = JSON.parse(
+    readFileSync(
+      new URL(
+        "../../../specs/011-ha-history/contracts/ha_history.tool.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as {
+    title: string;
+    description: string;
+    inputSchema: object;
+    annotations: object;
+  };
+
+  async function connected(): Promise<Client> {
+    const ha = await startFakeHa({ fixture: SMALL_HOME_HISTORY });
+    cleanups.push(() => ha.close());
+    const server = createServer({
+      env: { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "tool-test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    cleanups.push(async () => {
+      await client.close();
+      await server.close();
+    });
+    return client;
+  }
+
+  it("is advertised as the contract says, between ha_state and ha_ping", async () => {
+    const { tools } = await (await connected()).listTools();
+    const names = tools.map((tool) => tool.name);
+    expect(names.indexOf("ha_history")).toBe(names.indexOf("ha_state") + 1);
+    expect(names.indexOf("ha_ping")).toBe(names.indexOf("ha_history") + 1);
+    const tool = tools.find((candidate) => candidate.name === "ha_history");
+    expect(tool?.title).toBe(contract.title);
+    expect(tool?.description).toBe(contract.description);
+    expect(tool?.inputSchema).toMatchObject(contract.inputSchema);
+    expect(tool?.annotations).toMatchObject(contract.annotations);
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
+  });
+
+  it("returns the document, then the notes, as text blocks", async () => {
+    const result = (await (
+      await connected()
+    ).callTool({
+      name: "ha_history",
+      arguments: {
+        ...HISTORY_WINDOW,
+        entities: ["light.*", "switch.*", "sensor.missing"],
+        exclude: ["switch.*"],
+      },
+    })) as CallResult;
+    expect(result.isError).toBeFalsy();
+    expect(JSON.parse(result.content[0]?.text ?? "")).toMatchObject({
+      format: "domusops.history/0.1",
+      detail: "standard",
+    });
+    expect(result.content.slice(1).map((block) => block.text)).toEqual([
+      "Note: excluded switch.*. Counts, the size check and compression_ratio leave them out.",
+      "Note: no recorded history for the ID sensor.missing.",
+    ]);
+  });
+
+  it("counts an attribute name's length in characters, not UTF-16 units", async () => {
+    const client = await connected();
+    const call = async (name: string): Promise<CallResult> =>
+      (await client.callTool({
+        name: "ha_history",
+        arguments: {
+          ...HISTORY_WINDOW,
+          entities: ["light.porch"],
+          attributes: [name],
+        },
+      })) as CallResult;
+    expect((await call("\u{1F600}".repeat(128))).isError).toBeFalsy();
+    expect((await call("\u{1F600}".repeat(129))).isError).toBe(true);
   });
 });
