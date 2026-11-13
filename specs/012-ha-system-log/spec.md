@@ -141,7 +141,8 @@ small whatever the log holds.
 ### Edge Cases
 
 - A filter pattern is empty, too long, too many or has characters that cannot be in an integration
-  domain: the same validation error, with the same wording, as the selectors of the other tools.
+  domain: the same validation error kind and causes as the selectors of the other tools, with a
+  remediation that names integration domains rather than entity ids.
 - `start` is malformed, before 1970 or in the future: the same validation errors as the start of a
   `ha_logbook_query` window.
 - The level is not one the tool accepts: a validation error that lists the accepted levels.
@@ -186,9 +187,10 @@ small whatever the log holds.
   which of the two gave its integration. An entry for which neither gives one carries no
   integration and keeps its logger.
 - **FR-004**: The tool MUST accept `integrations`, a list of integration domains and `*` patterns,
-  and `exclude`, in the same form, applied after it, with the same limits, validation errors and
-  matcher as the `entities` and `exclude` selectors of the other tools, and MUST list in a note
-  what it excluded. A pattern matches an entry's integration domain, built-in or custom alike. An
+  and `exclude`, in the same form, applied after it, with the same limits, matcher and validation
+  error kind as the `entities` and `exclude` selectors of the other tools (its remediation names
+  integration domains rather than entity ids), and MUST list in a note what it excluded. A pattern
+  matches an entry's integration domain, built-in or custom alike. An
   entry with no integration is listed only when the call has no `integrations`, and no `exclude`
   pattern removes it.
 - **FR-005**: The tool MUST accept a minimum level among the levels the instance records (warning,
@@ -225,11 +227,11 @@ small whatever the log holds.
   return an error result that names it and says what to change, as `ha_logbook_query` does for the
   logbook integration.
 - **FR-014**: The tool MUST read only the current user (to check for an administrator, as the other
-  tools do), the instance's core configuration (time zone, loaded integrations and the instance's
-  own coordinates) and the system log. The system log read is a new read-only command on the
-  server's allowlist, justified in the plan with its exact parameters; any other new command MUST
-  also be a read and be justified. It MUST NOT read the raw log file, entities, registries, the
-  logbook, traces or history, and MUST make one connection per call.
+  tools do), the instance's core configuration (time zone, loaded integrations, configuration
+  directory and the instance's own coordinates) and the system log. The system log read is a new
+  read-only command on the server's allowlist, justified in the plan with its exact parameters; any
+  other new command MUST also be a read and be justified. It MUST NOT read the raw log file,
+  entities, registries, the logbook, traces or history, and MUST make one connection per call.
 - **FR-015**: The tool MUST NOT change anything on the instance (it never writes to or clears the
   log), and MUST declare itself read-only and idempotent to the client.
 - **FR-016**: The response MUST be a compact JSON document in a new published, versioned format in
@@ -239,8 +241,8 @@ small whatever the log holds.
   repeated per entry; the decoder restores paths with the root markers of FR-009, not the host's
   absolute paths.
 - **FR-017**: The response MUST carry a `compression_ratio`, measured as for the other tools
-  against the raw instance answer it read, and CI MUST assert a floor on a synthetic reference log
-  (constitution §4).
+  against the instance's answer as received, for the entries it selected, and CI MUST assert a
+  floor on a synthetic reference log (constitution §4).
 - **FR-018**: The tool's entry in the `ha_ping` requirements table MUST state that it needs an
   administrator and the system log integration, as the `ha_ping` tests already expect, so
   `ha_ping` reports its readiness without a new format version (feature 009, FR-019).
@@ -261,7 +263,7 @@ small whatever the log holds.
 
 - **Log entry**: one problem as the instance groups it: level, logger, source location, occurrence
   count, first and last occurrence, distinct messages and traceback, plus the integration derived
-  from the logger.
+  from the logger or, failing that, from the source path.
 - **Integration**: the built-in or custom integration an entry belongs to, from its logger or,
   failing that, its source path; an entry may have none.
 - **Log overview**: the `summary` result: per integration and level, the number of entries and of
@@ -290,8 +292,9 @@ small whatever the log holds.
 - **SC-006**: On the stable, previous stable and beta releases of the sandbox CI matrix, the same
   query returns the same entries.
 - **SC-007**: Every existing output test of the other tools passes with zero edited expectations,
-  apart from the new `ha_system_log` entry in `ha_ping`'s tool list (FR-018), and every
-  compression floor is unchanged.
+  apart from the new `ha_system_log` entry in `ha_ping`'s tool list (FR-018); the only other
+  edit is the internal name of an error subject that one error test passes as an argument, its
+  wording unchanged. Every compression floor is unchanged.
 
 ## Assumptions
 
@@ -306,7 +309,8 @@ small whatever the log holds.
   instance), cleared when it restarts; the plan measures the bound and the fields on the supported
   releases.
 - By default every recorded entry is listed, whatever its level (FR-005): the instance records
-  only warnings and above, so the default already leaves out debug and info noise. This answers the feature request's open question 3.
+  only warnings and above, so the default already leaves out debug and info noise. This answers
+  the feature request's open question 3.
 - `start` compares against an entry's last occurrence (FR-006): a problem that began before
   `start` and still recurs is the one an agent is looking for. This answers the feature request's
   open question 4.

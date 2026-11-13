@@ -41,6 +41,8 @@ fixture (R12). `ha_ping` lists the tool through the requirements row its tests a
   - `packages/mcp/test/system-log-roundtrip.test.ts`: encode, then `expandSystemLog`.
   - `packages/mcp/test/system-log-json-schema.test.ts`.
   - `packages/mcp/test/system-log-redaction.test.ts`: a seeded fixture, SC-004.
+  - `packages/mcp/test/system-log-errors.test.ts`: the new errors and subjects.
+  - `packages/mcp/test/system-log-paths.test.ts`: the three roots.
   - `packages/schema/test/system-log-expand.test.ts`.
 - Existing files gain cases:
   - `tool.test.ts`: the contract and the requirements row.
@@ -69,6 +71,7 @@ limit.
   they use stays; the new wordings come from new subjects or new functions (R2, R4, R9). The
   `entity_history` subject of `notAdmin` is renamed `required`, an internal name; its wording does
   not change.
+- `config_dir` is optional in the shared core read; only `ha_system_log` requires it (R2).
 - Everything under the limit or refused.
 
 **Scale/Scope**: one tool, one format with a decoder, about 700 lines of source and 900 of tests.
@@ -128,13 +131,13 @@ packages/schema/
 packages/mcp/
 ├── src/ha/client.ts                # system_log/list on the allowlist (R1)
 ├── src/ha/system-log.ts            # readSystemLog: the read, its validation, unknown_command (R1, R2)
-├── src/ha/instance.ts              # config_dir from get_config (R7)
+├── src/ha/instance.ts              # config_dir from get_config, optional (R2, R7)
 ├── src/ha/config.ts                # DOMUSOPS_SYSTEM_LOG_MAX_BYTES (R9)
 ├── src/errors.ts                   # notAdmin("required"), systemLogUnavailable, selectorInvalid
 │                                   # subject, inputInvalid("system_log"), tooLargeSystemLog
 ├── src/notes.ts                    # emptyLogNote, noEntryMatchedNote (R15)
 ├── src/logbook/selectors.ts        # the integration selector kind (R4)
-├── src/snapshot/redact.ts          # redactString exported for text (R8)
+├── src/snapshot/redact.ts          # redactText: the string rules on one text (R8)
 ├── src/system-log/inputs.ts        # integrations, exclude, level, start, detail (R4)
 ├── src/system-log/entries.ts       # integration attribution, filters, order (R3, R4, R5)
 ├── src/system-log/paths.ts         # the three roots (R7)

@@ -55,7 +55,8 @@ of the encoding of R6 on a synthetic log of 50 entries (R12).
 - **Decision**: on one connection, `auth/current_user` and `get_config` together, as in
   `ha_state` and `ha_history`. The user must be an administrator, then `system_log` must be among
   the loaded components. Then one `system_log/list`. `get_config` also gives `config_dir`, used by
-  R7.
+  R7. The shared core read takes it as optional, so no other tool can fail on it; `ha_system_log`
+  alone refuses an answer without it, as a protocol error.
 - **Errors**:
   - Not an administrator: the subject `entity_history` of `notAdmin`, whose remediation is not
     specific to history ("Every DomusOps tool requires one, so a result never depends on what a
@@ -72,9 +73,10 @@ of the encoding of R6 on a synthetic log of 50 entries (R12).
 - **Decision**:
   1. From the logger: `homeassistant.components.<domain>` or `custom_components.<domain>`, followed
      by the end of the name or a dot. The second form is a custom integration.
-  2. Otherwise from the source path (R1): `components/<domain>/` is a built-in integration,
-     `custom_components/<domain>/` a custom one; a source path that is absolute or under another
-     directory gives none.
+  2. Otherwise from the source path (R1), matched at its start: a path that begins with
+     `components/<domain>/` is a built-in integration, one that begins with
+     `custom_components/<domain>/` a custom one, so the first is never found inside the second; a
+     source path that is absolute or under another directory gives none.
   3. Otherwise none.
      The entry says when its integration came from the source (FR-003). A `py.warnings` entry is
      attributed to the integration whose code triggered it, which is where the agent must look.
@@ -173,10 +175,11 @@ last):` header and the chaining sentences), from file paths given once, from the
 ## R8. Redaction
 
 - **Decision**: after R7, each message and each traceback goes through the snapshot's string rules
-  (`redactString` of `snapshot/redact.ts`, exported for it): the configured token, URL user info,
-  credential query parameters, JWTs, bearer tokens, e-mail addresses, coordinate pairs and the
-  instance's own coordinates, each replaced in place by the redaction marker. Frames are parsed
-  after redaction. Logger names, file paths and line numbers are not redacted.
+  (`redactString` of `snapshot/redact.ts`, applied to one text by a new `redactText`): the
+  configured token, URL user info, credential query parameters, JWTs, bearer tokens, e-mail
+  addresses, coordinate pairs and the instance's own coordinates, each replaced in place by the
+  redaction marker. Frames are parsed after redaction. Logger names, file paths and line numbers are
+  not redacted.
 - **Why**: FR-009; the same rules as the other tools' text values, and no new one.
 - **Measured**: on the probe, `someone@example.com`, `admin:hunter2@` in a URL and
   `40.4168, -3.7038` are caught by the existing rules; `192.0.2.5` is not a coordinate and stays.
