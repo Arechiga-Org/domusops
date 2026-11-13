@@ -32,6 +32,15 @@ complained about.
 - Q: Are there two detail levels, an overview of counts and the entries, or only the entries? →
   A: Two, as in `ha_logbook_query` and `ha_history`: `summary`, counts per integration and level,
   and `standard`, the entries, the default (FR-012).
+- Q: Are file paths in an entry's source and traceback shortened to fixed roots, so that no
+  absolute path of the host appears in the response? → A: Yes, three roots are replaced by fixed
+  markers: the instance's installation, its configuration directory (where custom integrations
+  live) and the Python library directory; any other absolute path stays as it is, apart from
+  redaction (FR-009, FR-016).
+- Q: When an entry's logger belongs to no integration, is its integration taken from the path of
+  its source file? → A: Yes. The logger is used first; when it names no integration, the source
+  path is used when it lies in a built-in integration's code or in a custom integration's
+  directory; the entry says which of the two gave its integration (FR-003).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -70,8 +79,8 @@ else about the home.
 5. **Given** an instance whose time zone is not UTC, **When** the agent reads the log, **Then**
    every time in the response is in the instance's time zone, as in the logbook, trace, state and
    history documents.
-6. **Given** no new entry recorded between two calls, **When** the agent makes the same call
-   twice, **Then** both responses are identical.
+6. **Given** nothing recorded between two calls (no new entry and no new occurrence of an existing
+   one), **When** the agent makes the same call twice, **Then** both responses are identical.
 
 ---
 
@@ -143,13 +152,17 @@ small whatever the log holds.
   `ha_logbook_query` does for the logbook integration.
 - The instance keeps only a bounded number of entries and loses them when it restarts: the
   response holds what is recorded, and nothing says more existed; the README states both bounds.
-- An entry comes from a logger that belongs to no integration (the instance's core, a third-party
-  library): listed with its logger and no integration.
+- An entry comes from a logger that belongs to no integration (a third-party library) but its
+  source lies in an integration's code: it belongs to that integration, and says that its source
+  gave it (FR-003).
+- An entry whose logger and source both belong to no integration (the instance's core): listed with
+  its logger and no integration.
 - An entry has no traceback, or several distinct messages, or a very long message: reported
   completely, apart from redaction.
 - A traceback runs through the instance's own installation, a custom integration's directory and
-  third-party libraries: every frame keeps its file and line; the instance's installation path is
-  shortened in the same way in every frame.
+  third-party libraries: every frame keeps its file and line; the installation, configuration and
+  Python library roots are replaced by the same markers in every frame (FR-009). A path outside
+  those roots stays as it is.
 - One entry alone exceeds the limit: refused like any other oversize result, with the hint to
   raise the limit.
 - An `integrations` pattern names an integration with no entry: not an error; the empty result or
@@ -165,10 +178,13 @@ small whatever the log holds.
   location (file and line), its occurrence count, its first and last occurrence, its distinct
   messages in the order the instance keeps them, and its exception traceback in full when it has
   one. Entries are never split or merged: one entry of the instance is one entry of the response.
-- **FR-003**: Each entry MUST name the integration it belongs to, derived from its logger name
-  (the instance's built-in integrations and custom integrations each have a fixed logger prefix),
-  and MUST mark custom integrations as such. An entry whose logger belongs to no integration
-  carries no integration and keeps its logger.
+- **FR-003**: Each entry MUST name the integration it belongs to and MUST mark custom integrations
+  as such. The integration is derived from the entry's logger name first (built-in and custom
+  integrations each have a fixed logger prefix); when the logger names no integration (a
+  third-party library's logger, say), it is derived from the entry's source path, when that path
+  lies in a built-in integration's code or in a custom integration's directory. The entry MUST say
+  which of the two gave its integration. An entry for which neither gives one carries no
+  integration and keeps its logger.
 - **FR-004**: The tool MUST accept `integrations`, a list of integration domains and `*` patterns,
   and `exclude`, in the same form, applied after it, with the same limits, validation errors and
   matcher as the `entities` and `exclude` selectors of the other tools, and MUST list in a note
@@ -181,15 +197,18 @@ small whatever the log holds.
   without an offset is read in the instance's time zone). With it, only entries whose last
   occurrence is at or after `start` are listed. Without it, every recorded entry is listed.
 - **FR-007**: Entries MUST appear in order of last occurrence, oldest first, ties broken by logger
-  and then source location, so that two calls with no new entry in between give byte-identical
-  responses.
+  and then source location, so that two calls with nothing recorded in between (no new entry and no
+  new occurrence of an existing one) give byte-identical responses.
 - **FR-008**: Every timestamp MUST be in the instance's local time zone, to the second, in the
   form the logbook, trace, state and history documents use.
 - **FR-009**: The access token, secrets, credentials, e-mail addresses, credentials inside URLs and
   coordinates (the instance's own and any pair in the text) MUST be redacted inside messages and
   tracebacks under the same rules the other tools apply to text values, replacing only the
-  matching text with the redaction marker. Logger names, integration names, file names, line
-  numbers and the rest of the text stay visible.
+  matching text with the redaction marker. File paths in sources and tracebacks MUST have three
+  roots replaced by fixed markers: the instance's installation, its configuration directory and
+  the Python library directory, since on some installations these lie under the home directory of
+  the host's user and would reveal its name. Logger names, integration names, file paths below
+  those roots, line numbers and the rest of the text stay visible.
 - **FR-010**: The response MUST be bounded: a result larger than a documented limit, with the same
   default as the other tools (100,000 bytes) and an environment variable of its own to raise it,
   MUST be refused with an error result, never returned in part, and the message MUST say how many
@@ -216,7 +235,8 @@ small whatever the log holds.
   `@domusops/schema`, with its types, its JSON Schema, a reference decoder that restores every
   entry with its full messages and traceback (apart from redaction, and times to the second), and
   a row in the package README. File paths and frames repeated across tracebacks MUST NOT be
-  repeated per entry, and the instance's installation path MUST be shortened.
+  repeated per entry; the decoder restores paths with the root markers of FR-009, not the host's
+  absolute paths.
 - **FR-017**: The response MUST carry a `compression_ratio`, measured as for the other tools
   against the raw instance answer it read, and CI MUST assert a floor on a synthetic reference log
   (constitution §4).
@@ -241,7 +261,8 @@ small whatever the log holds.
 - **Log entry**: one problem as the instance groups it: level, logger, source location, occurrence
   count, first and last occurrence, distinct messages and traceback, plus the integration derived
   from the logger.
-- **Integration**: the built-in or custom integration a logger belongs to; an entry may have none.
+- **Integration**: the built-in or custom integration an entry belongs to, from its logger or,
+  failing that, its source path; an entry may have none.
 - **Log overview**: the `summary` result: per integration and level, the number of entries and of
   occurrences, and the totals.
 - **System log document**: the result of the tool in the new published format, with its notes and
@@ -260,9 +281,11 @@ small whatever the log holds.
 - **SC-003**: A query that exceeds the limit never returns entries: 100% of such queries are
   refused, with the number of entries matched and a hint that names the inputs that narrow it.
 - **SC-004**: On a synthetic fixture that seeds every redaction rule into messages and tracebacks,
-  100% of the seeded values are absent from the response, and every seeded file name and line
-  number is present.
-- **SC-005**: Two calls with no new entry in between give byte-identical responses.
+  100% of the seeded values are absent from the response, no seeded root of the installation,
+  configuration or Python library directory appears, and every seeded file name and line number is
+  present.
+- **SC-005**: Two calls with nothing recorded in between (no new entry and no new occurrence of
+  an existing one) give byte-identical responses.
 - **SC-006**: On the stable, previous stable and beta releases of the sandbox CI matrix, the same
   query returns the same entries.
 - **SC-007**: Every existing output test of the other tools passes with zero edited expectations,
