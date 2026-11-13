@@ -142,8 +142,8 @@ small whatever the log holds.
 
 - A filter pattern is empty, too long, too many or has characters that cannot be in an integration
   domain: the same validation error, with the same wording, as the selectors of the other tools.
-- `start` is malformed or in the future: the same handling as `ha_logbook_query` (a validation
-  error for a malformed time; a future start matches nothing).
+- `start` is malformed, before 1970 or in the future: the same validation errors as the start of a
+  `ha_logbook_query` window.
 - The level is not one the tool accepts: a validation error that lists the accepted levels.
 - `DOMUSOPS_HA_URL` or `DOMUSOPS_HA_TOKEN` is missing or malformed, the instance is unreachable,
   the token is refused, the instance times out, or its version is below the supported minimum:
@@ -191,8 +191,9 @@ small whatever the log holds.
   what it excluded. A pattern matches an entry's integration domain, built-in or custom alike. An
   entry with no integration is listed only when the call has no `integrations`, and no `exclude`
   pattern removes it.
-- **FR-005**: The tool MUST accept a minimum level among the levels the instance records (debug,
-  info, warning, error, critical). By default every recorded entry is listed.
+- **FR-005**: The tool MUST accept a minimum level among the levels the instance records (warning,
+  error, critical; the instance never records debug or info, research R1). By default every
+  recorded entry is listed.
 - **FR-006**: The tool MUST accept `start`, parsed exactly as `ha_logbook_query` parses it (a time
   without an offset is read in the instance's time zone). With it, only entries whose last
   occurrence is at or after `start` are listed. Without it, every recorded entry is listed.
@@ -204,8 +205,8 @@ small whatever the log holds.
 - **FR-009**: The access token, secrets, credentials, e-mail addresses, credentials inside URLs and
   coordinates (the instance's own and any pair in the text) MUST be redacted inside messages and
   tracebacks under the same rules the other tools apply to text values, replacing only the
-  matching text with the redaction marker. File paths in sources and tracebacks MUST have three
-  roots replaced by fixed markers: the instance's installation, its configuration directory and
+  matching text with the redaction marker. File paths in sources, tracebacks and messages MUST have
+  three roots replaced by fixed markers: the instance's installation, its configuration directory and
   the Python library directory, since on some installations these lie under the home directory of
   the host's user and would reveal its name. Logger names, integration names, file paths below
   those roots, line numbers and the rest of the text stay visible.
@@ -305,8 +306,7 @@ small whatever the log holds.
   instance), cleared when it restarts; the plan measures the bound and the fields on the supported
   releases.
 - By default every recorded entry is listed, whatever its level (FR-005): the instance records
-  warnings and above unless configured otherwise, so the default already leaves out debug and
-  info noise. This answers the feature request's open question 3.
+  only warnings and above, so the default already leaves out debug and info noise. This answers the feature request's open question 3.
 - `start` compares against an entry's last occurrence (FR-006): a problem that began before
   `start` and still recurs is the one an agent is looking for. This answers the feature request's
   open question 4.
