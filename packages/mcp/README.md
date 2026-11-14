@@ -136,6 +136,8 @@ published format; any later blocks are notes about the query, not part of the do
 | `ha_state`         | `standard`         | `expandState`                 |
 | `ha_history`       | `summary`          | none: read as it is           |
 | `ha_history`       | `standard`         | `expandHistory`               |
+| `ha_system_log`    | `summary`          | none: read as it is           |
+| `ha_system_log`    | `standard`         | `expandSystemLog`             |
 | `ha_ping`          | none               | none: read as it is           |
 
 `@domusops/schema` comes with the server; install it on its own
@@ -150,6 +152,7 @@ import {
   expandHistory,
   expandLogbook,
   expandState,
+  expandSystemLog,
   expandTrace,
 } from "@domusops/schema";
 
@@ -160,6 +163,7 @@ const decoders = {
   "domusops.trace/0.1": expandTrace,
   "domusops.state/0.1": expandState,
   "domusops.history/0.1": expandHistory,
+  "domusops.system_log/0.1": expandSystemLog,
 };
 
 // The first text block of a tool result is the document; later blocks are notes.
@@ -476,6 +480,74 @@ the raw history on the reference set, which CI asserts. The format is versioned
 (`expandHistory`) are in `@domusops/schema`. See
 [`specs/011-ha-history/contracts/history-format.md`](../../specs/011-ha-history/contracts/history-format.md).
 
+## `ha_system_log`
+
+A read-only list of the errors and warnings the instance has recorded in its system log, what its
+interface shows under its system logs. Use it for questions such as "why did this integration stop
+working?", "what failed when this automation ran?" or "is this custom integration throwing
+exceptions?". `ha_trace` explains one automation or script run, and `ha_logbook_query` and
+`ha_history` show what entities did; `ha_system_log` shows what the instance itself complained
+about.
+
+It uses the same server, the same `DOMUSOPS_HA_URL` and `DOMUSOPS_HA_TOKEN`, and the same
+administrator-token requirement as the other tools, and it needs the instance's `system_log`
+integration, which Home Assistant loads at startup. It reads the current user, the core
+configuration and the system log, on one connection, and nothing else: not the log file, which it
+never reads, and it never writes to or clears the log.
+
+The instance keeps its system log in memory: a bounded number of entries (`max_entries`, 50 by
+default), the oldest dropped first, and none from before its last start. The response holds what
+is recorded, and nothing says that more existed. The instance records warnings, errors and
+critical errors only, and groups the occurrences of one problem into one entry with its count and
+up to five distinct messages; the response keeps that grouping.
+
+### Input
+
+| Property       | Meaning                                                                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `integrations` | Up to 100 integration domains or patterns of at most 128 characters, where `*` matches anything (`mqtt`, `hue*`, `*_cloud`). Default: every entry    |
+| `exclude`      | Integration domains or patterns to leave out, in the same form as `integrations`. Applied after `integrations`                                       |
+| `level`        | The minimum level: `warning`, `error` or `critical`. Default: every entry                                                                            |
+| `start`        | ISO 8601; without an offset the instance's time zone applies. Keeps the entries whose last occurrence is at or after it. It may not be in the future |
+| `detail`       | `summary` (counts of entries and occurrences per integration and level) or `standard` (every entry with its messages and traceback; the default)     |
+
+An entry's integration comes from its logger (`homeassistant.components.<domain>` or
+`custom_components.<domain>`). When the logger names none, as a library's logger does, it comes
+from the entry's source file when that lies in an integration's code (`components/<domain>/` or
+`custom_components/<domain>/`), and the entry says so. Shared code (`homeassistant.core`,
+`homeassistant.helpers.*`) gives no integration. Custom integrations are listed in the document's
+`custom`. With `integrations`, an entry with no integration is left out; `exclude` never removes
+one, and a note after the document names what was excluded. An empty log and a query that
+matches nothing are valid documents, each with a note.
+
+Every time is in the instance's time zone, to the second. Entries come in order of last
+occurrence, oldest first.
+
+### Size limit
+
+A result larger than 100,000 bytes is refused with an error that states the number of entries and
+how to narrow the query. It is never truncated. Long tracebacks can fill the limit on an instance
+that keeps hundreds of entries: use `detail=summary` to see which integrations are logging, then
+`integrations`, `exclude`, `level` or `start`. Set `DOMUSOPS_SYSTEM_LOG_MAX_BYTES` in the server
+configuration to change the limit; it is separate from the other tools' limits and cannot be
+changed from a tool call.
+
+### Redaction and format
+
+The text rules of the other tools apply to every message and traceback: credentials, the
+configured token, credentials in URLs, coordinates (the instance's own and any other) and e-mail
+addresses are replaced by `[redacted]` inside the text, and the rest stays. File paths lose the
+root of the installation (`{ha}/`), of the configuration directory (`{config}/`) and of the Python
+library directory (`{python}/`), which on some installations would name the host's user; file
+names, line numbers and logger names stay.
+
+Every response carries a `compression_ratio`. `standard` gives file paths, traceback frames and
+repeated traceback lines once, in shared tables that the entries point into; it is at least 1.8
+times smaller than the raw log on the reference set, which CI asserts. The format is versioned
+(`domusops.system_log/0.1`) and public; its types, JSON Schema, and a reference decoder
+(`expandSystemLog`, which rebuilds each traceback's text) are in `@domusops/schema`. See
+[`specs/012-ha-system-log/contracts/system-log-format.md`](../../specs/012-ha-system-log/contracts/system-log-format.md).
+
 ## `ha_ping`
 
 A cheap, read-only check of whether this server can work with the instance, to run before any
@@ -496,13 +568,19 @@ It returns a small document (about 500 bytes, under 2,000 in the worst case):
     "time_zone": "Europe/Amsterdam"
   },
   "admin": true,
-  "integrations": { "history": true, "logbook": true, "trace": true },
+  "integrations": {
+    "history": true,
+    "logbook": true,
+    "system_log": true,
+    "trace": true
+  },
   "tools": {
     "ha_snapshot": { "ready": true },
     "ha_logbook_query": { "ready": true },
     "ha_trace": { "ready": true },
     "ha_state": { "ready": true },
-    "ha_history": { "ready": true }
+    "ha_history": { "ready": true },
+    "ha_system_log": { "ready": true }
   },
   "compression_ratio": 5.71
 }

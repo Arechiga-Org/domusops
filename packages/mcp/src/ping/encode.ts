@@ -36,6 +36,10 @@ function nextStep(reason: PingReason, adminTools: readonly string[]): string {
     return `Use a token of an administrator user, which ${adminTools.join(", ")} need`;
   }
   const name = reason.slice("integration_missing:".length);
+  // Home Assistant loads system_log at startup, outside default_config (specs/012 research R2).
+  if (name === "system_log") {
+    return "Make sure the system_log integration is loaded (Home Assistant loads it at startup unless the configuration prevents it), then try again";
+  }
   return `Enable the ${name} integration in Home Assistant (it is part of default_config), then try again`;
 }
 

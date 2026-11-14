@@ -16,4 +16,5 @@ export const REQUIREMENTS: Readonly<Record<string, ToolRequirements>> = {
   ha_trace: { admin: true, integrations: ["trace"] },
   ha_state: { admin: true, integrations: [] },
   ha_history: { admin: true, integrations: ["history"] },
+  ha_system_log: { admin: true, integrations: ["system_log"] },
 };

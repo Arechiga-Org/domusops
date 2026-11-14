@@ -54,7 +54,7 @@ function converse(
 }
 
 describe("the built server over stdio", () => {
-  it("starts with only Node and advertises exactly ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history, and ha_ping", async () => {
+  it("starts with only Node and advertises exactly ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history, ha_system_log, and ha_ping", async () => {
     if (!existsSync(cli))
       throw new Error(
         "packages/mcp/dist is missing: run `pnpm typecheck` first",
@@ -87,6 +87,7 @@ describe("the built server over stdio", () => {
       "ha_trace",
       "ha_state",
       "ha_history",
+      "ha_system_log",
       "ha_ping",
     ]);
     for (const tool of tools) {

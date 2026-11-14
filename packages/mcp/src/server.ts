@@ -3,6 +3,8 @@ import {
   HISTORY_DETAIL_LEVELS,
   LOGBOOK_DETAIL_LEVELS,
   STATE_DETAIL_LEVELS,
+  SYSTEM_LOG_DETAIL_LEVELS,
+  SYSTEM_LOG_LEVELS,
   TRACE_DETAIL_LEVELS,
 } from "@domusops/schema";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -25,6 +27,7 @@ import { queryHistory } from "./tools/ha-history.js";
 import { runSnapshot } from "./tools/ha-snapshot.js";
 import { runPing } from "./tools/ha-ping.js";
 import { queryState } from "./tools/ha-state.js";
+import { querySystemLog } from "./tools/ha-system-log.js";
 import { queryTrace } from "./tools/ha-trace.js";
 
 // Copied from specs/001-ha-snapshot/contracts/ha_snapshot.tool.json, the tool contract.
@@ -141,6 +144,21 @@ const HISTORY_SIGNIFICANT_DESCRIPTION =
   "Keep only the changes the instance considers significant, which leaves out most attribute-only changes. Default false: every recorded change.";
 const HISTORY_DETAIL_DESCRIPTION =
   "summary: counts of changes per domain, and per entity when entities is given. standard (default): every listed entity's start state and changes.";
+
+// Copied from specs/012-ha-system-log/contracts/ha_system_log.tool.json, the tool contract.
+const SYSTEM_LOG_TITLE = "System log for Home Assistant";
+const SYSTEM_LOG_DESCRIPTION =
+  "Read-only errors and warnings the connected Home Assistant instance has recorded in its system log since it last started (the instance keeps a bounded number, 50 by default): for each entry its level, logger, the integration it belongs to (custom integrations marked), its source file and line, how many times it occurred, its first and last occurrence, its distinct messages and its full exception traceback. Use it to find why an integration stopped working or what failed when an automation ran. Returned as compact JSON in the domusops.system_log/0.1 format: entries in order of last occurrence, times in the instance's local time to the second grouped by date, file paths and frames shared by tracebacks given once in files and parts, and the installation, configuration and Python library directories shortened to {ha}/, {config}/ and {python}/. An entry's integration comes from its logger, or, for a library's logger, from its source file when that lies in an integration's code (the entry then ends with 1). integrations takes integration domains or * patterns (mqtt, hue*, *_cloud) and keeps their entries; entries that belong to no integration are kept only without integrations. exclude takes the same domains and patterns and leaves those integrations out; a note lists what was excluded. level keeps entries at that level or above (warning, error, critical). start (ISO 8601; without an offset the instance's time zone applies) keeps entries whose last occurrence is at or after it. detail=summary gives per integration and level the number of entries and of occurrences, with no message or traceback. standard (default) is at least 1.8x smaller than the raw log on the reference instance (asserted in CI). A result larger than 100000 bytes (DOMUSOPS_SYSTEM_LOG_MAX_BYTES) is refused with the number of entries: use summary, integrations, exclude, level, or start. Secrets, credentials in URLs, coordinates, and e-mail addresses inside messages and tracebacks are always redacted. Every response reports its compression_ratio. Requires DOMUSOPS_HA_URL and DOMUSOPS_HA_TOKEN (administrator user) and the system_log integration.";
+const SYSTEM_LOG_INTEGRATIONS_DESCRIPTION =
+  "Integration domains or patterns with * (mqtt, hue*, *_cloud). Without it, every entry is considered, including those that belong to no integration.";
+const SYSTEM_LOG_EXCLUDE_DESCRIPTION =
+  "Integration domains or patterns to leave out, in the same form as integrations. Applied after integrations; never removes an entry that belongs to no integration.";
+const SYSTEM_LOG_LEVEL_DESCRIPTION =
+  "The minimum level. Without it, every recorded entry (the instance records warnings and above).";
+const SYSTEM_LOG_START_DESCRIPTION =
+  "Keep entries whose last occurrence is at or after this time, ISO 8601 (2026-11-13T08:00, or with an offset). It may not be in the future.";
+const SYSTEM_LOG_DETAIL_DESCRIPTION =
+  "summary: counts of entries and occurrences per integration and level. standard (default): every selected entry with its messages and traceback.";
 
 /**
  * A non-empty string of at most `max` characters. zod's `max` counts UTF-16 units, so the limit is
@@ -412,6 +430,56 @@ export function createServer(options: ServerOptions = {}): McpServer {
           ...(start === undefined ? {} : { start }),
           ...(end === undefined ? {} : { end }),
           ...(attributes === undefined ? {} : { attributes }),
+          ...(options.timeouts === undefined
+            ? {}
+            : { timeouts: options.timeouts }),
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "ha_system_log",
+    {
+      title: SYSTEM_LOG_TITLE,
+      description: SYSTEM_LOG_DESCRIPTION,
+      inputSchema: {
+        integrations: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_SELECTORS)
+          .optional()
+          .describe(SYSTEM_LOG_INTEGRATIONS_DESCRIPTION),
+        exclude: z
+          .array(z.string())
+          .min(1)
+          .max(MAX_SELECTORS)
+          .optional()
+          .describe(SYSTEM_LOG_EXCLUDE_DESCRIPTION),
+        level: z
+          .enum(SYSTEM_LOG_LEVELS)
+          .optional()
+          .describe(SYSTEM_LOG_LEVEL_DESCRIPTION),
+        start: z.string().optional().describe(SYSTEM_LOG_START_DESCRIPTION),
+        detail: z
+          .enum(SYSTEM_LOG_DETAIL_LEVELS)
+          .default("standard")
+          .describe(SYSTEM_LOG_DETAIL_DESCRIPTION),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    ({ integrations, exclude, level, start, detail }) =>
+      asToolResult("ha_system_log", () =>
+        querySystemLog(options.env ?? process.env, {
+          detail,
+          ...(integrations === undefined ? {} : { integrations }),
+          ...(exclude === undefined ? {} : { exclude }),
+          ...(level === undefined ? {} : { level }),
+          ...(start === undefined ? {} : { start }),
           ...(options.timeouts === undefined
             ? {}
             : { timeouts: options.timeouts }),
