@@ -136,7 +136,7 @@ export async function queryHistory(
     const core = readCore(client);
     core.catch(() => undefined);
     const user = await current;
-    if (!user.isAdmin) throw errors.notAdmin("entity_history");
+    if (!user.isAdmin) throw errors.notAdmin("required");
     const { instance } = await core;
     if (!instance.components.includes("history")) {
       throw errors.historyUnavailable("states");

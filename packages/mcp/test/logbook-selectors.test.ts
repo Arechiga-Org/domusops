@@ -110,6 +110,68 @@ describe("parseSelectors", () => {
   });
 });
 
+describe("parseSelectors for integration selectors (specs/012-ha-system-log R4)", () => {
+  const parse = (list: string[]) =>
+    parseSelectors(list, "integration selector");
+  const refused = (list: string[]): ToolError => {
+    try {
+      parse(list);
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolError);
+      return error as ToolError;
+    }
+    throw new Error(`expected ${JSON.stringify(list)} to be rejected`);
+  };
+
+  it("accepts domains and patterns, deduplicated in request order", () => {
+    expect(parse(["mqtt", "hue*", "*_cloud", "mqtt", "zha2"])).toEqual([
+      "mqtt",
+      "hue*",
+      "*_cloud",
+      "zha2",
+    ]);
+  });
+
+  it.each([
+    [["mqtt.client"]],
+    [["MQTT"]],
+    [["hue-bridge"]],
+    [[""]],
+    [["mqtt "]],
+  ])("rejects %j with the integration wording", (list) => {
+    const error = refused(list);
+    expect(error.kind).toBe("selector_invalid");
+    expect(error.message).toContain(
+      `The integration selector "${list[0]}" is not valid. Use an integration domain`,
+    );
+  });
+
+  it("has the limits of the entity selectors", () => {
+    expect(refused([]).message).toMatch(
+      /^The integration selector list is empty\. Use an integration domain/,
+    );
+    expect(
+      refused(Array.from({ length: 101 }, (_, i) => `d${i}`)).message,
+    ).toMatch(/^There are 101 integration selectors, and the limit is 100\./);
+    expect(refused(["a".repeat(MAX_SELECTOR_LENGTH + 1)]).message).toMatch(
+      /^An integration selector is 129 characters long/,
+    );
+    expect(parse(["a".repeat(MAX_SELECTOR_LENGTH)])).toHaveLength(1);
+  });
+
+  it("leaves the entity wording unchanged", () => {
+    try {
+      parseSelectors(["light-x"]);
+    } catch (error) {
+      expect((error as ToolError).message).toContain(
+        'The entity selector "light-x" is not valid. Use an entity ID',
+      );
+      return;
+    }
+    throw new Error("expected a rejection");
+  });
+});
+
 describe("strategy", () => {
   it("is all without selectors, exact for IDs only, filtered with any pattern", () => {
     expect(strategy(undefined)).toBe("all");

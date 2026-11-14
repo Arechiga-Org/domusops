@@ -12,6 +12,11 @@ export interface Instance {
   longitude: unknown;
   /** The loaded integrations, from `get_config`. */
   components: readonly unknown[];
+  /**
+   * The configuration directory, from `get_config`, when it is a non-empty string. Optional here
+   * so no tool fails on it; `ha_system_log` requires it (specs/012-ha-system-log research R2, R7).
+   */
+  configDir?: string;
 }
 
 /** The current user as `auth/current_user` answered, and whether they are an administrator. */
@@ -56,6 +61,7 @@ export async function readCore(client: HaClient): Promise<Core> {
       haVersion,
     );
   }
+  const configDir = config["config_dir"];
   return {
     raw: config,
     instance: {
@@ -64,6 +70,9 @@ export async function readCore(client: HaClient): Promise<Core> {
       latitude: config["latitude"],
       longitude: config["longitude"],
       components,
+      ...(typeof configDir === "string" && configDir !== ""
+        ? { configDir }
+        : {}),
     },
   };
 }

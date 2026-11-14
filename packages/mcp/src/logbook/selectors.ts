@@ -6,26 +6,40 @@ export const MAX_SELECTORS = 100;
 /** The longest selector, in characters. A real entity ID is far shorter. */
 export const MAX_SELECTOR_LENGTH = 128;
 const VALID = /^[a-z0-9_.*]+$/;
+/** An integration domain has no dot (specs/012-ha-system-log research R4). */
+const VALID_INTEGRATION = /^[a-z0-9_*]+$/;
 
 export type Strategy = "all" | "exact" | "filtered";
 
 /**
  * Validates and deduplicates the requested selectors, keeping the request order. Returns
  * `undefined` when none were given. `what` names the list in errors: `entities` holds entity
- * selectors, `exclude` exclusion selectors, with the same rules.
+ * selectors, `exclude` exclusion selectors, with the same rules; an integration selector
+ * (`ha_system_log`) has the same limits, no dot, and its own remediation.
  */
 export function parseSelectors(
   list: readonly string[] | undefined,
-  what: "entity selector" | "exclusion selector" = "entity selector",
+  what:
+    | "entity selector"
+    | "exclusion selector"
+    | "integration selector" = "entity selector",
 ): string[] | undefined {
   if (list === undefined) return undefined;
+  const integration = what === "integration selector";
+  const subject = integration ? "integration" : "entity";
+  const valid = integration ? VALID_INTEGRATION : VALID;
   if (list.length === 0) {
-    throw errors.selectorInvalid("(empty list)", `The ${what} list is empty`);
+    throw errors.selectorInvalid(
+      "(empty list)",
+      `The ${what} list is empty`,
+      subject,
+    );
   }
   if (list.length > MAX_SELECTORS) {
     throw errors.selectorInvalid(
       "(too many)",
       `There are ${list.length} ${what}s, and the limit is ${MAX_SELECTORS}`,
+      subject,
     );
   }
   for (const selector of list) {
@@ -33,12 +47,14 @@ export function parseSelectors(
       throw errors.selectorInvalid(
         selector,
         `An ${what} is ${selector.length} characters long, and the limit is ${MAX_SELECTOR_LENGTH}`,
+        subject,
       );
     }
-    if (!VALID.test(selector)) {
+    if (!valid.test(selector)) {
       throw errors.selectorInvalid(
         selector,
         `The ${what} "${selector}" is not valid`,
+        subject,
       );
     }
   }

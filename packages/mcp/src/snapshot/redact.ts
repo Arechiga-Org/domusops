@@ -222,6 +222,34 @@ export interface RedactRowsOptions {
   scanExempt?: boolean;
 }
 
+/** A redactor for free text: the token, the instance's own coordinates (rule C3). */
+export interface RedactTextOptions {
+  token: string;
+  coordinates?: { latitude: unknown; longitude: unknown };
+}
+
+/**
+ * Returns a function that applies the string rules (V1 to V6, C2, C3) to one text, replacing only
+ * the matching text with the redaction marker: a log message or traceback has no key names, so
+ * the key-name rules do not apply (specs/012-ha-system-log research R8).
+ */
+export function redactText(
+  options: RedactTextOptions,
+): (text: string) => string {
+  const ctx: Context = {
+    token: options.token,
+    scanExempt: false,
+    coordinates:
+      options.coordinates === undefined
+        ? null
+        : coordinateMatcher([
+            options.coordinates.latitude,
+            options.coordinates.longitude,
+          ]),
+  };
+  return (text) => redactString(text, ctx);
+}
+
 /**
  * Returns a deep copy of `rows` with secrets, credentials, coordinates, and e-mail addresses
  * replaced by the redaction marker. Fields are kept, so an agent can see that a value existed.
