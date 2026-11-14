@@ -1,5 +1,11 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -316,6 +322,7 @@ describe.each(CHANNELS)("ha_ping against %s", (channel) => {
         expect(document.integrations).toEqual({
           history: true,
           logbook: true,
+          system_log: true,
           trace: true,
         });
         expect(document.tools).toEqual({
@@ -324,6 +331,7 @@ describe.each(CHANNELS)("ha_ping against %s", (channel) => {
           ha_trace: { ready: true },
           ha_state: { ready: true },
           ha_history: { ready: true },
+          ha_system_log: { ready: true },
         });
         expect(document.next_steps).toBeUndefined();
         expect(document.compression_ratio).toBeGreaterThanOrEqual(3);
@@ -513,6 +521,269 @@ describe.each(CHANNELS)("ha_history against %s", (channel) => {
         ).toBeGreaterThan(1);
       } finally {
         await sandbox.stop();
+      }
+    },
+    8 * MINUTE,
+  );
+});
+
+/**
+ * A configuration with a synthetic custom integration, `boom`, whose action logs warnings, a
+ * chained exception, a library logger's error and an error with seeded values, and a broken
+ * template sensor (specs/012-ha-system-log research R14). The test calls the action; the server
+ * never writes to the log (FR-019).
+ */
+function boomConfig(): string {
+  const dir = mkdtempSync(join(tmpdir(), "domusops-syslog-"));
+  writeFileSync(
+    join(dir, "configuration.yaml"),
+    [
+      "default_config:",
+      "",
+      "boom:",
+      "",
+      "template:",
+      "  - sensor:",
+      "      - name: Broken ratio",
+      '        state: "{{ 1 / 0 }}"',
+      "",
+    ].join("\n"),
+  );
+  const integration = join(dir, "custom_components", "boom");
+  mkdirSync(integration, { recursive: true });
+  writeFileSync(
+    join(integration, "manifest.json"),
+    JSON.stringify({
+      domain: "boom",
+      name: "Boom",
+      version: "0.0.1",
+      documentation: "https://example.invalid",
+      codeowners: [],
+      iot_class: "local_push",
+      requirements: [],
+    }),
+  );
+  writeFileSync(
+    join(integration, "__init__.py"),
+    [
+      '"""A synthetic integration that logs on demand."""',
+      "import logging",
+      "",
+      "_LOGGER = logging.getLogger(__name__)",
+      '_LIB = logging.getLogger("pyboom.client")',
+      "",
+      "",
+      "def _parse(value):",
+      "    return int(value)",
+      "",
+      "",
+      "def _fetch(value):",
+      "    try:",
+      "        return _parse(value)",
+      "    except ValueError as err:",
+      '        raise RuntimeError("could not read the device") from err',
+      "",
+      "",
+      "async def async_setup(hass, config):",
+      "    async def fire(call):",
+      "        for i in range(7):",
+      '            _LOGGER.warning("Device %s did not answer, retry %s", "node_1", i % 3)',
+      "        try:",
+      '            _fetch("not-a-number")',
+      "        except RuntimeError:",
+      '            _LOGGER.exception("Update failed for user someone@example.com")',
+      "        try:",
+      '            _parse("x")',
+      "        except ValueError:",
+      '            _LIB.error("Library error talking to http://admin:hunter2@192.0.2.5/api", exc_info=True)',
+      '        _LOGGER.error("Plain error at 40.4168, -3.7038")',
+      "",
+      '    hass.services.async_register("boom", "fire", fire)',
+      "    return True",
+      "",
+    ].join("\n"),
+  );
+  return dir;
+}
+
+type SystemLogRow = [
+  string,
+  string,
+  string,
+  string | null,
+  [number, number],
+  number,
+  string[],
+  (string | null)?,
+  ((number | string)[] | null)?,
+  1?,
+];
+
+interface SystemLogStandard {
+  format: string;
+  compression_ratio: number;
+  files: string[];
+  parts: (string | [number, number, string, string?])[];
+  entries: Record<string, SystemLogRow[]>;
+}
+
+/** The rows of a standard system log document, in order. */
+const rowsOfLog = (document: SystemLogStandard): SystemLogRow[] =>
+  Object.values(document.entries).flat();
+
+/** A row's traceback text, rebuilt from `parts` as the decoder does. */
+function tracebackOf(document: SystemLogStandard, row: SystemLogRow): string {
+  return (row[8] ?? [])
+    .map((item) => {
+      if (typeof item === "string") return item;
+      const part = document.parts[item];
+      if (typeof part === "string") return part;
+      const [file, line, fn, code] = part ?? [0, 0, ""];
+      const head = `  File "${document.files[file] ?? ""}", line ${line}, in ${fn}`;
+      return code === undefined ? head : `${head}\n${code}`;
+    })
+    .join("\n");
+}
+
+describe.each(CHANNELS)("ha_system_log against %s", (channel) => {
+  it(
+    "reads a custom integration's entries, re-rooted and redacted, and a summary that counts what standard lists (SC-005, SC-006, §8)",
+    async () => {
+      expect(existsSync(MCP_ENTRY), "run pnpm build first").toBe(true);
+      const dir = boomConfig();
+      const sandbox = await startSandbox({
+        ...startTarget(channel),
+        config: { dir },
+      });
+      try {
+        const { wsUrl, token } = sandbox.connection();
+        const socket = await HaSocket.connect(wsUrl, token);
+        try {
+          for (let n = 0; n < 2; n++) {
+            await socket.command({
+              type: "call_service",
+              domain: "boom",
+              service: "fire",
+              service_data: {},
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+          await socket.command({
+            type: "call_service",
+            domain: "system_log",
+            service: "write",
+            service_data: {
+              message: "Written by the test",
+              level: "warning",
+              logger: "custom_components.boom.sensor",
+            },
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } finally {
+          socket.close();
+        }
+
+        const results = await withMcp({ ...sandbox.mcpEnv() }, async (call) => [
+          await call("ha_system_log", { integrations: ["boom"] }),
+          await call("ha_system_log", { integrations: ["boom"] }),
+          await call("ha_system_log", {
+            integrations: ["boom"],
+            level: "error",
+          }),
+          await call("ha_system_log", {}),
+          await call("ha_system_log", { detail: "summary" }),
+          await call("ha_system_log", {}),
+        ]);
+        const [boom, again, errorsOnly, before, summary, after] = results;
+        const document = boom?.document as SystemLogStandard;
+        expect(document.format).toBe("domusops.system_log/0.1");
+        const rows = rowsOfLog(document);
+        const byMessage = (text: string): SystemLogRow | undefined =>
+          rows.find((row) => row[6].some((m) => m.includes(text)));
+
+        const warnings = byMessage("did not answer");
+        expect(warnings?.slice(1, 4)).toEqual([
+          "warning",
+          "custom_components.boom",
+          "boom",
+        ]);
+        expect(warnings?.[5]).toBe(14);
+        expect(warnings?.[6]).toHaveLength(3);
+
+        const failed = byMessage("Update failed for user");
+        expect(failed?.[6]).toEqual(["Update failed for user [redacted]"]);
+        expect(failed?.[5]).toBe(2);
+        const chained = tracebackOf(document, failed as SystemLogRow);
+        expect(chained).toContain("direct cause of the following exception");
+        expect(chained).toContain(
+          'File "{config}/custom_components/boom/__init__.py"',
+        );
+
+        // A library logger's entry belongs to the integration through its source.
+        const library = byMessage("Library error");
+        expect(library?.[2]).toBe("pyboom.client");
+        expect(library?.[3]).toBe("boom");
+        expect(library?.[9]).toBe(1);
+        expect(library?.[6]).toEqual([
+          "Library error talking to http://admin:[redacted]@192.0.2.5/api",
+        ]);
+        expect(byMessage("Plain error")?.[6]).toEqual([
+          "Plain error at [redacted]",
+        ]);
+        expect(byMessage("Written by the test")?.[3]).toBe("boom");
+
+        for (const part of document.parts) {
+          if (typeof part === "string") continue;
+          expect(document.files[part[0]]).toMatch(
+            /^(\{config\}|\{ha\}|\{python\})\/|^<template>$/,
+          );
+        }
+        const text = JSON.stringify(document);
+        for (const seed of [
+          "someone@example.com",
+          "hunter2",
+          "40.4168",
+          "/config/",
+          "/usr/",
+        ]) {
+          expect(text).not.toContain(seed);
+        }
+        // Nothing was recorded in between: the same document.
+        expect(again?.document).toEqual(boom?.document);
+
+        expect(
+          rowsOfLog(errorsOnly?.document as SystemLogStandard).every(
+            (row) => row[1] !== "warning",
+          ),
+        ).toBe(true);
+
+        // The summary counts what the standard result around it lists, when nothing changed.
+        expect(after?.document).toEqual(before?.document);
+        const all = rowsOfLog(before?.document as SystemLogStandard);
+        expect(
+          (
+            summary?.document as {
+              counts: { entries: number; occurrences: number };
+            }
+          ).counts,
+        ).toEqual({
+          entries: all.length,
+          occurrences: all.reduce((sum, row) => sum + row[5], 0),
+        });
+
+        // Measured at 1.47 on 2026.10.0: a handful of entries, mostly unique messages and one
+        // traceback each (specs/012-ha-system-log research R12). CI's floor is on the fixture.
+        const ratio = (before?.document as SystemLogStandard).compression_ratio;
+        const summaryRatio = (
+          summary?.document as { compression_ratio: number }
+        ).compression_ratio;
+        console.log(
+          `ha_system_log on ${channel}: compression_ratio ${ratio}, summary ${summaryRatio}`,
+        );
+        expect(ratio).toBeGreaterThan(1);
+      } finally {
+        await sandbox.stop();
+        rmSync(dir, { recursive: true, force: true });
       }
     },
     8 * MINUTE,
