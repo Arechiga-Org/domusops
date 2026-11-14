@@ -122,11 +122,12 @@ selector`, with that character set, and `selectorInvalid` gains a subject whose 
     none.
   - `files`: the paths of the sources and of the frames in `parts`, each once, in order of first
     use.
-  - `parts`: every distinct frame, and every traceback line that appears more than once in the
-    document, each once, in order of first use. A frame is `[file, line, function]` or
+  - `parts`: every distinct frame, and every non-empty traceback line that appears more than once
+    in the document, each once, in order of first use. A frame is `[file, line, function]` or
     `[file, line, function, code]`, `file` an index into `files` and `code` the frame's indented
     lines below its `File` line, verbatim (source line and caret lines). A line is a string. A line
-    that appears once stays inline in its traceback.
+    that appears once, and an empty line, stay inline in their traceback, joined with the inline
+    lines next to them (an index would be no shorter than an empty line).
   - `entries`: `{ "YYYY-MM-DD": [entry, ...] }`, by the local date of the last occurrence. An entry
     is positional, trailing `null` values dropped:
     `[time, level, logger, integration, source, count, messages, first, traceback, by_source]`.
@@ -219,7 +220,12 @@ detail)`: kind `too_large`, "The result has N entries and would be B bytes, abov
   failures with shared frames, platform setup errors, custom integration errors with tracebacks,
   library warnings, repeated warnings): raw answer 27,747 bytes, document 13,540 bytes, ratio
   2.05. Without the shared `parts`, `files` and date grouping, 1.62. On the probe's 8 entries of
-  either release, 1.45. The messages are 30% of the document and do not shrink.
+  either release, 1.45. The messages are 30% of the document and do not shrink. The implementation
+  gives 2.23 on the reference fixture (`REFERENCE_SYSTEM_LOG`, seed 12). On the sandbox (T039),
+  with the synthetic `boom` integration fired twice, one `system_log.write` and the broken
+  template sensor: `standard` 1.47 and `summary` 13.93 on 2026.10.0, and `standard` 1.47 on
+  2026.9.4. Both releases answer the shape the simulated instance gives, which `readSystemLog`
+  validates. The container test asserts a ratio above 1.
 - **Decision**: `rawBytes` is the UTF-8 size of the selected entries as received. CI asserts a floor
   of 1.8 for `standard` on the reference fixture (`generate-system-log.ts`, R14). The sandbox test
   asserts the ratio is reported and above 1, measured on each release before the container test is
