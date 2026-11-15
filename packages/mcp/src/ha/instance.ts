@@ -87,3 +87,17 @@ export async function readInstance(client: HaClient): Promise<Instance> {
   if (!user.isAdmin) throw errors.notAdmin("history");
   return (await readCore(client)).instance;
 }
+
+/**
+ * Sends the current user and core config reads together, then requires an administrator before
+ * using the core config: nothing of the instance is used for a user who is not one. The reads
+ * settle in the order they are sent.
+ */
+export async function readAdminInstance(client: HaClient): Promise<Instance> {
+  const current = readCurrentUser(client);
+  const core = readCore(client);
+  core.catch(() => undefined);
+  const user = await current;
+  if (!user.isAdmin) throw errors.notAdmin("required");
+  return (await core).instance;
+}

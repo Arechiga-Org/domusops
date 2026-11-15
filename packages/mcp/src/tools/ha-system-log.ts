@@ -2,13 +2,14 @@ import type { SystemLogDetailLevel } from "@domusops/schema";
 import { errors } from "../errors.js";
 import { HaClient, type Timeouts } from "../ha/client.js";
 import { readConfig, readSystemLogLimit } from "../ha/config.js";
-import { readCore, readCurrentUser } from "../ha/instance.js";
+import { readAdminInstance } from "../ha/instance.js";
 import { readSystemLog } from "../ha/system-log.js";
-import { parseWindowInput, resolveWindow } from "../logbook/window.js";
+import { parseWindowInput, resolveStart } from "../logbook/window.js";
 import {
   emptyLogNote,
   exclusionNote,
   noEntryMatchedNote,
+  otherLevelsNote,
   type Response,
 } from "../notes.js";
 import { byteLength, finalize } from "../snapshot/ratio.js";
@@ -73,7 +74,7 @@ export async function querySystemLog(
   const parsedStart =
     options.start === undefined
       ? null
-      : parseWindowInput({ start: options.start });
+      : parseWindowInput({ start: options.start }).start;
   const limit = readSystemLogLimit(env);
 
   const client = await HaClient.connect({
@@ -82,31 +83,27 @@ export async function querySystemLog(
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
   });
   try {
-    // The user and the core config are read together; nothing else is read for a user who is not
-    // an administrator (research R2). The reads settle in the order they are sent.
-    const current = readCurrentUser(client);
-    const core = readCore(client);
-    core.catch(() => undefined);
-    const user = await current;
-    if (!user.isAdmin) throw errors.notAdmin("required");
-    const { instance } = await core;
+    // Nothing else is read for a user who is not an administrator (research R2).
+    const instance = await readAdminInstance(client);
     if (!instance.components.includes("system_log")) {
       throw errors.systemLogUnavailable();
     }
     const { configDir } = instance;
-    if (configDir === undefined) {
+    // Only the standard document has paths to re-root (research R7).
+    if (inputs.detail === "standard" && configDir === undefined) {
       throw errors.protocolError(
         "the core config has no configuration directory",
         instance.haVersion,
       );
     }
-    // `start` is the start of a window that ends now, so its errors are the logbook's (R4).
+    // `start` is read as the logbook reads it (R4), and kept to the second, as entry times are.
     const startMs =
       parsedStart === null
         ? undefined
-        : resolveWindow(parsedStart, now, instance.timeZone).startMs;
+        : Math.floor(resolveStart(parsedStart, now, instance.timeZone) / 1000) *
+          1000;
 
-    const raw = await readSystemLog(client);
+    const { entries: raw, otherLevels } = await readSystemLog(client);
     const selected = selectEntries(raw.map(classify), {
       ...(inputs.integrations === undefined
         ? {}
@@ -130,7 +127,8 @@ export async function querySystemLog(
 
     const notes: string[] = [];
     if (inputs.exclude !== undefined) notes.push(exclusionNote(inputs.exclude));
-    if (raw.length === 0) notes.push(emptyLogNote());
+    if (otherLevels > 0) notes.push(otherLevelsNote(otherLevels));
+    if (raw.length + otherLevels === 0) notes.push(emptyLogNote());
     else if (selected.length === 0) notes.push(noEntryMatchedNote());
 
     // The raw size is that of the selected entries as received (research R12).
@@ -150,7 +148,7 @@ export async function querySystemLog(
       return { document: text, notes };
     }
 
-    const roots = rootPaths(configDir);
+    const roots = rootPaths(configDir ?? "");
     const redact = redactText({
       token: config.token,
       coordinates: {

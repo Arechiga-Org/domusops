@@ -9,6 +9,7 @@ import { Ajv } from "ajv";
 import { afterEach, describe, expect, it } from "vitest";
 import { ToolError, type ErrorKind } from "../src/errors.js";
 import type { Timeouts } from "../src/ha/client.js";
+import type { RawLogEntry } from "../src/ha/system-log.js";
 import type { Response } from "../src/notes.js";
 import { queryState } from "../src/tools/ha-state.js";
 import {
@@ -29,6 +30,7 @@ import {
 } from "./support/fake-ha.js";
 import {
   ACME_TRACEBACK,
+  at,
   entry,
   MQTT_TRACEBACK,
   NOW_MS,
@@ -385,7 +387,7 @@ describe("ha_system_log: reading the errors of an integration (User Story 1)", (
     );
   });
 
-  it("refuses a core config without a configuration directory, while ha_state still answers (research R2)", async () => {
+  it("refuses a standard result without a configuration directory, while summary and ha_state still answer (research R2)", async () => {
     const config = Object.fromEntries(
       Object.entries(SMALL_HOME.records.config).filter(
         ([key]) => key !== "config_dir",
@@ -398,6 +400,10 @@ describe("ha_system_log: reading the errors of an integration (User Story 1)", (
     const { error, ha } = await failure({}, { fixture });
     expect(error.kind).toBe("protocol_error");
     expect(ha.received).not.toContain("system_log/list");
+    const summary = await query({ detail: "summary" }, { fixture });
+    expect(JSON.parse(summary.response.document)).toMatchObject({
+      detail: "summary",
+    });
     const state = await queryState(envOf(ha, {}), { timeouts: SHORT });
     expect(JSON.parse(state.document)).toMatchObject({
       format: "domusops.state/0.1",
@@ -437,7 +443,7 @@ describe("ha_system_log: reading the errors of an integration (User Story 1)", (
   it.each([
     ["a message that is not a list", { message: "boom" }],
     ["an empty message list", { message: [] }],
-    ["an unknown level", { level: "INFO" }],
+    ["a level that is not a string", { level: 30 }],
     ["a source without a line", { source: ["core.py"] }],
     ["a count of zero", { count: 0 }],
     ["an exception that is not a string", { exception: null }],
@@ -447,6 +453,33 @@ describe("ha_system_log: reading the errors of an integration (User Story 1)", (
     expect(
       await kind({}, { fixture: systemLogFixture([broken!, ...rest]) }),
     ).toBe("protocol_error");
+  });
+});
+
+describe("ha_system_log: entries at another level (research R1)", () => {
+  it("leaves them out with a note and lists the rest", async () => {
+    const [first, second, ...rest] = SMALL_LOG;
+    const log = [
+      { ...first, level: "WARN" },
+      { ...second, level: "Level 35" },
+      ...rest,
+    ] as unknown as RawLogEntry[];
+    const { response } = await query({}, { fixture: systemLogFixture(log) });
+    expect(expandSystemLog(standard(response))).toHaveLength(rest.length);
+    expect(response.notes).toEqual([
+      "Note: left out 2 entries at a level other than warning, error or critical.",
+    ]);
+  });
+
+  it("does not call a log of such entries empty", async () => {
+    const log = [
+      { ...SMALL_LOG[0], level: "WARN" },
+    ] as unknown as RawLogEntry[];
+    const { response } = await query({}, { fixture: systemLogFixture(log) });
+    expect(response.notes).toEqual([
+      "Note: left out 1 entry at a level other than warning, error or critical.",
+      "Note: no log entry matched the query.",
+    ]);
   });
 });
 
@@ -528,6 +561,31 @@ describe("ha_system_log: keeping a noisy log within bounds (User Story 2)", () =
     expect(error.kind).toBe(expected);
     expect(error.message).toContain(text);
     expect(ha.connections).toBe(0);
+  });
+
+  it("keeps an entry in the same second as a start with milliseconds", async () => {
+    const log = [
+      {
+        ...entry({
+          name: "custom_components.acme_cloud",
+          source: ["custom_components/acme_cloud/api.py", 41],
+          last: "2026-11-13T09:20:05",
+        }),
+        timestamp: at("2026-11-13T09:20:05") + 0.9,
+      },
+    ];
+    const { response } = await query(
+      { start: "2026-11-13T09:20:05.500" },
+      { fixture: systemLogFixture(log) },
+    );
+    const document = standard(response);
+    expect(document.start).toBe("2026-11-13T09:20:05+01:00");
+    expect(loggers(document)).toEqual(["custom_components.acme_cloud"]);
+  });
+
+  it("accepts a start equal to the time of the call", async () => {
+    const { response } = await query({ start: "2026-11-13T12:00:00" });
+    expect(standard(response).start).toBe("2026-11-13T12:00:00+01:00");
   });
 
   it("refuses a start in the future without reading the log", async () => {

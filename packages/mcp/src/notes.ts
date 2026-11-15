@@ -78,6 +78,12 @@ export function emptyLogNote(): string {
   return "Note: the system log is empty.";
 }
 
+/** Sent by `ha_system_log` when entries at another level were left out (research R1). */
+export function otherLevelsNote(count: number): string {
+  const entries = count === 1 ? "1 entry" : `${count} entries`;
+  return `Note: left out ${entries} at a level other than warning, error or critical.`;
+}
+
 /** Sent by `ha_system_log` when the filters left no entry of a non-empty log (research R15). */
 export function noEntryMatchedNote(): string {
   return "Note: no log entry matched the query.";

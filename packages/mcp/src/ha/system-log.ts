@@ -34,8 +34,8 @@ function problemOf(entry: unknown): string | null {
   ) {
     return 'an entry had no list of strings "message"';
   }
-  if (!RAW_LEVELS.includes(entry["level"] as RawLevel)) {
-    return 'an entry had a "level" other than WARNING, ERROR or CRITICAL';
+  if (typeof entry["level"] !== "string") {
+    return 'an entry had no string "level"';
   }
   const source = entry["source"];
   if (
@@ -62,11 +62,22 @@ function problemOf(entry: unknown): string | null {
   return null;
 }
 
+/** The system log as read: the entries at a known level, and how many had another level. */
+export interface SystemLogAnswer {
+  entries: RawLogEntry[];
+  /** Entries whose level a library renamed or made up (`WARN`, `Level 35`): never placed. */
+  otherLevels: number;
+}
+
 /**
  * Reads the instance's system log (research R1). Any failure is an error and no entries; an
  * unknown command means the integration is not loaded. The answer is validated, never trusted.
+ * An entry at a level other than the three is left out and counted, since the answer does not
+ * say how severe it is.
  */
-export async function readSystemLog(client: HaClient): Promise<RawLogEntry[]> {
+export async function readSystemLog(
+  client: HaClient,
+): Promise<SystemLogAnswer> {
   let result: unknown;
   try {
     result = await client.command("system_log/list");
@@ -95,5 +106,8 @@ export async function readSystemLog(client: HaClient): Promise<RawLogEntry[]> {
       );
     }
   }
-  return result as RawLogEntry[];
+  const entries = (result as RawLogEntry[]).filter((entry) =>
+    RAW_LEVELS.includes(entry.level),
+  );
+  return { entries, otherLevels: result.length - entries.length };
 }
