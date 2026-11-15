@@ -80,6 +80,28 @@ describe("rootPaths under a host user's home directory", () => {
     );
   });
 
+  it.each([
+    [
+      "/srv/homeassistant/lib/python3.13/site-packages/homeassistant/core.py",
+      "{ha}/core.py",
+    ],
+    [
+      "/srv/homeassistant/lib/python3.13/site-packages/aiohttp/client.py",
+      "{python}/site-packages/aiohttp/client.py",
+    ],
+    [
+      "/home/homeassistant/.pyenv/versions/3.13.0/lib/python3.13/asyncio/tasks.py",
+      "{python}/asyncio/tasks.py",
+    ],
+  ])(
+    "re-roots %s of a virtual environment in a homeassistant directory",
+    (path, expected) => {
+      expect(rootPaths("/home/homeassistant/.homeassistant")(path)).toBe(
+        expected,
+      );
+    },
+  );
+
   it("re-roots a configuration directory with a trailing slash and a homeassistant segment", () => {
     const roots = rootPaths("/home/someone/homeassistant/");
     expect(roots("/home/someone/homeassistant/custom_components/x/y.py")).toBe(

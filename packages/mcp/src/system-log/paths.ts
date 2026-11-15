@@ -11,9 +11,13 @@ export const PYTHON_ROOT = "{python}/";
 /** A path starts the text or follows a space, a quote, a bracket, or a separator. */
 const START = String.raw`(?<=^|[\s"'(\[<,=:])`;
 
-/** Up to and including the last `/homeassistant/` segment: the package directory. */
+/**
+ * Up to and including the last `/homeassistant/` segment: the package directory. A segment with a
+ * Python library directory after it is not the package but a directory above it, such as a core
+ * installation's virtual environment at `/srv/homeassistant`.
+ */
 const HA_PACKAGE = new RegExp(
-  String.raw`${START}/(?:[^\s"'/]+/)*homeassistant/`,
+  String.raw`${START}/(?:[^\s"'/]+/)*homeassistant/(?![^\s"']*?lib/python\d+\.\d+/)`,
   "g",
 );
 
