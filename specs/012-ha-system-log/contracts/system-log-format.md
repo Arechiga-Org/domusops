@@ -141,6 +141,7 @@ Sent after the document, as separate text items, in this order (research R15):
 
 ```text
 Note: excluded mqtt. Counts, the size check and compression_ratio leave them out.
+Note: left out 2 entries at a level other than warning, error or critical.
 Note: the system log is empty.
 Note: no log entry matched the query.
 ```

@@ -21,7 +21,9 @@ of the encoding of R6 on a synthetic log of 50 entries (R12).
       oldest is dropped. A message may hold newlines.
     - `level`: `WARNING`, `ERROR` or `CRITICAL`. The integration's handler is fixed at
       `WARNING`, so debug and info records never reach the system log, whatever the logger
-      configuration.
+      configuration. The level is the record's level name, so a library that renames a level
+      (`WARN`) or logs at a level of its own (`Level 35`) gives another name, and the answer has
+      no level number to place it by.
     - `source`: `[path, line]`, the deepest frame of the instance's own code or of its
       configuration directory, with that prefix removed (`components/template/template_entity.py`,
       `custom_components/boom/__init__.py`, `helpers/template/__init__.py`). When no frame
@@ -44,7 +46,8 @@ of the encoding of R6 on a synthetic log of 50 entries (R12).
   - The answer carries no context.
 - **Decision**: a new allowlisted read, `system_log/list`, sent with no parameter, with the
   per-command time limit (the answer is bounded by `max_entries` and does not grow with a
-  window).
+  window). An entry at a level other than the three is left out and counted, with a note (R15);
+  a malformed entry still refuses the answer as a protocol error.
 - **Why**: FR-014. It is a read; the write and clear actions are services, never called by the
   server.
 - **Rejected**: the REST error log endpoint (the raw log file: another transport, unbounded, and
@@ -56,7 +59,8 @@ of the encoding of R6 on a synthetic log of 50 entries (R12).
   `ha_state` and `ha_history`. The user must be an administrator, then `system_log` must be among
   the loaded components. Then one `system_log/list`. `get_config` also gives `config_dir`, used by
   R7. The shared core read takes it as optional, so no other tool can fail on it; `ha_system_log`
-  alone refuses an answer without it, as a protocol error.
+  alone refuses an answer without it, as a protocol error, and only at `detail=standard`: a
+  summary has no path to re-root.
 - **Errors**:
   - Not an administrator: the subject `entity_history` of `notAdmin`, whose remediation is not
     specific to history ("Every DomusOps tool requires one, so a result never depends on what a
@@ -101,10 +105,12 @@ selector`, with that character set, and `selectorInvalid` gains a subject whose 
   - `level`: `warning`, `error` or `critical`, the minimum level; refused otherwise with
     `inputInvalid(problem, "system_log")`, whose remediation lists the three levels. Debug and
     info are not accepted: the instance never records them (R1).
-  - `start`: parsed by `parseWindowInput` and `resolveWindow` of `logbook/window.ts`, as the start
-    of a window whose end is now, so its errors are the logbook's (malformed, before 1970, in the
-    future). An entry is kept when its last occurrence, truncated to the second, is at or after
-    `start`.
+  - `start`: parsed by `parseWindowInput` of `logbook/window.ts` and resolved by its
+    `resolveStart`, which reads an offset-less time in the instance's time zone and refuses one in
+    the future, so its errors are the logbook's (malformed, before 1970, in the future). A start
+    equal to the time of the call is accepted: there is no end it must come before. It is
+    truncated to the second, as entry times are, and an entry is kept when its last occurrence,
+    truncated to the second, is at or after it.
   - `detail`: `summary` or `standard`, default `standard`.
 - **Why**: FR-004 to FR-006, the shared matcher. A future `start` is a validation error, as for
   the logbook, not an empty result.
@@ -163,7 +169,9 @@ last):` header and the chaining sentences), from file paths given once, from the
   1. `{config}/`: the instance's `config_dir` from `get_config`, followed by `/`.
   2. `{ha}/`: the directory of the instance's `homeassistant` package, that is a path up to and
      including its last `/homeassistant/` segment (`/usr/src/homeassistant/homeassistant/` in the
-     container image, `…/site-packages/homeassistant/` in a virtual environment).
+     container image, `…/site-packages/homeassistant/` in a virtual environment). A segment with
+     `/lib/python<major>.<minor>/` after it is a directory above the package, such as a core
+     installation's virtual environment at `/srv/homeassistant`, and is not this root.
   3. `{python}/`: a path up to and including `/lib/python<major>.<minor>/` (the standard library
      and `site-packages`).
      Any other absolute path stays. The sources the instance makes relative (R1) are kept as given.
@@ -179,9 +187,14 @@ last):` header and the chaining sentences), from file paths given once, from the
   (`redactString` of `snapshot/redact.ts`, applied to one text by a new `redactText`): the
   configured token, URL user info, credential query parameters, JWTs, bearer tokens, e-mail
   addresses, coordinate pairs and the instance's own coordinates, each replaced in place by the
-  redaction marker. Frames are parsed after redaction. Logger names, file paths and line numbers are
-  not redacted.
-- **Why**: FR-009; the same rules as the other tools' text values, and no new one.
+  redaction marker. Then one rule of free text only, T1: a credential name (the key-name rules'
+  test) written with its value, `password=x`, `'password': 'x'` or `"api_key": "x"`, has the
+  value replaced; an authorization scheme after the name (`Authorization: Bearer`) and a value
+  already replaced are kept. Frames are parsed after redaction. Logger names, file paths and line
+  numbers are not redacted.
+- **Why**: FR-009; the same rules as the other tools' text values. A message or traceback has no
+  keys, yet integrations log their configuration as a dictionary or keyword arguments, so T1
+  stands in for the key-name rules. The other tools' text values do not change.
 - **Measured**: on the probe, `someone@example.com`, `admin:hunter2@` in a URL and
   `40.4168, -3.7038` are caught by the existing rules; `192.0.2.5` is not a coordinate and stays.
 
@@ -269,9 +282,10 @@ detail)`: kind `too_large`, "The result has N entries and would be B bytes, abov
   - `REQUIREMENTS` gains `ha_system_log: { admin: true, integrations: ["system_log"] }`, the row
     the ping test already expects, and the tool registers after `ha_history` and before
     `ha_ping`.
-  - Notes, after the document: the exclusion note, the existing `exclusionNote`; then "Note: the
-    system log is empty." when the instance answered no entry, or "Note: no log entry matched the
-    query." when the filters left none.
+  - Notes, after the document: the exclusion note, the existing `exclusionNote`; then "Note: left
+    out N entries at a level other than warning, error or critical." when R1 left some out; then
+    "Note: the system log is empty." when the instance answered no entry, or "Note: no log entry
+    matched the query." when none was left.
   - Minor changesets for `@domusops/mcp` and `@domusops/schema`. The Version Packages pull request
     (#36) is merged after this feature, releasing 0.2.0.
 - **Why**: FR-011, FR-018, FR-021.

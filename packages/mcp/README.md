@@ -536,10 +536,12 @@ changed from a tool call.
 
 The text rules of the other tools apply to every message and traceback: credentials, the
 configured token, credentials in URLs, coordinates (the instance's own and any other) and e-mail
-addresses are replaced by `[redacted]` inside the text, and the rest stays. File paths lose the
+addresses are replaced by `[redacted]` inside the text, and the rest stays. A credential written
+with its value, as in `password=…` or `'api_key': '…'`, has its value replaced. File paths lose the
 root of the installation (`{ha}/`), of the configuration directory (`{config}/`) and of the Python
 library directory (`{python}/`), which on some installations would name the host's user; file
-names, line numbers and logger names stay.
+names, line numbers and logger names stay. An entry at a level other than warning, error or
+critical (a library's own level name) is left out, and a note says how many.
 
 Every response carries a `compression_ratio`. `standard` gives file paths, traceback frames and
 repeated traceback lines once, in shared tables that the entries point into; it is at least 1.8
