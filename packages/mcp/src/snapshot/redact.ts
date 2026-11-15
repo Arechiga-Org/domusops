@@ -222,6 +222,74 @@ export interface RedactRowsOptions {
   scanExempt?: boolean;
 }
 
+/** A redactor for free text: the token, the instance's own coordinates (rule C3). */
+export interface RedactTextOptions {
+  token: string;
+  coordinates?: { latitude: unknown; longitude: unknown };
+}
+
+/**
+ * A name written with its value in free text: `password=x`, `"api_key": "x"`, `token: x`. The name
+ * may be quoted; the value is the marker an earlier rule left, a quoted string, or a run up to a
+ * space, quote or separator.
+ */
+const ASSIGNMENT = new RegExp(
+  String.raw`(?<![A-Za-z0-9_])(['"]?)([A-Za-z][A-Za-z0-9_-]*)\1(\s*[:=]\s*)` +
+    String.raw`(?:${M.replace(/[[\]]/g, "\\$&")}|(['"])([^'"\n]*)\4|([^\s'",;)}\]&]+))`,
+  "g",
+);
+
+/** An authorization scheme's name, which a scheme's own rule (V4) already follows with a marker. */
+const SCHEMES = new Set(["bearer", "basic"]);
+
+/**
+ * Rule T1, for free text only: the value of a credential name written with its value, the
+ * key-name rules' counterpart in a text that has no keys.
+ */
+function redactAssignments(text: string): string {
+  return text.replace(
+    ASSIGNMENT,
+    (
+      all,
+      nameQuote: string,
+      name: string,
+      separator: string,
+      valueQuote: string | undefined,
+      quoted: string | undefined,
+      bare: string | undefined,
+    ) => {
+      const value = quoted ?? bare ?? "";
+      if (valueQuote === undefined && bare === undefined) return all;
+      if (!isCredentialName(name) || value === "") return all;
+      if (bare !== undefined && SCHEMES.has(bare.toLowerCase())) return all;
+      const q = valueQuote ?? "";
+      return `${nameQuote}${name}${nameQuote}${separator}${q}${M}${q}`;
+    },
+  );
+}
+
+/**
+ * Returns a function that applies the string rules (V1 to V6, C2, C3) and rule T1 to one text,
+ * replacing only the matching text with the redaction marker: a log message or traceback has no
+ * key names, so T1 stands in for the key-name rules (specs/012-ha-system-log research R8).
+ */
+export function redactText(
+  options: RedactTextOptions,
+): (text: string) => string {
+  const ctx: Context = {
+    token: options.token,
+    scanExempt: false,
+    coordinates:
+      options.coordinates === undefined
+        ? null
+        : coordinateMatcher([
+            options.coordinates.latitude,
+            options.coordinates.longitude,
+          ]),
+  };
+  return (text) => redactAssignments(redactString(text, ctx));
+}
+
 /**
  * Returns a deep copy of `rows` with secrets, credentials, coordinates, and e-mail addresses
  * replaced by the redaction marker. Fields are kept, so an agent can see that a value existed.

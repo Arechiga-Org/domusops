@@ -104,6 +104,22 @@ function toInstant(time: ParsedTime, timeZone: string): number {
 }
 
 /**
+ * Resolves a start that has no end: an offset-less time is read in the instance time zone, and a
+ * start after `nowMs` is refused. A start equal to `nowMs` is accepted (`ha_system_log`).
+ */
+export function resolveStart(
+  start: ParsedTime,
+  nowMs: number,
+  timeZone: string,
+): number {
+  const startMs = toInstant(start, timeZone);
+  if (startMs > nowMs) {
+    throw errors.windowInvalid("the start is in the future");
+  }
+  return startMs;
+}
+
+/**
  * Applies the defaults (the 24 hours ending at `nowMs`), reads offset-less times in the instance
  * time zone, clamps an end after `nowMs` to it, and checks the order (research R3).
  */

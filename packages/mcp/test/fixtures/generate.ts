@@ -9,6 +9,7 @@ import type {
   RawState,
   TraceExtendedRecord,
 } from "@domusops/schema";
+import type { RawLogEntry } from "../../src/ha/system-log.js";
 
 /**
  * Deterministic generator of raw Home Assistant payloads, shaped exactly like the serializers
@@ -35,6 +36,8 @@ export interface Fixture {
    * (specs/011-ha-history research R16).
    */
   history?: Record<string, RecordedState[]>;
+  /** The entries served by `system_log/list`, newest first (specs/012-ha-system-log R14). */
+  systemLog?: RawLogEntry[];
 }
 
 /**

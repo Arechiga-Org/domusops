@@ -5,6 +5,7 @@ import {
   expandHistory,
   expandLogbook,
   expandState,
+  expandSystemLog,
   expandTrace,
 } from "@domusops/schema";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -18,12 +19,17 @@ import { project } from "../src/snapshot/project.js";
 import { runPing } from "../src/tools/ha-ping.js";
 import { runHistory } from "../src/tools/ha-history.js";
 import { runState } from "../src/tools/ha-state.js";
+import { runSystemLog } from "../src/tools/ha-system-log.js";
 import { REFERENCE_500 } from "./fixtures/generate.js";
 import { REFERENCE_LOGBOOK_24H } from "./fixtures/generate-logbook.js";
 import { REFERENCE_TRACES } from "./fixtures/generate-traces.js";
 import { contextFor } from "./support/logbook.js";
 import { FAKE_TOKEN, startFakeHa, type FakeHa } from "./support/fake-ha.js";
 import { NOW_MS, SMALL_HOME, WINDOW } from "./support/history.js";
+import {
+  NOW_MS as LOG_NOW_MS,
+  SMALL_HOME as SMALL_LOG_HOME,
+} from "./support/system-log.js";
 import { encodeRecords } from "./support/trace-helpers.js";
 
 /**
@@ -189,6 +195,21 @@ describe("the README's tested decoding example", () => {
         ),
       ) as Parameters<typeof expandHistory>[0];
       expect(await decode(doc, "history")).toEqual(expandHistory(doc));
+    } finally {
+      await ha.close();
+    }
+  });
+
+  it("decodes a standard system log document with expandSystemLog", async () => {
+    const ha = await startFakeHa({ fixture: SMALL_LOG_HOME });
+    try {
+      const doc = JSON.parse(
+        await runSystemLog(
+          { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+          { now: LOG_NOW_MS },
+        ),
+      ) as Parameters<typeof expandSystemLog>[0];
+      expect(await decode(doc, "system-log")).toEqual(expandSystemLog(doc));
     } finally {
       await ha.close();
     }

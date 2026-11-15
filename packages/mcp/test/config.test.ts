@@ -3,10 +3,12 @@ import {
   DEFAULT_HISTORY_LIMIT,
   DEFAULT_LOGBOOK_LIMIT,
   DEFAULT_STATE_LIMIT,
+  DEFAULT_SYSTEM_LOG_LIMIT,
   DEFAULT_TRACE_LIMIT,
   readHistoryLimit,
   readLogbookLimit,
   readStateLimit,
+  readSystemLogLimit,
   readTraceLimit,
 } from "../src/ha/config.js";
 
@@ -15,6 +17,11 @@ describe.each([
   ["DOMUSOPS_TRACE_MAX_BYTES", readTraceLimit, DEFAULT_TRACE_LIMIT],
   ["DOMUSOPS_STATE_MAX_BYTES", readStateLimit, DEFAULT_STATE_LIMIT],
   ["DOMUSOPS_HISTORY_MAX_BYTES", readHistoryLimit, DEFAULT_HISTORY_LIMIT],
+  [
+    "DOMUSOPS_SYSTEM_LOG_MAX_BYTES",
+    readSystemLogLimit,
+    DEFAULT_SYSTEM_LOG_LIMIT,
+  ],
 ])("%s", (variable, read, fallback) => {
   it("defaults to 100000 when unset or empty", () => {
     expect(fallback).toBe(100_000);
@@ -62,6 +69,20 @@ describe("the two limits are independent", () => {
     ).toBe(DEFAULT_HISTORY_LIMIT);
     expect(readStateLimit({ DOMUSOPS_HISTORY_MAX_BYTES: "1000" })).toBe(
       DEFAULT_STATE_LIMIT,
+    );
+  });
+
+  it("does not read another tool's variable for the system log limit", () => {
+    expect(
+      readSystemLogLimit({
+        DOMUSOPS_LOGBOOK_MAX_BYTES: "1000",
+        DOMUSOPS_TRACE_MAX_BYTES: "1000",
+        DOMUSOPS_STATE_MAX_BYTES: "1000",
+        DOMUSOPS_HISTORY_MAX_BYTES: "1000",
+      }),
+    ).toBe(DEFAULT_SYSTEM_LOG_LIMIT);
+    expect(readHistoryLimit({ DOMUSOPS_SYSTEM_LOG_MAX_BYTES: "1000" })).toBe(
+      DEFAULT_HISTORY_LIMIT,
     );
   });
 });

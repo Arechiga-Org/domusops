@@ -9,6 +9,7 @@ import {
   SMALL_HOME as SMALL_HOME_HISTORY,
   WINDOW as HISTORY_WINDOW,
 } from "./support/history.js";
+import { SMALL_HOME as SMALL_HOME_SYSTEM_LOG } from "./support/system-log.js";
 import { createServer } from "../src/server.js";
 import {
   EMPTY,
@@ -497,11 +498,13 @@ describe("ha_history: the tool", () => {
     return client;
   }
 
-  it("is advertised as the contract says, between ha_state and ha_ping", async () => {
+  it("is advertised as the contract says, between ha_state and ha_system_log", async () => {
     const { tools } = await (await connected()).listTools();
     const names = tools.map((tool) => tool.name);
     expect(names.indexOf("ha_history")).toBe(names.indexOf("ha_state") + 1);
-    expect(names.indexOf("ha_ping")).toBe(names.indexOf("ha_history") + 1);
+    expect(names.indexOf("ha_system_log")).toBe(
+      names.indexOf("ha_history") + 1,
+    );
     const tool = tools.find((candidate) => candidate.name === "ha_history");
     expect(tool?.title).toBe(contract.title);
     expect(tool?.description).toBe(contract.description);
@@ -550,5 +553,89 @@ describe("ha_history: the tool", () => {
       })) as CallResult;
     expect((await call("\u{1F600}".repeat(128))).isError).toBeFalsy();
     expect((await call("\u{1F600}".repeat(129))).isError).toBe(true);
+  });
+});
+
+describe("ha_system_log: the tool", () => {
+  const contract = JSON.parse(
+    readFileSync(
+      new URL(
+        "../../../specs/012-ha-system-log/contracts/ha_system_log.tool.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as {
+    title: string;
+    description: string;
+    inputSchema: object;
+    annotations: object;
+  };
+
+  async function connected(): Promise<Client> {
+    const ha = await startFakeHa({ fixture: SMALL_HOME_SYSTEM_LOG });
+    cleanups.push(() => ha.close());
+    const server = createServer({
+      env: { DOMUSOPS_HA_URL: ha.url, DOMUSOPS_HA_TOKEN: FAKE_TOKEN },
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    const client = new Client({ name: "tool-test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    cleanups.push(async () => {
+      await client.close();
+      await server.close();
+    });
+    return client;
+  }
+
+  it("is advertised as the contract says, between ha_history and ha_ping (FR-001, FR-015)", async () => {
+    const { tools } = await (await connected()).listTools();
+    const names = tools.map((tool) => tool.name);
+    expect(names.indexOf("ha_system_log")).toBe(
+      names.indexOf("ha_history") + 1,
+    );
+    expect(names.indexOf("ha_ping")).toBe(names.indexOf("ha_system_log") + 1);
+    const tool = tools.find((candidate) => candidate.name === "ha_system_log");
+    expect(tool?.title).toBe(contract.title);
+    expect(tool?.description).toBe(contract.description);
+    expect(tool?.inputSchema).toMatchObject(contract.inputSchema);
+    expect(tool?.annotations).toMatchObject(contract.annotations);
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
+  });
+
+  it("returns the document, then the notes, as text blocks", async () => {
+    const result = (await (
+      await connected()
+    ).callTool({
+      name: "ha_system_log",
+      arguments: { integrations: ["acme*"], exclude: ["*"] },
+    })) as CallResult;
+    expect(result.isError).toBeFalsy();
+    expect(JSON.parse(result.content[0]?.text ?? "")).toMatchObject({
+      format: "domusops.system_log/0.1",
+      detail: "standard",
+      integrations: ["acme*"],
+    });
+    expect(result.content.slice(1).map((block) => block.text)).toEqual([
+      "Note: excluded *. Counts, the size check and compression_ratio leave them out.",
+      "Note: no log entry matched the query.",
+    ]);
+  });
+
+  it("refuses a level the instance never records, as the input schema says", async () => {
+    const result = (await (
+      await connected()
+    ).callTool({
+      name: "ha_system_log",
+      arguments: { level: "info" },
+    })) as CallResult;
+    expect(result.isError).toBe(true);
   });
 });

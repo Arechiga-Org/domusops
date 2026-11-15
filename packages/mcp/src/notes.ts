@@ -72,3 +72,19 @@ export function discardedRunsNote(
       : "";
   return `Note: these automations and scripts store as many runs as they keep, so older runs from the window may be gone: ${named.join("; ")}${more}. To keep more, raise stored_traces in the trace options of the automation or script. ha_logbook_query has the full history.`;
 }
+
+/** Sent by `ha_system_log` when the instance answered no entry (specs/012-ha-system-log R15). */
+export function emptyLogNote(): string {
+  return "Note: the system log is empty.";
+}
+
+/** Sent by `ha_system_log` when entries at another level were left out (research R1). */
+export function otherLevelsNote(count: number): string {
+  const entries = count === 1 ? "1 entry" : `${count} entries`;
+  return `Note: left out ${entries} at a level other than warning, error or critical.`;
+}
+
+/** Sent by `ha_system_log` when the filters left no entry of a non-empty log (research R15). */
+export function noEntryMatchedNote(): string {
+  return "Note: no log entry matched the query.";
+}

@@ -2,6 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  emptyLogNote,
+  noEntryMatchedNote,
   noHistoryNote,
   notFoundNote,
   nothingChangedNote,
@@ -178,5 +180,15 @@ describe("the ha_history notes (specs/011-ha-history research R14)", () => {
     expect(nothingChangedNote()).toBe(
       "Note: no selected entity changed in the window.",
     );
+  });
+});
+
+describe("the ha_system_log notes (specs/012-ha-system-log research R15)", () => {
+  it("says when the system log is empty", () => {
+    expect(emptyLogNote()).toBe("Note: the system log is empty.");
+  });
+
+  it("says when no entry matched", () => {
+    expect(noEntryMatchedNote()).toBe("Note: no log entry matched the query.");
   });
 });

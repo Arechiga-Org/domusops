@@ -16,6 +16,7 @@ export const ERROR_KINDS = [
   "run_not_found",
   "selection_invalid",
   "input_invalid",
+  "system_log_unavailable",
 ] as const;
 
 export type ErrorKind = (typeof ERROR_KINDS)[number];
@@ -129,16 +130,17 @@ export const errors = {
 
   /**
    * `snapshot` and `states` explain the filtered states a non-administrator would get; `history`
-   * covers the logbook and traces, which do not read states.
+   * covers the logbook and traces, which do not read states; `required` says every tool requires
+   * one (`ha_history`, `ha_system_log`).
    */
   notAdmin(
-    subject: "snapshot" | "states" | "history" | "entity_history" = "snapshot",
+    subject: "snapshot" | "states" | "history" | "required" = "snapshot",
   ): ToolError {
     const remediation = {
       snapshot: `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the snapshot silently incomplete`,
       states: `Use a token of an administrator user. A non-administrator user can receive a filtered set of entity states, which would make the result silently incomplete`,
       history: `Use a token of an administrator user. The logbook and the automation traces are administrator data, and a non-administrator user cannot read them reliably`,
-      entity_history: `Use a token of an administrator user. Every DomusOps tool requires one, so a result never depends on what a restricted user may read`,
+      required: `Use a token of an administrator user. Every DomusOps tool requires one, so a result never depends on what a restricted user may read`,
     }[subject];
     return new ToolError(
       "not_admin",
@@ -178,11 +180,18 @@ export const errors = {
     );
   },
 
-  selectorInvalid(selector: string, reason?: string): ToolError {
+  /** `entity` for the entity selectors; `integration` for `ha_system_log` (specs/012 research R4). */
+  selectorInvalid(
+    selector: string,
+    reason?: string,
+    subject: "entity" | "integration" = "entity",
+  ): ToolError {
     return new ToolError(
       "selector_invalid",
-      reason ?? `The entity selector "${selector}" is not valid`,
-      "Use an entity ID or a pattern made of lowercase letters, digits, underscores, dots, and * (for example light.hallway, light.*, or *_motion)",
+      reason ?? `The ${subject} selector "${selector}" is not valid`,
+      subject === "entity"
+        ? "Use an entity ID or a pattern made of lowercase letters, digits, underscores, dots, and * (for example light.hallway, light.*, or *_motion)"
+        : "Use an integration domain or a pattern made of lowercase letters, digits, underscores, and * (for example mqtt, hue*, or *_cloud)",
     );
   },
 
@@ -241,18 +250,48 @@ export const errors = {
 
   /**
    * An input outside its limits, or `attributes` with `summary`: `state` for `ha_state`
-   * (specs/010-ha-state R3), `history` for `ha_history` (specs/011-ha-history R4).
+   * (specs/010-ha-state R3), `history` for `ha_history` (specs/011-ha-history R4), `system_log`
+   * for `ha_system_log` (specs/012-ha-system-log R4).
    */
   inputInvalid(
     problem: string,
-    subject: "state" | "history" = "state",
+    subject: "state" | "history" | "system_log" = "state",
   ): ToolError {
     return new ToolError(
       "input_invalid",
       `The input is not valid: ${problem}`,
-      subject === "state"
-        ? "Give domain as 1 to 100 entries of 1 to 64 characters of a-z, 0-9 and _; state as 1 to 100 entries of 1 to 255 characters; attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard"
-        : "Give attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard",
+      {
+        state:
+          "Give domain as 1 to 100 entries of 1 to 64 characters of a-z, 0-9 and _; state as 1 to 100 entries of 1 to 255 characters; attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard",
+        history:
+          "Give attributes as 1 to 100 entries of 1 to 128 characters, and only with detail=standard",
+        system_log: "Give level as warning, error, or critical",
+      }[subject],
+    );
+  },
+
+  /** The system log integration is not loaded, or the command is unknown (specs/012 research R2). */
+  systemLogUnavailable(): ToolError {
+    return new ToolError(
+      "system_log_unavailable",
+      "The instance does not provide its system log",
+      "Make sure the system_log integration is loaded (Home Assistant loads it at startup unless the configuration prevents it), then try again",
+    );
+  },
+
+  /** A system log result above the size limit, at either detail (specs/012 FR-010, research R9). */
+  tooLargeSystemLog(
+    entries: number,
+    bytes: number,
+    limit: number,
+    detail: "summary" | "standard",
+  ): ToolError {
+    return new ToolError(
+      "too_large",
+      `The result has ${entries} entries and would be ${bytes} bytes, above the limit of ${limit} bytes`,
+      detail === "standard"
+        ? "Use detail=summary to see which integrations are logging, or narrow the query with integrations, exclude, level, or start; to allow larger results, raise DOMUSOPS_SYSTEM_LOG_MAX_BYTES"
+        : "Narrow the query with integrations, exclude, level, or start; to allow larger results, raise DOMUSOPS_SYSTEM_LOG_MAX_BYTES",
     );
   },
 

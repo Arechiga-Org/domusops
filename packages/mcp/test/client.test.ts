@@ -396,6 +396,7 @@ describe("HaClient trace commands (feature 003, FR-017)", () => {
     for (const [command, params] of [
       ["get_config", { domain: "automation" }],
       ["trace/contexts", { domain: "automation" }],
+      ["system_log/list", { max_entries: 10 }],
     ] as const) {
       const error = await failure(() =>
         client.command(command, params as never),
@@ -404,6 +405,7 @@ describe("HaClient trace commands (feature 003, FR-017)", () => {
     }
     expect(ha.received).not.toContain("get_config");
     expect(ha.received).not.toContain("trace/contexts");
+    expect(ha.received).not.toContain("system_log/list");
   });
 
   it("rejects a key of another command, a missing key, and a bad domain", async () => {
@@ -561,6 +563,7 @@ describe("the command table (FR-027)", () => {
       "automation/config",
       "script/config",
       "history/history_during_period",
+      "system_log/list",
     ]);
   });
 

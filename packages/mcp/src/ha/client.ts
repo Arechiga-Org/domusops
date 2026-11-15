@@ -75,6 +75,8 @@ const COMMANDS = {
     timeoutHint:
       "Use a shorter window, fewer entities, or detail=summary, then try again",
   },
+  // Bounded by the instance's max_entries; it takes no parameter (specs/012-ha-system-log R1).
+  "system_log/list": { params: null, budget: "command" },
 } as const satisfies Record<string, CommandSpec>;
 
 export type AllowedCommand = keyof typeof COMMANDS;

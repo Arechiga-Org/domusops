@@ -3,6 +3,7 @@ import {
   type PingDocument,
   type PingReason,
 } from "@domusops/schema";
+import { errors } from "../errors.js";
 import { isSupported, MIN_VERSION } from "../ha/version.js";
 import { SERVER_NAME } from "../package-info.js";
 import { finalize } from "../snapshot/ratio.js";
@@ -36,6 +37,8 @@ function nextStep(reason: PingReason, adminTools: readonly string[]): string {
     return `Use a token of an administrator user, which ${adminTools.join(", ")} need`;
   }
   const name = reason.slice("integration_missing:".length);
+  // Home Assistant loads system_log at startup, outside default_config (specs/012 research R2).
+  if (name === "system_log") return errors.systemLogUnavailable().nextStep;
   return `Enable the ${name} integration in Home Assistant (it is part of default_config), then try again`;
 }
 

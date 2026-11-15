@@ -19,7 +19,7 @@ afterEach(async () => {
   while (running.length > 0) await running.pop()?.close();
 });
 
-const NEEDED = ["logbook", "trace", "history"];
+const NEEDED = ["logbook", "trace", "history", "system_log"];
 
 /** The reference instance with the given integrations loaded among its many others. */
 function instance(loaded: readonly string[] = NEEDED): Fixture {
@@ -68,13 +68,19 @@ describe("ha_ping on a healthy instance", () => {
         time_zone: "Europe/Amsterdam",
       },
       admin: true,
-      integrations: { history: true, logbook: true, trace: true },
+      integrations: {
+        history: true,
+        logbook: true,
+        system_log: true,
+        trace: true,
+      },
       tools: {
         ha_snapshot: { ready: true },
         ha_logbook_query: { ready: true },
         ha_trace: { ready: true },
         ha_state: { ready: true },
         ha_history: { ready: true },
+        ha_system_log: { ready: true },
       },
     });
     expect(Object.keys(document)).toEqual([
@@ -147,15 +153,18 @@ describe("ha_ping on an instance with a setup problem", () => {
       expect(tool).toEqual({ ready: false, reasons: ["not_admin"] });
     }
     expect(document.next_steps).toEqual([
-      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history need",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history, ha_system_log need",
     ]);
   });
 
   it("names a missing integration only in the tools that need it (scenario 2)", async () => {
-    const { document } = await ping(instance(["logbook", "history"]));
+    const { document } = await ping(
+      instance(["logbook", "history", "system_log"]),
+    );
     expect(document.integrations).toEqual({
       history: true,
       logbook: true,
+      system_log: true,
       trace: false,
     });
     expect(document.tools).toEqual({
@@ -164,6 +173,7 @@ describe("ha_ping on an instance with a setup problem", () => {
       ha_trace: { ready: false, reasons: ["integration_missing:trace"] },
       ha_state: { ready: true },
       ha_history: { ready: true },
+      ha_system_log: { ready: true },
     });
     expect(document.next_steps).toEqual([
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
@@ -193,7 +203,9 @@ describe("ha_ping on an instance with a setup problem", () => {
     expect((await ping()).document.tools["ha_history"]).toEqual({
       ready: true,
     });
-    const { document } = await ping(instance(["logbook", "trace"]));
+    const { document } = await ping(
+      instance(["logbook", "trace", "system_log"]),
+    );
     expect(document.integrations["history"]).toBe(false);
     expect(document.tools["ha_history"]).toEqual({
       ready: false,
@@ -246,11 +258,32 @@ describe("ha_ping on an instance with a setup problem", () => {
     ]);
     expect(document.next_steps).toEqual([
       "Upgrade the instance to 2025.1.0 or later",
-      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history need",
+      "Use a token of an administrator user, which ha_snapshot, ha_logbook_query, ha_trace, ha_state, ha_history, ha_system_log need",
       "Enable the history integration in Home Assistant (it is part of default_config), then try again",
       "Enable the logbook integration in Home Assistant (it is part of default_config), then try again",
+      "Make sure the system_log integration is loaded (Home Assistant loads it at startup unless the configuration prevents it), then try again",
       "Enable the trace integration in Home Assistant (it is part of default_config), then try again",
     ]);
+  });
+
+  it("needs an administrator and the system_log integration for ha_system_log (specs/012-ha-system-log FR-018)", async () => {
+    expect((await ping()).document.tools["ha_system_log"]).toEqual({
+      ready: true,
+    });
+    const { document } = await ping(instance(["logbook", "trace", "history"]));
+    expect(document.integrations["system_log"]).toBe(false);
+    expect(document.tools["ha_system_log"]).toEqual({
+      ready: false,
+      reasons: ["integration_missing:system_log"],
+    });
+    expect(document.next_steps).toEqual([
+      "Make sure the system_log integration is loaded (Home Assistant loads it at startup unless the configuration prevents it), then try again",
+    ]);
+    const refused = await ping(instance(), { isAdmin: false });
+    expect(refused.document.tools["ha_system_log"]).toEqual({
+      ready: false,
+      reasons: ["not_admin"],
+    });
   });
 });
 

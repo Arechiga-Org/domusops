@@ -25,7 +25,7 @@ specs/ — Spec Kit feature specs
 The four packages are published at 0.1.x: `ha_snapshot`, `ha_logbook_query` and `ha_trace`, the
 sandbox harness, and the `ha-bootstrap` skill with its CLI.
 Current work: phase 2 of the roadmap, the `@domusops/mcp` 0.2.0 read tools, one numbered feature
-each, released together. `ha_ping` (009) and `ha_state` (010) are merged; the Version Packages
-pull request stays open until the rest land. Current feature: `ha_history` (011,
-specs/011-ha-history/, specified and planned). Then `ha_system_log` (012). The scenario and assertion
-DSL (006) follows, not yet specified.
+each, released together. `ha_ping` (009), `ha_state` (010) and `ha_history` (011) are merged; the
+Version Packages pull request stays open until the last one lands. Current feature: `ha_system_log`
+(012, specs/012-ha-system-log/, implemented, in review), the last tool of 0.2.0. The scenario and
+assertion DSL (006) follows, not yet specified.

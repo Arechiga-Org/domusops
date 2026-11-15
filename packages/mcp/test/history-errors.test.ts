@@ -8,7 +8,7 @@ import { errors } from "../src/errors.js";
 
 describe("the ha_history errors", () => {
   it("refuses a user who is not an administrator with its own remediation", () => {
-    const error = errors.notAdmin("entity_history");
+    const error = errors.notAdmin("required");
     expect(error.kind).toBe("not_admin");
     expect(error.message).toBe(
       "The token belongs to a user without administrator privileges. Use a token of an administrator user. Every DomusOps tool requires one, so a result never depends on what a restricted user may read.",

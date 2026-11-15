@@ -24,6 +24,11 @@ export interface FakeHaOptions {
   history?: boolean;
   /** Milliseconds the instance takes to answer `history/history_during_period`. */
   historyDelayMs?: number;
+  /**
+   * `false` makes the instance answer `unknown_command` to `system_log/list` (the integration is
+   * not loaded; specs/012-ha-system-log R1).
+   */
+  systemLog?: boolean;
   /** `false` makes the instance answer `unknown_command` to the `trace/*` commands (feature 003). */
   traces?: boolean;
   /** Makes the `trace/*` commands fail with `unauthorized`, as they do for a non-administrator. */
@@ -472,6 +477,29 @@ export async function startFakeHa(options: FakeHaOptions): Promise<FakeHa> {
         const send = (): void => out(envelope(reply));
         if (options.historyDelayMs === undefined) send();
         else setTimeout(send, options.historyDelayMs);
+        return;
+      }
+      if (
+        type === "system_log/list" &&
+        options.systemLog !== false &&
+        options.malformed !== type
+      ) {
+        // The command takes no parameter: any other key fails as the instance's schema does.
+        const extra = Object.keys(message).find(
+          (key) => key !== "id" && key !== "type",
+        );
+        out(
+          envelope(
+            extra === undefined
+              ? { result: options.fixture.systemLog ?? [] }
+              : {
+                  error: {
+                    code: "invalid_format",
+                    message: `extra keys not allowed @ data['${extra}']`,
+                  },
+                },
+          ),
+        );
         return;
       }
       if (type === "automation/config" || type === "script/config") {

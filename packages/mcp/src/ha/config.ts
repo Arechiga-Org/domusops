@@ -112,3 +112,17 @@ export function readHistoryLimit(
 ): number {
   return readLimit(env, HISTORY_LIMIT_VARIABLE, DEFAULT_HISTORY_LIMIT);
 }
+
+export const SYSTEM_LOG_LIMIT_VARIABLE = "DOMUSOPS_SYSTEM_LOG_MAX_BYTES";
+export const DEFAULT_SYSTEM_LOG_LIMIT = 100_000;
+
+/**
+ * Size limit of a system log result, in bytes, at either detail (specs/012-ha-system-log FR-010,
+ * research R9). Its own setting. Read on every invocation; configuration only, never a tool
+ * parameter.
+ */
+export function readSystemLogLimit(
+  env: Readonly<Record<string, string | undefined>>,
+): number {
+  return readLimit(env, SYSTEM_LOG_LIMIT_VARIABLE, DEFAULT_SYSTEM_LOG_LIMIT);
+}

@@ -19,14 +19,15 @@ An ES module with bundled type declarations.
 
 ## Formats
 
-| Document                     | Identifier              | Detail levels                 | Reference decoder (reads)                  |
-| ---------------------------- | ----------------------- | ----------------------------- | ------------------------------------------ |
-| Snapshot of an instance      | `domusops.snapshot/0.1` | `summary`, `standard`, `full` | `expand` (`standard` and `full` documents) |
-| Logbook of an instance       | `domusops.logbook/0.1`  | `summary`, `standard`         | `expandLogbook` (`standard` documents)     |
-| Automation and script traces | `domusops.trace/0.1`    | `summary`, `standard`         | `expandTrace` (`standard` documents)       |
-| Connection check             | `domusops.ping/0.1`     | none                          | none: it is read as it is                  |
-| Entity states                | `domusops.state/0.1`    | `summary`, `standard`         | `expandState` (`standard` documents)       |
-| Entity history               | `domusops.history/0.1`  | `summary`, `standard`         | `expandHistory` (`standard` documents)     |
+| Document                     | Identifier                | Detail levels                 | Reference decoder (reads)                  |
+| ---------------------------- | ------------------------- | ----------------------------- | ------------------------------------------ |
+| Snapshot of an instance      | `domusops.snapshot/0.1`   | `summary`, `standard`, `full` | `expand` (`standard` and `full` documents) |
+| Logbook of an instance       | `domusops.logbook/0.1`    | `summary`, `standard`         | `expandLogbook` (`standard` documents)     |
+| Automation and script traces | `domusops.trace/0.1`      | `summary`, `standard`         | `expandTrace` (`standard` documents)       |
+| Connection check             | `domusops.ping/0.1`       | none                          | none: it is read as it is                  |
+| Entity states                | `domusops.state/0.1`      | `summary`, `standard`         | `expandState` (`standard` documents)       |
+| Entity history               | `domusops.history/0.1`    | `summary`, `standard`         | `expandHistory` (`standard` documents)     |
+| System log                   | `domusops.system_log/0.1` | `summary`, `standard`         | `expandSystemLog` (`standard` documents)   |
 
 A `summary` document counts and lists what exists but does not carry the rows, so it has nothing to
 decode: check `document.detail` before calling a decoder.
@@ -34,12 +35,14 @@ decode: check `document.detail` before calling a decoder.
 For each format the package exports:
 
 - the identifier as a constant (`FORMAT`, `LOGBOOK_FORMAT`, `TRACE_FORMAT`, `PING_FORMAT`,
-  `STATE_FORMAT`, `HISTORY_FORMAT`);
+  `STATE_FORMAT`, `HISTORY_FORMAT`, `SYSTEM_LOG_FORMAT`, with the levels `SYSTEM_LOG_LEVELS`);
 - the TypeScript types of its documents (`StandardDocument`, `LogbookStandardDocument`,
   `TraceStandardDocument`, `PingDocument`, `StateStandardDocument`, `StateRecord`,
-  `HistoryStandardDocument`, `HistoryRecord` and the summary and envelope types);
+  `HistoryStandardDocument`, `HistoryRecord`, `SystemLogStandardDocument`, `SystemLogRecord` and the
+  summary and envelope types);
 - a JSON Schema that describes the document (`snapshotJsonSchema`, `logbookJsonSchema`,
-  `traceJsonSchema`, `pingJsonSchema`, `stateJsonSchema`, `historyJsonSchema`);
+  `traceJsonSchema`, `pingJsonSchema`, `stateJsonSchema`, `historyJsonSchema`,
+  `systemLogJsonSchema`);
 - the reference decoder, which restores the rows a document was made from, so a consumer can check
   that nothing was lost in the compression. The ping document is not templated or compressed, so
   it has none.
