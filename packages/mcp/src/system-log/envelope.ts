@@ -77,11 +77,12 @@ export function localStamp(seconds: number, frame: SystemLogFrame): LocalStamp {
 export function firstOccurrence(
   first: number,
   last: number,
+  lastStamp: LocalStamp,
   frame: SystemLogFrame,
 ): string | null {
   if (Math.floor(first) === Math.floor(last)) return null;
   const at = localStamp(first, frame);
-  if (at.date === localStamp(last, frame).date) return at.time;
+  if (at.date === lastStamp.date) return at.time;
   return formatLocalIso(
     Math.floor(first) * 1000,
     frame.timeZone,

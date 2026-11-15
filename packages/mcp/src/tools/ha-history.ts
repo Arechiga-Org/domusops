@@ -3,7 +3,7 @@ import { errors } from "../errors.js";
 import { HaClient, type Timeouts } from "../ha/client.js";
 import { readConfig, readHistoryLimit } from "../ha/config.js";
 import { readHistory, type HistoryAnswer } from "../ha/history.js";
-import { readCore, readCurrentUser } from "../ha/instance.js";
+import { readAdminInstance } from "../ha/instance.js";
 import { readStates } from "../ha/states.js";
 import { encodeStandardHistory } from "../history/encode-standard.js";
 import { encodeSummaryHistory } from "../history/encode-summary.js";
@@ -130,14 +130,8 @@ export async function queryHistory(
     ...(options.timeouts === undefined ? {} : { timeouts: options.timeouts }),
   });
   try {
-    // The user and the core config are read together; nothing else is read for a user who is not
-    // an administrator (research R2). The reads settle in the order they are sent.
-    const current = readCurrentUser(client);
-    const core = readCore(client);
-    core.catch(() => undefined);
-    const user = await current;
-    if (!user.isAdmin) throw errors.notAdmin("required");
-    const { instance } = await core;
+    // Nothing else is read for a user who is not an administrator (research R2).
+    const instance = await readAdminInstance(client);
     if (!instance.components.includes("history")) {
       throw errors.historyUnavailable("states");
     }

@@ -42,7 +42,7 @@ export function encodeStandardSystemLog(
       source,
       raw.count,
       entry.messages,
-      firstOccurrence(raw.first_occurred, raw.timestamp, frame),
+      firstOccurrence(raw.first_occurred, raw.timestamp, last, frame),
       items === null || items === undefined ? null : table.items(items),
       entry.integration?.bySource === true ? 1 : null,
     ];
