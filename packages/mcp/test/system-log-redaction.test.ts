@@ -65,8 +65,34 @@ describe("redactText", () => {
       "Home is at 40.4168 and -3.7038",
       `Home is at ${M} and ${M}`,
     ],
+    [
+      "a credential in a Python dictionary",
+      "Failed to set up: {'host': '192.0.2.5', 'username': 'admin', 'password': 'hunter2'}",
+      `Failed to set up: {'host': '192.0.2.5', 'username': 'admin', 'password': '${M}'}`,
+    ],
+    [
+      "a credential keyword argument",
+      "connect(host=192.0.2.5, password=hunter2)",
+      `connect(host=192.0.2.5, password=${M})`,
+    ],
+    [
+      "a credential in JSON",
+      '{"api_key": "abc123", "unit": "c"}',
+      `{"api_key": "${M}", "unit": "c"}`,
+    ],
+    [
+      "a credential after a colon",
+      "Rejected client_secret: s3cr3t by the server",
+      `Rejected client_secret: ${M} by the server`,
+    ],
   ])("replaces %s inside a message", (_, text, expected) => {
     expect(redact(text)).toBe(expected);
+  });
+
+  it("leaves a value another rule already replaced as one marker", () => {
+    expect(redact("GET /x?token=abc and Authorization: Bearer abc123")).toBe(
+      `GET /x?token=${M} and Authorization: Bearer ${M}`,
+    );
   });
 
   it("replaces a seeded value inside a traceback line and keeps the frame", () => {
