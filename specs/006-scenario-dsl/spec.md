@@ -24,6 +24,27 @@ starting points, how scenarios are run, and whether they extend or replace the f
 Out of scope: `ha_diff` and `ha-migrate` (later backlog items; `ha-migrate` depends on this
 feature to prove parity), rebuilding virtual devices, and any real instance.
 
+## Clarifications
+
+### Session 2026-11-19
+
+- Q: Besides entity states and attributes, what else must an expectation be able to check? → A:
+  That an automation triggered or did not (optionally how many times), and that an action was
+  called or not, with its target and data.
+- Q: When an automation calls an action the throwaway instance does not offer, what happens? →
+  A: Only actions the scenario declares in `given` (one by one or by domain) are answered by the
+  runner: recorded as called, no state changed, the automation continues. Any other missing
+  action fails as in Home Assistant.
+- Q: What does the first version of the format include? → A: Everything: a single event,
+  sequences with time and expectations between steps, spans that must hold, and named starting
+  points.
+- Q: How does a user's configuration repository run scenarios in its CI? → A: With the command
+  alone, plus an example workflow in the documentation that the project's CI proves works; no
+  reusable CI action is published.
+- Q: In the project's CI, does a reference-suite failure on stable or previous stable block a
+  pull request's merge? → A: Yes: the suite runs in a required check on stable and previous
+  stable; on beta it is visible without blocking.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Proving one automation with one scenario (Priority: P1)
@@ -94,6 +115,12 @@ the missing entity.
 3. **Given** a stand-in whose entity ID the configuration itself already provides, **When** the
    scenario runs, **Then** it does not run, and the result says that the entity already exists,
    so a test never silently replaces a real entity of the configuration.
+4. **Given** an automation that turns on a stand-in light, then sends a notification through an
+   integration that does not load in the sandbox, and a scenario that declares that notification
+   action as absent, **When** it runs, **Then** the call is recorded, the automation continues to
+   its next action, and an expectation that the notification was sent passes; without the
+   declaration, the call fails as it would in Home Assistant and the result says which action was
+   missing.
 
 ---
 
@@ -195,9 +222,10 @@ one of them overriding one entity's state, and each sees its own value.
   expectations against a starting point that did not hold.
 - An automation is disabled in the configuration, or its conditions are not met by the starting
   point: nothing fires, the expectations fail on their values, and the result can say that no
-  automation ran in the scenario.
-- An action of the automation fails in the instance (a missing service, a bad template): the
-  expectations report their values; the instance's own record of the failure is available to the
+  automation triggered and which actions, if any, were called.
+- An action of the automation fails in the instance (a bad template, or a missing action the
+  scenario did not declare as absent): the expectations report their values; the result names a
+  missing action; the instance's own record of the failure is available to the
   person through the existing tools, and the result says where to look.
 - An expectation compares a number to an attribute that holds a string, or the other way round:
   the comparison follows a documented rule, and a mismatch reports both values as they are.
@@ -245,7 +273,13 @@ one of them overriding one entity's state, and each sees its own value.
   the reused virtual-device integrations offer, each with a chosen entity ID. A stand-in whose
   entity ID the configuration already provides, or of a kind not offered, MUST stop the scenario
   before it runs, with the reason. No virtual-device layer of DomusOps' own is built.
-- **FR-009**: The starting point MAY refer to named starting points defined once in the
+- **FR-008a**: The starting point MUST be able to declare absent actions, one by one or as a whole
+  domain, for integrations that cannot run in the sandbox. A call to a declared absent action is
+  recorded (FR-013b), changes no state and lets the automation continue. A call to a missing
+  action that was not declared MUST fail as it does in Home Assistant. Declaring an action the
+  instance does offer MUST stop the scenario before it runs, with the reason, so a test never
+  silently replaces a real action.
+- **FR-009**: The starting point MUST be able to refer to named starting points defined once in the
   repository; the named ones are applied first, in order, then the scenario's own statements,
   which take precedence. Unknown or circular references are refused when the files are checked.
 
@@ -254,8 +288,8 @@ one of them overriding one entity's state, and each sees its own value.
 - **FR-010**: `when` MUST support at least: an entity changing state (with attributes), an action
   (service) being called, an event being fired, and the instance's time advancing, by a duration
   or to a moment.
-- **FR-011**: `when` MAY be a sequence of such steps, and expectations MAY be placed between
-  steps, each checked at that point of the sequence.
+- **FR-011**: `when` MUST accept either a single step or a sequence of steps, and expectations
+  MUST be placeable between steps, each checked at that point of the sequence.
 - **FR-012**: Advancing time MUST make time triggers, delays and waits of the configuration fire
   as they would in real time, without the run waiting that long.
 
@@ -264,6 +298,13 @@ one of them overriding one entity's state, and each sees its own value.
 - **FR-013**: An expectation MUST be able to check an entity's state and any of its attributes,
   with at least these comparisons: equal, not equal, one of a list, and, for numbers, at least,
   at most and between.
+- **FR-013a**: An expectation MUST be able to check that an automation of the configuration
+  triggered, or did not, during the scenario, optionally a stated number of times.
+- **FR-013b**: An expectation MUST be able to check that an action (service) was called, or was
+  not, during the scenario, optionally restricted to a target (entity IDs) and to data fields,
+  compared with the rules of FR-013 and FR-017. The runner MUST record every action called in the
+  instance from the moment the event happens, so that a failed expectation can list the calls that
+  did happen.
 - **FR-014**: An expectation MUST be able to state that an entity keeps a state, or an attribute
   keeps a value, for a span of instance time, and MUST fail with the time and the new value if it
   changes.
@@ -286,6 +327,10 @@ one of them overriding one entity's state, and each sees its own value.
   that reaches it fails with that reason, and the run continues with the next.
 - **FR-021**: Scenarios MUST be runnable from a library call and from a command; the command adds
   no logic of its own, as in the harness.
+- **FR-021a**: The documentation MUST include an example CI workflow that runs a configuration
+  repository's scenarios with the command and fails the job when a scenario fails or could not
+  run; the project's CI MUST run that example against the reference configuration, so it never
+  goes stale. No reusable CI action or workflow is published.
 - **FR-022**: A run MUST be able to target one release or a list of releases, by channel (current
   stable, previous stable, current beta) or by number, as the harness does; each result names the
   concrete release it ran on.
@@ -295,9 +340,10 @@ one of them overriding one entity's state, and each sees its own value.
 
 - **FR-024**: Each scenario MUST end with exactly one outcome: passed, failed, or could not run;
   "could not run" covers a starting point that did not hold, an invalid configuration, a missing
-  runtime, an instance that did not start, and an invalid stand-in.
-- **FR-025**: Each expectation MUST report its outcome, its entity, what it checked, the expected
-  value and, when it failed, the actual value and the instance time it was read at.
+  runtime, an instance that did not start, an invalid stand-in and an invalid absent action.
+- **FR-025**: Each expectation MUST report its outcome, its subject (an entity, an automation or
+  an action), what it checked, the expected value and, when it failed, the actual value (for an
+  action, the matching calls that were recorded) and the instance time it was read at.
 - **FR-026**: The command MUST print a readable report and end with an exit status that tells
   "all passed", "some failed" and "could not run" apart.
 - **FR-027**: A machine-readable report MUST be available in a documented, versioned format in
@@ -311,8 +357,10 @@ one of them overriding one entity's state, and each sees its own value.
 - **FR-029**: The harness's fixed smoke check MUST stay the release gate for the supported-versions
   table (005 FR-028); scenarios are an addition, not its replacement.
 - **FR-030**: The project's CI MUST run a reference scenario suite on the reference configuration
-  against current stable, previous stable and current beta (constitution §8), and a scenario
-  failure on beta MUST be visible without blocking, as for the smoke check.
+  against current stable, previous stable and current beta (constitution §8). A scenario that
+  fails or could not run on current stable or previous stable MUST fail a required check and
+  block the merge (constitution §9); a failure on beta MUST be visible without blocking, as for
+  the smoke check.
 - **FR-031**: The harness's existing library and command MUST keep working as they do; existing
   callers need no change.
 - **FR-032**: Every artifact of this feature MUST be in English (constitution §1); scenario
@@ -325,18 +373,23 @@ one of them overriding one entity's state, and each sees its own value.
 - **Scenario file**: a document in the repository's scenarios directory, in the versioned format,
   holding one or more scenarios, and optionally named starting points.
 - **Starting point (`given`)**: the instance's date and time, entity states and attributes,
-  stand-ins, and references to named starting points.
+  stand-ins, absent actions, and references to named starting points.
 - **Named starting point**: a starting point defined once and referred to by name.
 - **Stand-in**: a virtual device of an offered kind that takes an entity ID the configuration's
   automations act on, because the real device's integration cannot run in the sandbox.
+- **Absent action**: an action, or a whole domain of actions, declared as not offered by the
+  sandbox; its calls are recorded instead of failing.
 - **Step (`when`)**: one thing that happens: a state change, an action, an event, or time
   advancing. A sequence is an ordered list of steps with optional expectations between them.
-- **Expectation (`then`)**: a check on an entity's state or attribute: a comparison, an optional
-  wait bound, or a span during which it must hold.
+- **Expectation (`then`)**: a check on an entity's state or attribute, on an automation having
+  triggered, or on an action having been called: a comparison, an optional wait bound, or a span
+  during which it must hold.
+- **Recorded call**: an action called in the instance during the scenario, with its instance
+  time, target and data; what action expectations are checked against.
 - **Scenario result**: passed, failed or could not run, with the release, the instance time span,
   and its expectation results or the reason it could not run.
-- **Expectation result**: passed or failed, the entity, the check, expected value, actual value
-  and the instance time it was read at.
+- **Expectation result**: passed or failed, the subject (entity, automation or action), the
+  check, expected value, actual value and the instance time it was read at.
 - **Run report**: every scenario result of a run, with counts per outcome, readable and
   machine-readable.
 
@@ -361,7 +414,8 @@ one of them overriding one entity's state, and each sees its own value.
 - **SC-007**: Across every run in the test suite, no report or log contains the instance's token
   or a secret of the configuration, and no run reaches an instance the harness did not create.
 - **SC-008**: Every example scenario in the documentation is valid against the published schema,
-  and the reference scenario suite passes on current stable and previous stable in CI.
+  the reference scenario suite passes on current stable and previous stable in CI, and the
+  documented example CI workflow runs green against the reference configuration.
 - **SC-009**: The machine-readable report of a 10-scenario run with one failure is at least 5
   times smaller than the readable report of the same run.
 
@@ -372,10 +426,8 @@ one of them overriding one entity's state, and each sees its own value.
 - Scenarios are written by people and by agents; a later skill may help write them, but it is not
   part of this feature, and running scenarios is not an MCP tool, since running a suite is a
   procedure, not a read (constitution §3).
-- Expectations cover entity states and attributes. That an automation ran can already be checked
-  through the automation entity's own attributes (its last-triggered time); dedicated
-  expectations on actions called or automations run are candidates for clarification, not part
-  of this draft.
+- Expectations cover entity states and attributes, automations triggered and actions called.
+  Recorded calls carry the action's data as called; secrets in them are subject to FR-028.
 - Each scenario starts from the configuration's own starting state; whether that is achieved with
   one instance per scenario or by restoring an instance between scenarios is a planning decision,
   bounded by SC-004 and SC-005.
@@ -395,6 +447,7 @@ one of them overriding one entity's state, and each sees its own value.
 - Building or forking a virtual-device integration.
 - Any run against a real instance, including read-only.
 - An MCP tool that runs scenarios; a skill that writes them.
+- A published, reusable CI action or workflow; users copy the documented example.
 - Recording scenarios from a real home's history.
 - Coverage measurement of automations by scenarios.
 - Changes to the supported-versions table or to the meaning of the smoke check.
