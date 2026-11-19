@@ -54,7 +54,7 @@ To update, change the version of `@domusops/mcp` in `package.json` (or run
 - **Global installation**: `npm install --global @domusops/mcp`, then `"command": "domusops-mcp"`
   with no `args`. One version for every repository on the machine; update it with the same
   command.
-- **On demand**: `"command": "npx"` with `"args": ["--yes", "@domusops/mcp@~0.1"]`. Nothing to
+- **On demand**: `"command": "npx"` with `"args": ["--yes", "@domusops/mcp@~0.2"]`. Nothing to
   install, but npm resolves the package at every start, so it needs network access and starts
   more slowly. `~0.1` takes every patch release of 0.1.
 
