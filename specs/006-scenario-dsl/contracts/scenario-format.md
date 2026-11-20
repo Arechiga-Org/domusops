@@ -17,7 +17,7 @@ description: Night motion lights the hallway dimly. # optional
 given: { ... }
 when: { ... }
 then: [...]
-timeout: 300 # optional, seconds of real time (default 300)
+timeout: 300 # optional, seconds of real time, 30 to 3600; default --scenario-timeout, else 300
 settle: 5 # optional, seconds of real time (default 5)
 starting_points: { ... } # optional
 ```

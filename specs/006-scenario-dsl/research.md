@@ -54,7 +54,8 @@ files). Rejected.
 
 **Decision**: `@domusops/schema` gets `src/scenario/`: the format identifier
 `domusops.scenario/0.1`, the types of the document as written and of its normalised form, a JSON
-Schema (for editors: `# yaml-language-server: $schema=...`), and a dependency-free checker,
+Schema (for editors: `# yaml-language-server: $schema=...`, shipped as
+`schema/scenario.schema.json`), and a dependency-free checker,
 `checkScenarioDocument(value)`, that returns every issue with a JSON Pointer path and a code, and a
 normaliser, `normalizeScenarioDocument(value)`, that turns a valid document into the one canonical
 shape the runner executes. The sandbox parses YAML, calls the checker, and maps each path back to
@@ -213,7 +214,7 @@ them. The derived attribute keeps the SEED example readable.
 
 **Decision**: A run takes channels and releases as the harness does, resolving each channel once;
 each scenario runs on each release in turn, and each result carries the concrete release. A
-channel with no beta in progress produces a `not-run` row, not a failure. Each scenario has a
+channel with no beta in progress produces a `not_run` row, not a failure. Each scenario has a
 total time limit of 300 s by default (`--scenario-timeout`, `timeout` in the file), counted from
 the start of its instance; reaching it fails the scenario with `time_limit` and the instance is
 removed. Outcomes and their causes are fixed in
@@ -247,8 +248,10 @@ counts.
   touched (FR-029).
 - Each `sandbox-matrix` leg runs `domusops-sandbox test --config <fixture> --channel <leg>
 --report scenario-report-<leg>.json` after the smoke check and uploads the report. `sandbox-gate`,
-  already a required check, also reads the reports: a failure or could-not-run on stable or
-  previous stable fails it; on beta it is listed and does not (FR-030).
+  already a required check, also reads the reports, downloaded into their own directory
+  (`scenario-reports`; the smoke results' directory is read file by file and must hold nothing
+  else): a failure or could-not-run on stable or previous stable fails it; on beta it is listed
+  and does not (FR-030).
 - The documentation, `packages/sandbox/docs/scenarios.md`, carries the example workflow between
   markers. A CI job, `scenario-example`, builds a throwaway repository from the fixture, installs
   the packed packages as a user would install them from npm, and runs the commands of the
@@ -277,9 +280,25 @@ failure) and SC-007 (seeded token and secret values never appear).
 The sandbox gains the `yaml` dependency and a dependency on `@domusops/schema` (workspace), which
 it dropped in 005 because it was unused.
 
+## R16 — Applying the starting point without firing automations
+
+**Decision**: Before writing the `given` states, the runner lists the automations that are on and
+turns them off with `automation.turn_off` (`stop_actions: true`); it writes the states, reads them
+back, then turns the same automations on again. Recording starts after that. State triggers fire
+on changes only, so turning an automation on does not fire it for the states written while it was
+off; a `for:` trigger arms on the next change. An automation that was off stays off.
+
+**Rationale**: FR-007 and SC-004. Writing `presence.house: away` is a state change; without this,
+any automation of the configuration that reacts to it would run during the scenario, adding calls
+and changes no step caused.
+
+**Alternatives considered**: Applying states before the automations load (the harness has no hook
+between loading the configuration and starting the automations); ignoring what happens before the
+first step (its actions keep running into the scenario). Rejected.
+
 ## Verification before building
 
-Three facts are checked against the real image on stable, previous stable and beta by the first
+Five facts are checked against the real image on stable, previous stable and beta by the first
 container tests, before the code that depends on them:
 
 1. `ServiceRegistry.async_call` raises `ServiceNotFound` for an unknown action, and wrapping it at
@@ -287,5 +306,9 @@ container tests, before the code that depends on them:
 2. `call_service` events carry the target merged into `service_data`, and `automation_triggered`
    events carry `entity_id` (R7).
 3. `time_fired` of recorded events is the frozen instance time (R7, R8).
+4. `homeassistant: time_zone` set in the configuration is the instance's time zone after
+   onboarding, although onboarding sends an empty `core_config` (R8).
+5. Turning an automation off with `stop_actions: true`, writing a state its trigger watches, and
+   turning it on again fires nothing (R16).
 
 If one fails, this document is updated before continuing.

@@ -15,6 +15,7 @@ Public in `@domusops/schema` (`src/scenario/report.ts`, with its JSON Schema). W
   "outcome": "failed",
   "counts": { "passed": 1, "failed": 1, "could_not_run": 0, "not_run": 0 },
   "releases": [{ "channel": "stable", "release": "2026.11.2" }],
+  "config": { "secrets": "none-referenced", "placeholder_keys": [] },
   "scenarios": [
     {
       "scenario": "hallway_night_motion",
@@ -23,7 +24,7 @@ Public in `@domusops/schema` (`src/scenario/report.ts`, with its JSON Schema). W
       "outcome": "passed",
       "start": "2026-04-15T03:00:00+00:00 Wednesday",
       "duration_ms": 18410,
-      "expectations": { "passed": 2, "failed": 0 }
+      "expectations": { "passed": 3, "failed": 0 }
     },
     {
       "scenario": "hallway_off_after_five_minutes",
@@ -43,7 +44,8 @@ Public in `@domusops/schema` (`src/scenario/report.ts`, with its JSON Schema). W
           "actual": "on",
           "read_at": "2026-04-15T03:06:00+00:00"
         }
-      ]
+      ],
+      "activity": { "triggered": {}, "called": {}, "more": 0 }
     }
   ]
 }
@@ -56,14 +58,22 @@ Public in `@domusops/schema` (`src/scenario/report.ts`, with its JSON Schema). W
 - `scenarios[]` in a stable order: release order as given, then file path, then position in file.
 - `scenarios[].outcome`: `passed`, `failed`, `could_not_run`, `not_run`.
 - `scenarios[].start`: the frozen start moment with its offset and weekday (FR-006).
+- `scenarios[].expectations` counts checks: an entity expectation counts its state and each stated
+  attribute separately; `triggered` and `called` count one each, whatever `data` or `target` they
+  state.
+- `config`: how secrets were provided to the instances (`placeholders`, `caller-file`,
+  `none-referenced`) and, for placeholders, the names of the keys replaced, never their values.
 - `failures[]` (only when failed):
   - `at`: where the expectation is, `then[i]` or `when[j].then[i]`; `line` its line in the file.
   - `subject`: an entity ID, an automation entity ID, or an action.
-  - `check`: `state`, `attribute:<name>`, `exists`, `stays`, `triggered`, `called`, or `limit`.
+  - `check`: `state`, `attribute:<name>`, `stays`, `triggered`, `called`, `limit` (with
+    `subject: "scenario"`) or `step` (with `subject` the step's keyword, such as `advance_to`).
   - `expected`: the comparison as written (`"off"`, `{ "at_least": 100 }`, `{ "times": 1 }`).
-  - `actual`: the value read; for `exists`, `null`; for `triggered` and `called`, the count.
+  - `actual`: the value read; with `entity_missing`, `null`; for `triggered` and `called`, the
+    count; for `advance_to_past`, the instance time.
   - `reason` (optional): `entity_missing`, `not_a_number`, `changed_during_span`,
-    `time_limit`, `recording_limit`, `action_failed`.
+    `time_limit`, `recording_limit`, `action_failed`, `advance_to_past` (`expected` is the moment
+    written).
   - `read_at`: instance time of the read, or of the change for a span.
   - `calls` (only for `called`): up to 10 recorded calls of that action, each
     `{ "at", "data", "absent" }`, newest last.
@@ -77,6 +87,13 @@ Public in `@domusops/schema` (`src/scenario/report.ts`, with its JSON Schema). W
   `{ "logger", "message" }`, the message cut at 300 characters. This is where an action that
   failed (a bad template, an undeclared missing action) shows up, since the instance is gone
   afterwards.
+- `activity` (optional, only when failed): from the first step, `triggered` maps each automation
+  entity ID to its count and `called` each action to its count, at most 20 entries each, the rest
+  counted in `more`. It says that nothing triggered, or what was called instead, when no
+  expectation names it.
+
+Field values use underscores, as in every DomusOps document; the smoke result
+(`domusops.sandbox-result/0.1`) is a separate, older format and keeps its hyphenated outcomes.
 
 ## 3. Readable report
 
@@ -91,6 +108,7 @@ stable 2026.11.2
   FAIL hallway_off_after_five_minutes (scenarios/hallway.yaml) 20.0 s
     pass when[1] light.hallway state on
     FAIL when[3] light.hallway state: expected off, found on at 03:06:00 (line 14)
+    activity: nothing triggered, nothing called
 2 scenarios: 1 passed, 1 failed, 0 could not run
 ```
 

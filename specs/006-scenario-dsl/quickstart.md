@@ -38,17 +38,18 @@ git status --porcelain "$CONFIG"
 
 ```sh
 node dist/cli.js test --config "$CONFIG" test/fixtures/scenarios-failing --report /tmp/r.json
-# exit 1; brightness_pct expected 30, found 15; a missing entity reports entity_missing
+# exit 1; study_brightness expected 30, found 15; a missing entity reports entity_missing
 node -e 'const r=require("/tmp/r.json"); console.log(r.counts, r.scenarios.map(s=>s.failures))'
 ```
 
 ## 4. Stand-ins and absent actions (US2 AS2–AS4)
 
-Run the `stand_in_*` and `absent_*` scenarios of `test/fixtures/scenarios-could-not-run`:
-an unoffered kind, an existing entity and an offered action each give could not run with
-`stand_in_kind_unsupported`, `stand_in_exists` or `action_offered`; exit 3. Removing the
-`absent_actions` line of the notification scenario makes the call fail and the expectation after
-it fail, with `instance_errors` naming the missing action.
+Run the scenarios of `test/fixtures/scenarios-could-not-run`: an entity the configuration already
+provides and an offered action give could not run with `stand_in_exists` or `action_offered`;
+exit 3. A stand-in of a kind the harness does not offer is refused when the files are checked
+(`stand_in_kind_unsupported`, listing the kinds); exit 2, no container started. Removing the
+`absent_actions` line of `garage_motion_notice` makes the call fail and the expectation after it
+fail, with `instance_errors` naming the missing action.
 
 ## 5. Time and sequences (US3, SC-006)
 

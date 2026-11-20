@@ -57,25 +57,25 @@ written; token and named secret values never in output (FR-028); deterministic o
 schema source files, 10 sandbox source files, one companion module, one fixture with ~10
 scenarios.
 
-All unknowns are resolved in [research.md](./research.md) (R1–R15). No `NEEDS CLARIFICATION`
+All unknowns are resolved in [research.md](./research.md) (R1–R16). No `NEEDS CLARIFICATION`
 remains.
 
 ## Constitution Check
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Article                             | Gate                                          | Pre-research | Post-design                                                                                                                                                                                                         |
-| ----------------------------------- | --------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| §1 English-only                     | All artifacts in English                      | PASS         | PASS. Format keywords, messages, reports, fixture and docs in English (FR-032)                                                                                                                                      |
-| §2 Spec precedes implementation     | Spec, plan, tasks; analyze before implement   | PASS         | PASS. Clarified spec, this plan; tasks and analyze next                                                                                                                                                             |
-| §3 MCP holds no procedure           | Workflow lives in skills                      | PASS         | PASS. No MCP tool is added; running a suite is a library call and a command                                                                                                                                         |
-| §4 Compression is a contract        | Instance data sized for an agent              | PASS         | PASS. The machine report counts passes and details only failures; SC-009 is asserted by a test (R14)                                                                                                                |
-| §5 Public schema, private judgement | Schema depends on nothing                     | PASS         | PASS. Format, report, checker and normaliser in the schema with no dependency; YAML parsing stays in the sandbox (R3)                                                                                               |
-| §6 Trademark hygiene                | No HA branding                                | PASS         | PASS. Names say DomusOps or "scenario"; nominative wording only                                                                                                                                                     |
-| §7 Destructive operations opt-in    | Mutations default to dry run                  | N/A          | PASS in spirit. Scenarios mutate only instances the harness created (FR-018)                                                                                                                                        |
-| §8 Version support proven           | stable, previous stable, beta in CI           | PASS         | PASS. The reference suite runs on all three legs (FR-030); the supported-versions table keeps coming from the smoke check (FR-029)                                                                                  |
-| §9 Trunk-based                      | Short branches, changesets, `main` releasable | PASS         | PASS with a risk: the scope exceeds three days. Tasks must make US1 + US2 a mergeable increment (format, runner, stand-ins, absent actions, CLI, gate), then US3, US4, US5. Changesets: schema 0.3.0, sandbox 0.2.0 |
-| §10 Convenience, not secrecy        | No telemetry, no obfuscation                  | PASS         | PASS. Apache-2.0, plain source; nothing phones home                                                                                                                                                                 |
+| Article                             | Gate                                          | Pre-research | Post-design                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | --------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §1 English-only                     | All artifacts in English                      | PASS         | PASS. Format keywords, messages, reports, fixture and docs in English (FR-032)                                                                                                                                                                                                                                                                                                                               |
+| §2 Spec precedes implementation     | Spec, plan, tasks; analyze before implement   | PASS         | PASS. Clarified spec, this plan; tasks and analyze next                                                                                                                                                                                                                                                                                                                                                      |
+| §3 MCP holds no procedure           | Workflow lives in skills                      | PASS         | PASS. No MCP tool is added; running a suite is a library call and a command                                                                                                                                                                                                                                                                                                                                  |
+| §4 Compression is a contract        | Instance data sized for an agent              | PASS         | PASS. The machine report counts passes and details only failures; SC-009 is asserted by a test (R14)                                                                                                                                                                                                                                                                                                         |
+| §5 Public schema, private judgement | Schema depends on nothing                     | PASS         | PASS. Format, report, checker and normaliser in the schema with no dependency; YAML parsing stays in the sandbox (R3)                                                                                                                                                                                                                                                                                        |
+| §6 Trademark hygiene                | No HA branding                                | PASS         | PASS. Names say DomusOps or "scenario"; nominative wording only                                                                                                                                                                                                                                                                                                                                              |
+| §7 Destructive operations opt-in    | Mutations default to dry run                  | N/A          | PASS in spirit. Scenarios mutate only instances the harness created (FR-018)                                                                                                                                                                                                                                                                                                                                 |
+| §8 Version support proven           | stable, previous stable, beta in CI           | PASS         | PASS. The reference suite runs on all three legs (FR-030); the supported-versions table keeps coming from the smoke check (FR-029)                                                                                                                                                                                                                                                                           |
+| §9 Trunk-based                      | Short branches, changesets, `main` releasable | PASS         | PASS with a risk: the scope exceeds three days. The first increment is two pull requests: PR-A, the format in the schema (Phase 1, Phase 2 and the schema half of US1, with the facts test), releasable alone; PR-B, the runner, stand-ins, absent actions, the `test` command and the gate (the rest of US1 and US2). Then US3, US4 and US5, one pull request each. Changesets: schema 0.3.0, sandbox 0.2.0 |
+| §10 Convenience, not secrecy        | No telemetry, no obfuscation                  | PASS         | PASS. Apache-2.0, plain source; nothing phones home                                                                                                                                                                                                                                                                                                                                                          |
 
 **Result**: no violations.
 
@@ -87,7 +87,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 specs/006-scenario-dsl/
 ├── spec.md
 ├── plan.md                    # this file
-├── research.md                # Phase 0: R1–R15, verification before building
+├── research.md                # Phase 0: R1–R16, verification before building
 ├── data-model.md              # Phase 1: normalised scenario, run lifecycle, results, outcomes
 ├── quickstart.md              # Phase 1: ten validation scenarios
 ├── contracts/
@@ -116,12 +116,15 @@ packages/schema/
 │       ├── compare.ts               # compareValue (R10)
 │       ├── json-schema.ts           # scenarioJsonSchema
 │       └── report.ts                # report types and scenarioReportJsonSchema
+├── schema/                          # scenario.schema.json, scenario-report.schema.json (for editors)
+├── scripts/write-schemas.mjs        # writes schema/ from the two constants
+├── README.md                        # + the two formats
 └── test/
     ├── scenario-check.test.ts       # every issue code, SEED example valid
     ├── scenario-normalize.test.ts
     ├── scenario-resolve.test.ts
     ├── scenario-compare.test.ts
-    └── scenario-json-schema.test.ts # checker and JSON Schema agree on all fixtures
+    └── scenario-json-schema.test.ts # checker and JSON Schema agree; schema/ files match
 
 packages/sandbox/
 ├── package.json                     # + yaml, + @domusops/schema
@@ -170,9 +173,9 @@ suite gets its own fixture so the smoke check's fixture and meaning do not chang
 
 ## Verification before building
 
-The three facts at the end of [research.md](./research.md) are checked by
-`scenario-facts.container.test.ts` on all three channels before `actions.py`, `record.ts` and
-`expect.ts` are written.
+The five facts at the end of [research.md](./research.md) are checked by
+`scenario-facts.container.test.ts` on all three channels before `actions.py`, `record.ts`,
+`expect.ts` and `prepare.ts` are written.
 
 ## Decisions to confirm at review
 
@@ -188,7 +191,10 @@ The three facts at the end of [research.md](./research.md) are checked by
    protection is needed.
 6. **`brightness_pct` derived for lights** (R10), so the SEED expectation reads as written; no
    other derived attribute.
-7. **Branch length (§9)**: US1 + US2 first as a mergeable increment.
+7. **Branch length (§9)**: PR-A (format) and PR-B (runner and gate) form the first increment;
+   each later story is its own pull request from a short branch off `main`.
+8. **Automations are off while the starting point is applied** (R16), so writing `given` fires
+   nothing; they are turned on again before the first step.
 
 ## Complexity Tracking
 

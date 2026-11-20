@@ -30,7 +30,7 @@ export function normalizeScenarioDocument(value: unknown): ScenarioFile;
  * cycles and duplicate names, or each scenario's resolved starting point.
  */
 export function resolveSuite(
-  files: ScenarioFile[],
+  files: { file: string; document: ScenarioFile }[],
 ):
   | { ok: true; scenarios: ResolvedScenario[] }
   | { ok: false; issues: (ScenarioIssue & { file: string })[] };
@@ -43,6 +43,9 @@ export function compareValue(
 
 export const scenarioJsonSchema: object;
 export const scenarioReportJsonSchema: object;
+// Also shipped as schema/scenario.schema.json and schema/scenario-report.schema.json, written
+// from the two constants, for editors:
+// # yaml-language-server: $schema=https://unpkg.com/@domusops/schema@0.3/schema/scenario.schema.json
 export type {
   ScenarioFile,
   ResolvedScenario,
@@ -66,8 +69,13 @@ export interface LoadOptions {
 }
 
 export interface LoadedSuite {
-  scenarios: LoadedScenario[]; // resolved, each with its file and line
+  scenarios: LoadedScenario[];
   files: string[];
+}
+
+/** A resolved scenario whose scenario, steps and expectations also carry `line` (data-model §1). */
+export interface LoadedScenario extends ResolvedScenario {
+  line: number;
 }
 
 /** Finds, parses, checks and resolves. No instance is started. Throws `ScenarioFileError`. */
@@ -89,7 +97,7 @@ export interface RunOptions {
   config: ConfigSource;
   /** Channels or exact releases; default `["stable"]`. */
   targets?: ({ channel: Channel } | { release: string })[];
-  /** Seconds per scenario, from the start of its instance. Default 300. */
+  /** Seconds per scenario that sets no `timeout`, from the start of its instance. Default 300. */
   scenarioTimeout?: number;
   /** Instances at once. Default 1. */
   parallel?: number;

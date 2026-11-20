@@ -19,7 +19,8 @@ domusops-sandbox test [<name or path>...] [--config <dir>] [--secrets-file <file
   (FR-023). A name that matches nothing is a usage error naming it.
 - `--channel` and `--release` repeat; default `--channel stable`. Each scenario runs on each
   target, in the order given (FR-022).
-- `--scenario-timeout`: seconds, 30 to 3600, default 300 (FR-020).
+- `--scenario-timeout`: seconds, 30 to 3600, default 300: the limit of every scenario that sets no
+  `timeout` of its own; a scenario's `timeout` wins (FR-020).
 - `--parallel`: 1 to 8, default 1.
 - `--report <file>`: writes the machine-readable report there (FR-027).
 - `--json`: prints the machine-readable report on standard output instead of the readable one.

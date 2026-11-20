@@ -33,27 +33,27 @@ interface StartingPoint {
 }
 
 type Step =
-  | { kind: "states"; entities: [string, EntityValue][]; line: number }
+  | { kind: "states"; entities: [string, EntityValue][]; path: string }
   | {
       kind: "action";
       action: string;
       target?: Target;
       data: Record<string, Json>;
-      line: number;
+      path: string;
     }
   | {
       kind: "event";
       eventType: string;
       data: Record<string, Json>;
-      line: number;
+      path: string;
     }
-  | { kind: "advance"; seconds: Duration; line: number }
+  | { kind: "advance"; seconds: Duration; path: string }
   | {
       kind: "advance_to";
       at: { time: string } | { instant: string };
-      line: number;
+      path: string;
     }
-  | { kind: "expect"; expectations: Expectation[]; line: number };
+  | { kind: "expect"; expectations: Expectation[]; path: string };
 
 interface Target {
   entity_id?: string[];
@@ -77,20 +77,24 @@ type Expectation = (
       data: [string, Comparison][];
       times?: number;
     }
-) & { within: Duration | 0; settle: number; at: string; line: number };
+) & { within: Duration | 0; settle: number; at: string; path: string };
 // `not_called` normalises to `called` with `times: 0`.
 
 interface ResolvedScenario {
   name: string;
   description?: string;
   file: string; // relative to the configuration directory
-  line: number;
+  path: string; // JSON Pointer of the scenario in its file
   given: StartingPoint; // `use` applied (contract §3)
   steps: Step[]; // `when` then a final `expect` step from `then`
-  timeout: number; // seconds
+  timeout: number; // seconds; the scenario's own, else the run's default, else 300
   settle: number; // seconds
 }
 ```
+
+The schema knows no lines: every `path` is a JSON Pointer into the scenario's file. The sandbox
+maps each `path` to a line through the parsed YAML and returns `LoadedScenario`, a
+`ResolvedScenario` whose scenario, steps and expectations also carry `line`.
 
 Validation rules live in the contract; the ones that span files (unique names, references,
 cycles) are checked by `resolveSuite`. `STAND_IN_KINDS` in the schema mirrors the sandbox's
@@ -107,13 +111,13 @@ any state ──(time limit)──→ failed (time_limit)
 every end state → instance removed (stop), then the result is emitted
 ```
 
-| State       | What happens                                                                                                                                                                                           |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `starting`  | `startSandbox({ release, config: { dir, secretsFile }, devices: [], mode: "tied" })`.                                                                                                                  |
-| `preparing` | Stand-ins checked and added (research R5); absent actions sent to the companion (R6); clock frozen at the start moment (R8).                                                                           |
-| `applying`  | Entity states of `given` written in order; after `settle` real seconds at most, each is read back and compared (state, and stated attributes): any mismatch → could not run `starting_point_not_held`. |
-| `running`   | Recording opened (R7); steps run in order; each `expect` step checks its expectations (R9).                                                                                                            |
-| `checking`  | The final `then`, a failed scenario's instance errors read (`system_log/list`), recording closed.                                                                                                      |
+| State       | What happens                                                                                                                                                                                                                                                                                                                              |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `starting`  | `startSandbox({ release, config: { dir, secretsFile }, devices: [], mode: "tied" })`.                                                                                                                                                                                                                                                     |
+| `preparing` | Stand-ins checked and added (research R5); absent actions sent to the companion (R6); clock frozen at the start moment (R8).                                                                                                                                                                                                              |
+| `applying`  | Every automation that is on is turned off (`stop_actions: true`); the entity states of `given` are written in order; after `settle` real seconds at most, each is read back and compared (state, and stated attributes): any mismatch → could not run `starting_point_not_held`; the same automations are turned on again (research R16). |
+| `running`   | Recording opened (R7); steps run in order; each `expect` step checks its expectations (R9).                                                                                                                                                                                                                                               |
+| `checking`  | The final `then`, a failed scenario's instance errors read (`system_log/list`), recording closed.                                                                                                                                                                                                                                         |
 
 ## 3. Recorded event
 
@@ -141,11 +145,11 @@ interface ExpectationFailure {
   check:
     | "state"
     | `attribute:${string}`
-    | "exists"
     | "stays"
     | "triggered"
     | "called"
-    | "limit";
+    | "limit" // subject "scenario": time_limit, recording_limit
+    | "step"; // subject the step's keyword: advance_to_past
   expected: Json;
   actual: Json;
   reason?:
@@ -154,7 +158,8 @@ interface ExpectationFailure {
     | "changed_during_span"
     | "time_limit"
     | "recording_limit"
-    | "action_failed";
+    | "action_failed"
+    | "advance_to_past";
   read_at: string;
   calls?: { at: string; data: Record<string, Json>; absent: boolean }[]; // <= 10
 }
@@ -166,10 +171,15 @@ interface ScenarioResult {
   outcome: "passed" | "failed" | "could_not_run" | "not_run";
   start?: string; // "2026-04-15T03:00:00+00:00 Wednesday"
   duration_ms: number;
-  expectations?: { passed: number; failed: number };
+  expectations?: { passed: number; failed: number }; // counts checks: an entity expectation counts its state and each stated attribute
   failures?: ExpectationFailure[];
   reason?: { code: CouldNotRunCode; message: string };
   instance_errors?: { logger: string; message: string }[]; // <= 5
+  activity?: {
+    triggered: Record<string, number>;
+    called: Record<string, number>;
+    more: number;
+  }; // failed only, <= 20 entries per map
 }
 
 interface ScenarioReport {
@@ -185,6 +195,10 @@ interface ScenarioReport {
     not_run: number;
   };
   releases: { channel?: Channel; release: string | null }[];
+  config: {
+    secrets: "placeholders" | "caller-file" | "none-referenced";
+    placeholder_keys: string[]; // names only, never values
+  };
   scenarios: ScenarioResult[];
 }
 ```
@@ -194,11 +208,13 @@ interface ScenarioReport {
 | Outcome         | Causes                                                                                                                                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `passed`        | Every expectation held.                                                                                                                                                                                                                                                         |
-| `failed`        | At least one expectation did not hold; or `time_limit`; or `recording_limit`; or `advance_to_past`. Every expectation still reached is reported.                                                                                                                                |
+| `failed`        | At least one expectation did not hold; or `time_limit`; or `recording_limit`; or `advance_to_past` (a step, `check: "step"`). Every expectation still reached is reported.                                                                                                      |
 | `could_not_run` | `runtime_missing`, `channel_unresolved`, `image_unavailable`, `not_ready`, `config_invalid`, `instance_stopped`, `stand_in_exists`, `stand_in_kind_unsupported`, `action_offered`, `actions_unavailable`, `time_unavailable`, `virtual_unavailable`, `starting_point_not_held`. |
 | `not_run`       | The target channel is beta and no beta is in progress.                                                                                                                                                                                                                          |
 
 Invalid scenario files are not an outcome: they stop the run before any instance starts (exit 2).
+`stand_in_kind_unsupported` is refused when the files are checked (exit 2); as a could-not-run
+cause it appears only when the harness itself answers `unsupported_device_kind`.
 
 ## 6. Errors from the harness
 
@@ -207,4 +223,5 @@ The runner maps `SandboxError` codes to causes one to one where they share a nam
 `time_unavailable`, `virtual_unavailable`; `instance_gone` and `time_control_failed` →
 `instance_stopped`); `no_beta_in_progress` gives `not_run`; `config_dir_invalid` is checked before
 the run starts and is a usage error (exit 2). Any other harness error is `instance_stopped` with
-its scrubbed message.
+its scrubbed message. The container runtime is checked once before the first instance;
+`runtime_missing` makes every scenario could not run for that cause without trying each.
