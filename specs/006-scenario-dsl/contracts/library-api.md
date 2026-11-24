@@ -73,9 +73,11 @@ export interface LoadedSuite {
   files: string[];
 }
 
-/** A resolved scenario whose scenario, steps and expectations also carry `line` (data-model §1). */
+/** A resolved scenario with the line of each place in its file (data-model §1). */
 export interface LoadedScenario extends ResolvedScenario {
   line: number;
+  /** Line of every step and expectation, by its JSON Pointer `path`. */
+  lines: Record<string, number>;
 }
 
 /** Finds, parses, checks and resolves. No instance is started. Throws `ScenarioFileError`. */

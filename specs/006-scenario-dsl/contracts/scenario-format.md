@@ -4,6 +4,10 @@ Public in `@domusops/schema` (`src/scenario/`): types, JSON Schema, `checkScenar
 `normalizeScenarioDocument`. Files are YAML 1.2 (research R2). Every example here uses synthetic
 entities (FR-032).
 
+This contract describes the whole 0.1 grammar. Until feature 006 is complete, `@domusops/schema`
+accepts it part by part, one user story at a time; a key not yet accepted is refused with
+`unknown_key`, never ignored.
+
 ## 1. Files
 
 A scenario file is a `*.yaml` or `*.yml` file under the scenarios directory (default

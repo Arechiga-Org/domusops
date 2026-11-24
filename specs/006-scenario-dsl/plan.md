@@ -120,6 +120,7 @@ packages/schema/
 ├── scripts/write-schemas.mjs        # writes schema/ from the two constants
 ├── README.md                        # + the two formats
 └── test/
+    ├── scenario-values.test.ts      # ids, actions, durations, times, dates
     ├── scenario-check.test.ts       # every issue code, SEED example valid
     ├── scenario-normalize.test.ts
     ├── scenario-resolve.test.ts
@@ -153,6 +154,12 @@ packages/sandbox/
     ├── scenario-report.test.ts      # rendering, SC-009 size, SC-007 secrets
     ├── scenario-cli.test.ts         # options, exit status, --check
     ├── scenario-example.test.ts     # docs block == CI job commands (FR-021a)
+    ├── companion-actions-probe.test.ts         # actions/absent against stand-in packages
+    ├── stand-in-kinds.test.ts       # STAND_IN_KINDS == DEVICE_KINDS
+    ├── support/fake-sandbox.ts      # in-memory handle and event feed
+    ├── support/scenario-config.ts   # withScenarios: fixture copy with chosen scenario files
+    ├── support/probe_actions.py
+    ├── fixtures/probe-actions/      # facts test: ServiceRegistry wrapper probe
     ├── fixtures/scenarios-*/        # invalid, failing, could-not-run cases
     ├── scenario-facts.container.test.ts        # verification before building
     ├── scenario-reference.container.test.ts    # reference suite passes (SC-008)
@@ -195,6 +202,10 @@ The five facts at the end of [research.md](./research.md) are checked by
    each later story is its own pull request from a short branch off `main`.
 8. **Automations are off while the starting point is applied** (R16), so writing `given` fires
    nothing; they are turned on again before the first step.
+9. **The 0.1 grammar grows by story** (tasks.md): each part is accepted in the pull request that
+   runs it; until then the checker refuses its keys with `unknown_key`. Additions are only ever
+   additive, so a document valid for an earlier package version stays valid; a reader older than a
+   key refuses it instead of misreading it (FR-001). The grammar is complete when 006 is.
 
 ## Complexity Tracking
 

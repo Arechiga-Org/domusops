@@ -280,6 +280,9 @@ failure) and SC-007 (seeded token and secret values never appear).
 The sandbox gains the `yaml` dependency and a dependency on `@domusops/schema` (workspace), which
 it dropped in 005 because it was unused.
 
+These are the versions of the first increment (PR-A and PR-B). US3, US4 and US5 each carry their
+own minor changeset; if a release happens between them, the versions move on from there.
+
 ## R16 — Applying the starting point without firing automations
 
 **Decision**: Before writing the `given` states, the runner lists the automations that are on and

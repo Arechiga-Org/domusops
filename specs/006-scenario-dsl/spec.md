@@ -340,7 +340,9 @@ one of them overriding one entity's state, and each sees its own value.
 
 - **FR-024**: Each scenario MUST end with exactly one outcome: passed, failed, or could not run;
   "could not run" covers a starting point that did not hold, an invalid configuration, a missing
-  runtime, an instance that did not start, an invalid stand-in and an invalid absent action.
+  runtime, an instance that did not start, an invalid stand-in and an invalid absent action. A
+  scenario that targets current beta while no beta is in progress is reported as not run: it is
+  not an outcome of the scenario and does not change the exit status.
 - **FR-025**: Each expectation MUST report its outcome, its subject (an entity, an automation or
   an action), what it checked, the expected value and, when it failed, the actual value (for an
   action, the matching calls that were recorded) and the instance time it was read at.
@@ -386,8 +388,9 @@ one of them overriding one entity's state, and each sees its own value.
   during which it must hold.
 - **Recorded call**: an action called in the instance during the scenario, with its instance
   time, target and data; what action expectations are checked against.
-- **Scenario result**: passed, failed or could not run, with the release, the instance time span,
-  and its expectation results or the reason it could not run.
+- **Scenario result**: passed, failed or could not run (or not run, when its release is a beta
+  that is not in progress), with the release, the instance time span, and its expectation results
+  or the reason it could not run.
 - **Expectation result**: passed or failed, the subject (entity, automation or action), the
   check, expected value, actual value and the instance time it was read at.
 - **Run report**: every scenario result of a run, with counts per outcome, readable and

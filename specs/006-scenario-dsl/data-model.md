@@ -94,7 +94,8 @@ interface ResolvedScenario {
 
 The schema knows no lines: every `path` is a JSON Pointer into the scenario's file. The sandbox
 maps each `path` to a line through the parsed YAML and returns `LoadedScenario`, a
-`ResolvedScenario` whose scenario, steps and expectations also carry `line`.
+`ResolvedScenario` with its `line` and a `lines` map from each step's and expectation's `path` to
+its line.
 
 Validation rules live in the contract; the ones that span files (unique names, references,
 cycles) are checked by `resolveSuite`. `STAND_IN_KINDS` in the schema mirrors the sandbox's
@@ -198,7 +199,7 @@ interface ScenarioReport {
   config: {
     secrets: "placeholders" | "caller-file" | "none-referenced";
     placeholder_keys: string[]; // names only, never values
-  };
+  } | null; // null when no instance started (runtime_missing, or every start failed)
   scenarios: ScenarioResult[];
 }
 ```

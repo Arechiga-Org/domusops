@@ -62,7 +62,8 @@ Public in `@domusops/schema` (`src/scenario/report.ts`, with its JSON Schema). W
   attribute separately; `triggered` and `called` count one each, whatever `data` or `target` they
   state.
 - `config`: how secrets were provided to the instances (`placeholders`, `caller-file`,
-  `none-referenced`) and, for placeholders, the names of the keys replaced, never their values.
+  `none-referenced`) and, for placeholders, the names of the keys replaced, never their values;
+  `null` when no instance started, so the run never read the configuration.
 - `failures[]` (only when failed):
   - `at`: where the expectation is, `then[i]` or `when[j].then[i]`; `line` its line in the file.
   - `subject`: an entity ID, an automation entity ID, or an action.
