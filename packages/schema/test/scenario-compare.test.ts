@@ -13,6 +13,24 @@ describe("compareValue (research R10)", () => {
     expect(compareValue({ eq: "1e2" }, 100)).toEqual(ok);
   });
 
+  it("compares text of more than 15 significant digits as text, since a number would lose digits", () => {
+    expect(
+      compareValue({ eq: "12345678901234567890" }, "12345678901234567891"),
+    ).toEqual({ ok: false });
+    expect(
+      compareValue({ eq: "12345678901234567890" }, "12345678901234567890"),
+    ).toEqual(ok);
+    expect(
+      compareValue({ eq: "123456789012345" }, "123456789012345.0"),
+    ).toEqual(ok);
+    expect(compareValue({ eq: 15 }, "15.000000000000000000")).toEqual(ok);
+    expect(compareValue({ eq: "007" }, "7")).toEqual(ok);
+    expect(compareValue({ at_least: 1 }, "12345678901234567890")).toEqual({
+      ok: false,
+      reason: "not_a_number",
+    });
+  });
+
   it("compares anything else as text, booleans as true and false", () => {
     expect(compareValue({ eq: "on" }, "on")).toEqual(ok);
     expect(compareValue({ eq: "on" }, "off")).toEqual({ ok: false });

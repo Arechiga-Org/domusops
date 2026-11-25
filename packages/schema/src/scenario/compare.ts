@@ -6,10 +6,27 @@ export type CompareResult =
 
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
-/** The finite number a value is or reads as, else `null` (research R10). */
+/** A double keeps 15 significant decimal digits exactly; a longer string would lose some. */
+const MAX_SIGNIFICANT_DIGITS = 15;
+
+function significantDigits(text: string): number {
+  const mantissa = text.replace(/^[+-]/, "").split(/[eE]/)[0] ?? "";
+  const digits = mantissa.replace(".", "").replace(/^0+/, "");
+  return (mantissa.includes(".") ? digits.replace(/0+$/, "") : digits).length;
+}
+
+/**
+ * The finite number a value is or reads as, else `null` (research R10). Text with more than 15
+ * significant digits is not read as a number: it would lose digits, so two different long
+ * identifiers could compare equal. It is compared as text instead.
+ */
 function asNumber(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && DECIMAL.test(value)) {
+  if (
+    typeof value === "string" &&
+    DECIMAL.test(value) &&
+    significantDigits(value) <= MAX_SIGNIFICANT_DIGITS
+  ) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
   }

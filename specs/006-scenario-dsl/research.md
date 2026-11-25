@@ -199,7 +199,8 @@ integrations). Rejected.
 
 **Decision**: One rule for states and attributes (FR-017). `null` matches an attribute that is
 absent or null. When both the expected and the actual value are numbers or text that reads as a
-finite decimal number, they are compared as numbers (`15` matches `"15"` and `15.0`). Otherwise
+finite decimal number of at most 15 significant digits, they are compared as numbers (`15` matches
+`"15"` and `15.0`); longer text would lose digits, so it is compared as text. Otherwise
 both are compared as text, booleans as `true`/`false`, so `on` (text) does not match `true`. Lists
 and objects are compared as JSON, in order. `at_least`, `at_most` and `between` need numbers on
 both sides; an actual value that is not one fails with `not_a_number`, showing it. For a light,
