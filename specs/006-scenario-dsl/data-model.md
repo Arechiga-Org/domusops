@@ -80,6 +80,14 @@ type Expectation = (
 ) & { within: Duration | 0; settle: number; at: string; path: string };
 // `not_called` normalises to `called` with `times: 0`.
 
+// What `normalizeScenarioDocument` returns for one file, before `resolveSuite`: each scenario's
+// `given` is a `StartingPointDraft` (`use` as written, `date` and `time` optional), and its own
+// `timeout` is optional. `resolveSuite` produces the `ResolvedScenario` below.
+interface ScenarioFile {
+  scenarios: ScenarioDraft[];
+  startingPoints: NamedStartingPoint[]; // empty until named starting points (US5)
+}
+
 interface ResolvedScenario {
   name: string;
   description?: string;

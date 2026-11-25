@@ -206,10 +206,12 @@ sandbox adds `file`, `line` and `column`. Codes: `format_missing`, `format_unsup
 ## 8. Normalised form
 
 `normalizeScenarioDocument` returns, for each scenario, the shape the runner executes
-([data-model.md](../data-model.md) §1): `given` with `use` resolved, `date` and `time` filled
-with their defaults, every entity value as `{ state, attributes }`; `when` as a list of typed
-steps; every expectation typed (`entity`, `triggered`, `called`) with explicit comparisons and
-defaults (`within: 0`, `settle` inherited, `times` absent or a number).
+([data-model.md](../data-model.md) §1): every entity value as `{ state, attributes }`; `when` as
+a list of typed steps, then a final `expect` step from `then`; every expectation typed (`entity`,
+`triggered`, `called`) with explicit comparisons and defaults (`within: 0`, `settle` inherited,
+`times` absent or a number). `given` keeps `use`, `date` and `time` as written, because the
+defaults depend on `use`; `resolveSuite` applies `use` and fills the date, the time and the time
+limit.
 
 ## 9. The SEED example
 
