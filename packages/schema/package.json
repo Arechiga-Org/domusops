@@ -13,9 +13,14 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "src"
+    "src",
+    "schema"
   ],
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "write-schemas": "node scripts/write-schemas.mjs"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0"
   }
 }

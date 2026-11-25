@@ -1,0 +1,15 @@
+{
+  "format": "domusops.scenario/0.1",
+  "scenario": "s",
+  "given": {
+    "Light.Hall": "on"
+  },
+  "when": {
+    "binary_sensor.x": "on"
+  },
+  "then": [
+    {
+      "light.x": "on"
+    }
+  ]
+}

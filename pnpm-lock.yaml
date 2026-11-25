@@ -80,7 +80,11 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
 
-  packages/schema: {}
+  packages/schema:
+    devDependencies:
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
 
 packages:
 

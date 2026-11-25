@@ -1,0 +1,17 @@
+{
+  "format": "domusops.scenario/0.1",
+  "scenario": "turn_everything_off",
+  "given": {},
+  "when": {
+    "action": "light.turn_off",
+    "target": {
+      "entity_id": "all"
+    }
+  },
+  "then": [
+    {
+      "called": "light.turn_off",
+      "target": "all"
+    }
+  ]
+}

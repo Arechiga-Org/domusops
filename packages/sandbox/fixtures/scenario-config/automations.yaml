@@ -1,0 +1,26 @@
+# Each automation has its own trigger entity, so a scenario fires only the one it targets.
+# `presence.house` and the motion sensors are plain states that scenarios set.
+
+# Lights the study dimly when motion is seen at night while the house is away.
+- id: helper_night_motion
+  alias: helper_night_motion
+  triggers:
+    - trigger: state
+      entity_id: binary_sensor.study_motion
+      to: "on"
+  conditions:
+    - condition: state
+      entity_id: presence.house
+      state: away
+    - condition: time
+      after: "22:00:00"
+      before: "06:00:00"
+  actions:
+    - action: input_number.set_value
+      target:
+        entity_id: input_number.study_brightness
+      data:
+        value: 15
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.study_light
