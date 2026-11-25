@@ -314,6 +314,19 @@ describe("checkScenarioDocument", () => {
         ]),
       ),
     ).toEqual([["bad_comparison", "/then/0/light.a/attributes/b/between"]]);
+    expect(
+      issues(withKey("then", [{ "sensor.power": { at_least: 100 } }])),
+    ).toEqual([["bad_comparison", "/then/0/sensor.power/at_least"]]);
+    expect(
+      issues(
+        withKey("then", [
+          { "sensor.power": { attributes: { at_least: { at_least: 1 } } } },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(issues(withKey("then", [{ settle: 5 }]))).toEqual([
+      ["unknown_key", "/then/0/settle"],
+    ]);
     expect(issues(withKey("then", [{ "light.a": "on", times: 1 }]))).toEqual([
       ["unknown_key", "/then/0/times"],
     ]);

@@ -295,6 +295,12 @@ function checkExpectedEntity(value: unknown, path: string, out: Issues): void {
       for (const [name, comparison] of Object.entries(item)) {
         checkComparison(comparison, at(at(path, key), name), out);
       }
+    } else if ((COMPARISON_KEYS as readonly string[]).includes(key)) {
+      out.add(
+        at(path, key),
+        "bad_comparison",
+        `\`${key}\` is a comparison; write it under \`state\`, or under \`attributes\` for an attribute of that name`,
+      );
     } else {
       checkComparison(item, at(path, key), out);
     }

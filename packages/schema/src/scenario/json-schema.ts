@@ -186,13 +186,21 @@ export const scenarioJsonSchema = {
               additionalProperties: ref("comparison"),
             },
           },
+          propertyNames: { not: { enum: [...COMPARISON_KEYS] } },
           additionalProperties: ref("comparison"),
         },
       ],
     },
     expectation: {
       oneOf: [
-        entityExpectation({ minProperties: 1, maxProperties: 1 }, []),
+        entityExpectation(
+          {
+            minProperties: 1,
+            maxProperties: 1,
+            propertyNames: { pattern: ENTITY_ID },
+          },
+          [],
+        ),
         entityExpectation({ minProperties: 2, maxProperties: 2 }, ["settle"]),
         {
           type: "object",

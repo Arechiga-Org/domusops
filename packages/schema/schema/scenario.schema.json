@@ -251,6 +251,9 @@
               "additionalProperties": { "$ref": "#/$defs/comparison" }
             }
           },
+          "propertyNames": {
+            "not": { "enum": ["not", "in", "at_least", "at_most", "between"] }
+          },
           "additionalProperties": { "$ref": "#/$defs/comparison" }
         }
       ]
@@ -261,6 +264,7 @@
           "type": "object",
           "minProperties": 1,
           "maxProperties": 1,
+          "propertyNames": { "pattern": "^[a-z0-9_]+\\.[a-z0-9_]+$" },
           "required": [],
           "patternProperties": {
             "^[a-z0-9_]+\\.[a-z0-9_]+$": {
