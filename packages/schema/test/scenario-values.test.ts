@@ -44,7 +44,11 @@ describe("scenario values", () => {
     expect(parseDuration(0)).toBeNull();
     expect(parseDuration(-1)).toBeNull();
     expect(parseDuration(604801)).toBeNull();
-    expect(parseDuration("25:00:00")).toBeNull();
+    expect(parseDuration("48:00:00")).toBe(172800);
+    expect(parseDuration("168:00:00")).toBe(604800);
+    expect(parseDuration("168:00:01")).toBeNull();
+    expect(parseDuration("24:00")).toBeNull();
+    expect(parseDuration("1000:00:00")).toBeNull();
     expect(parseDuration("00:61")).toBeNull();
     expect(parseDuration({})).toBeNull();
     expect(parseDuration({ days: 1 })).toBeNull();

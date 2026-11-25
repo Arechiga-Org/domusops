@@ -5,7 +5,7 @@ const ENTITY_ID = /^[a-z0-9_]+\.[a-z0-9_]+$/;
 const SLUG = /^[a-z0-9_]+$/;
 const NAME = /^[a-z0-9][a-z0-9_]{0,63}$/;
 const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
-const DURATION = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/;
+const DURATION = /^(\d{1,3}):([0-5]\d)(?::([0-5]\d))?$/;
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const INSTANT = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)$/;
 
@@ -90,7 +90,9 @@ export function parseDuration(value: unknown): number | null {
     const match = DURATION.exec(value);
     if (match === null) return null;
     const hours = Number(match[1]);
-    if (hours > 23) return null;
+    // `HH:MM` also reads as a time of day, so its hours stay below 24; `HH:MM:SS` goes up to
+    // the 7-day limit.
+    if (match[3] === undefined && hours > 23) return null;
     seconds = hours * 3600 + Number(match[2]) * 60 + Number(match[3] ?? 0);
   } else if (
     typeof value === "object" &&
