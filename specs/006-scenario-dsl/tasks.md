@@ -53,7 +53,7 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 
 **Goal**: a scenario next to the configuration, with a starting point, one step and expectations on states, attributes, triggered automations and called actions, runs in a throwaway instance and reports each expectation with expected and actual values.
 
-**Independent Test**: quickstart 1, 2 (with the helpers scenario) and 3: the helpers scenario passes; the failing copy fails on exactly the changed expectation (expected 30, found 15) and a missing entity fails with `entity_missing`; the source directory is unchanged and no labelled container is left.
+**Independent Test**: `test --config packages/sandbox/fixtures/scenario-config` runs the reference suite (only `helpers.yaml` at this point) and it passes; `--check` exits 0 and invalid files exit 2 (T021, quickstart 1); T040 covers quickstart 3 through `withScenarios`: the failing copy fails on exactly the changed expectation (expected 30, found 15) and a missing entity fails with `entity_missing`; the source directory is unchanged and no labelled container is left.
 
 ### Tests for US1
 
@@ -89,7 +89,7 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 - [ ] T039 [P] [US1] Add `packages/sandbox/fixtures/scenario-config/scenarios/helpers.yaml` with `helper_night_motion` (given 03:00 and `presence.house: away`; when `binary_sensor.study_motion: on`; then `input_number.study_brightness` 15, `input_boolean.study_light` on, `triggered: automation.helper_night_motion` `times: 1`, `called: input_boolean.turn_on` on `input_boolean.study_light`); and `packages/sandbox/test/fixtures/scenarios-failing/` (`helpers-30.yaml`, the same scenario expecting 30; `nowhere.yaml`, one expecting `light.nowhere` on) and `packages/sandbox/test/fixtures/scenarios-invalid/` (one file per issue code of T013, each with a known line and column)
 - [ ] T040 [US1] Container test `packages/sandbox/test/scenario-reference.container.test.ts` on every channel, running `withScenarios([helpers-30.yaml, nowhere.yaml])`: it fails on exactly the brightness expectation with expected 30 and actual 15 and the others reported with their own outcome (US1 AS2), and on `light.nowhere` with `entity_missing` (AS3); a hash of `packages/sandbox/fixtures/scenario-config` and of the temporary copy is unchanged after the run and no container with the `io.domusops.sandbox` label is left (AS6, FR-018). The passing reference suite (AS1) is proven by the T052 step on every leg, so no leg starts it twice
 
-**Checkpoint**: US1 runs end to end on helpers (quickstart 1 and 3).
+**Checkpoint**: US1 runs end to end on helpers (the default run, T021 and T040).
 
 ---
 
@@ -97,7 +97,7 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 
 **Goal**: stand-ins take real entity IDs as virtual devices, and declared absent actions are recorded instead of failing, so the SEED example passes.
 
-**Independent Test**: quickstart 2 and 4: `hallway_night_motion` passes with a stand-in light and an absent `media_player.*`; without the stand-in it fails naming the missing entity; an existing entity or an offered action stops the scenario with its reason.
+**Independent Test**: T051 covers quickstart 2 and 4 through `withScenarios`: `hallway_night_motion` passes with a stand-in light and an absent `media_player.*`; without the stand-in it fails naming the missing entity; an existing entity or an offered action stops the scenario with its reason.
 
 ### Tests for US2
 
@@ -118,7 +118,7 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 - [ ] T052 [US2] `.github/workflows/ci.yml`: in each `sandbox-matrix` leg, after the smoke check, a step `Scenario suite` (`if: ${{ !cancelled() }}`) running `node packages/sandbox/dist/cli.js test --config packages/sandbox/fixtures/scenario-config --channel ${{ matrix.channel }} --report scenario-report-${{ matrix.channel }}.json` and uploading `scenario-report-<channel>` (`if: always()`); with no beta in progress the report holds `not_run` rows and the step exits 0; `sandbox-gate` downloads `scenario-report-*` into its own directory, `scenario-reports`, never into `sandbox-results` (`readResults` reads every `.json` there), and runs `supported-versions.mjs --gate sandbox-results --scenarios scenario-reports`. Nothing prints the environment or a token
 - [ ] T053 [US2] Extend the gate: a `scenarioGateVerdict(reports)` next to `gateVerdict` in `packages/sandbox/src/results/table.ts`, used by `packages/sandbox/scripts/supported-versions.mjs --gate <dir> --scenarios <dir>`: with `--scenarios`, a missing stable or previous-stable report, or one whose outcome is `failed` or `could_not_run`, fails the gate; beta is listed as a warning, never a failure; the counts per channel go to the job summary (FR-030); cases in `packages/sandbox/test/table.test.ts`
 
-**Checkpoint**: first increment complete (PR-A and PR-B). Validate quickstart 1–4 and open PR-B (it carries T003); the extended `sandbox-gate` blocks on stable and previous stable.
+**Checkpoint**: first increment complete (PR-A and PR-B). Validate with `test --config packages/sandbox/fixtures/scenario-config` (the five reference scenarios pass), `--check`, T040 and T051 (quickstart 1–4 as written need the positional arguments of US4 and run at T081), and open PR-B (it carries T003); the extended `sandbox-gate` blocks on stable and previous stable.
 
 ---
 
@@ -126,7 +126,7 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 
 **Goal**: `when` is a sequence with time advancing and expectations between steps; expectations can wait in instance time (`within`) or must hold for a span (`for`).
 
-**Independent Test**: quickstart 5: `hallway_off_after_five_minutes`, `weekday_routine` and `porch_stays_off` pass, each over at least an hour of instance time in under 30 s once ready; with the delay at ten minutes the second expectation fails with `found on at 03:06:00`.
+**Independent Test**: T060 covers quickstart 5: `hallway_off_after_five_minutes`, `weekday_routine` and `porch_stays_off` pass, each over at least an hour of instance time in under 30 s once ready; with the delay at ten minutes the second expectation fails with `found on at 03:06:00`.
 
 ### Tests for US3
 
@@ -142,7 +142,7 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 - [ ] T060 [US3] Container test `packages/sandbox/test/scenario-time.container.test.ts` on every channel: the instance's clock shows the given date and time in the configuration's zone when the starting point is applied (US3 AS1); the default date is reported as `Wednesday` (AS2); the three time scenarios pass, each in under 30 s of real time after ready (SC-006, measured and printed); a copy of the fixture with a ten-minute delay fails the second expectation with `found on at 03:06:00` (quickstart 5); a change during a `for` span reports its instance time and value (AS4)
 - [ ] T061 [US3] Add `.changeset/scenario-time.md` (`@domusops/schema` minor and `@domusops/sandbox` minor: sequences, time steps, `within`, `for`)
 
-**Checkpoint**: US3 is demonstrable on its own (quickstart 5).
+**Checkpoint**: US3 is demonstrable on its own (the default run of the reference suite and T060; quickstart 5 as written needs US4 if it is not in yet).
 
 ---
 
@@ -222,6 +222,6 @@ description: "Task list for the scenario and assertion DSL (@domusops/sandbox, p
 
 ## Implementation Strategy
 
-1. MVP = Phase 1, Phase 2, US1 and US2, in two pull requests. PR-A (format in the schema, carrying T002) merges first; PR-B (runner, stand-ins, absent actions, the `test` command, the gate, carrying T003) follows on a fresh branch. Then the SEED example passes in a throwaway instance, the `test` command runs the reference suite, and `sandbox-gate` blocks on stable and previous-stable failures. Validate with quickstart 1–4.
+1. MVP = Phase 1, Phase 2, US1 and US2, in two pull requests. PR-A (format in the schema, carrying T002) merges first; PR-B (runner, stand-ins, absent actions, the `test` command, the gate, carrying T003) follows on a fresh branch. Then the SEED example passes in a throwaway instance, the `test` command runs the reference suite, and `sandbox-gate` blocks on stable and previous-stable failures. Validate with the default run, `--check`, T040 and T051; quickstart 1–4 as written run at T081.
 2. Add US3, US4 and US5 as one small pull request each, each with its own changeset and its quickstart scenario.
 3. Finish with the polish phase: determinism, README, `CLAUDE.md`, the measured times and the full gate.

@@ -14,6 +14,10 @@ cd packages/sandbox
 CONFIG=fixtures/scenario-config
 ```
 
+Steps 1–5 pass scenario names or paths to `test`, which the command accepts from US4 on. Until
+then, each step is covered by the container test named in its story (T040, T051, T060), and the
+whole quickstart runs as written at the end (T081).
+
 ## 1. Files are checked before anything starts (US1 AS5, SC-003)
 
 ```sh
