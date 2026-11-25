@@ -1,0 +1,19 @@
+# A small, self-contained configuration used to test scenarios.
+# It is written for this repository and copies nothing from a real installation.
+homeassistant:
+  name: DomusOps Scenario Reference
+
+default_config:
+
+# Helpers the automations act on. They exist in the sandbox, so scenarios can check them
+# without a stand-in.
+input_boolean:
+  study_light:
+
+input_number:
+  study_brightness:
+    min: 0
+    max: 100
+    step: 1
+
+automation: !include automations.yaml

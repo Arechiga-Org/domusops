@@ -27,6 +27,15 @@ export class WsAuthError extends WsConnectionError {
   }
 }
 
+/** An event the instance delivered to a subscription (`subscribe_events`). */
+export interface HaEvent {
+  event_type: string;
+  data: Record<string, unknown>;
+  /** The instance's clock when the event was fired, ISO 8601. */
+  time_fired: string;
+  origin?: string;
+}
+
 interface Pending {
   command: string;
   resolve: (value: unknown) => void;
@@ -51,6 +60,7 @@ export class HaSocket {
   private nextId = 1;
   private isClosed = false;
   private readonly closeListeners: (() => void)[] = [];
+  private readonly subscriptions = new Map<number, (event: HaEvent) => void>();
 
   private constructor(
     private readonly socket: WebSocket,
@@ -182,6 +192,27 @@ export class HaSocket {
     });
   }
 
+  /**
+   * Delivers every event of `eventType` to `listener`, in the order the instance fired them, until
+   * the connection closes. Resolves once the instance has confirmed the subscription, so an event
+   * fired after that is not missed.
+   */
+  async subscribe(
+    eventType: string,
+    listener: (event: HaEvent) => void,
+  ): Promise<void> {
+    // `command` takes this id synchronously, and events can follow its reply immediately, so the
+    // listener must be registered before the reply arrives.
+    const id = this.nextId;
+    this.subscriptions.set(id, listener);
+    try {
+      await this.command({ type: "subscribe_events", event_type: eventType });
+    } catch (error) {
+      this.subscriptions.delete(id);
+      throw error;
+    }
+  }
+
   /** Closes the connection and rejects every command still waiting for a reply. */
   close(): void {
     try {
@@ -205,7 +236,15 @@ export class HaSocket {
     } catch {
       return;
     }
-    if (message.type !== "result" || typeof message.id !== "number") return;
+    if (typeof message.id !== "number") return;
+    if (message.type === "event") {
+      const event = (message as { event?: unknown }).event;
+      if (typeof event === "object" && event !== null) {
+        this.subscriptions.get(message.id)?.(event as HaEvent);
+      }
+      return;
+    }
+    if (message.type !== "result") return;
     const pending = this.pending.get(message.id);
     if (pending === undefined) return;
     this.pending.delete(message.id);
@@ -228,6 +267,7 @@ export class HaSocket {
   private markClosed(): void {
     if (this.isClosed) return;
     this.isClosed = true;
+    this.subscriptions.clear();
     for (const [id, pending] of this.pending) {
       clearTimeout(pending.timer);
       this.pending.delete(id);
