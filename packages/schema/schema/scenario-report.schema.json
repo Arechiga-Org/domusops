@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "domusops.scenario-report/0.1",
+  "type": "object",
+  "required": [
+    "format",
+    "runner",
+    "started_at",
+    "duration_ms",
+    "outcome",
+    "counts",
+    "releases",
+    "config",
+    "scenarios"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "domusops.scenario-report/0.1" },
+    "runner": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "started_at": { "type": "string", "minLength": 1 },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "outcome": { "enum": ["passed", "failed", "could_not_run", "not_run"] },
+    "counts": {
+      "type": "object",
+      "required": ["passed", "failed", "could_not_run", "not_run"],
+      "additionalProperties": false,
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "could_not_run": { "type": "integer", "minimum": 0 },
+        "not_run": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "releases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["release"],
+        "additionalProperties": false,
+        "properties": {
+          "channel": { "enum": ["stable", "previous-stable", "beta"] },
+          "release": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "config": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["secrets", "placeholder_keys"],
+          "additionalProperties": false,
+          "properties": {
+            "secrets": {
+              "enum": ["placeholders", "caller-file", "none-referenced"]
+            },
+            "placeholder_keys": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["scenario", "file", "release", "outcome", "duration_ms"],
+        "additionalProperties": false,
+        "properties": {
+          "scenario": { "type": "string", "minLength": 1 },
+          "file": { "type": "string", "minLength": 1 },
+          "release": { "type": ["string", "null"] },
+          "outcome": {
+            "enum": ["passed", "failed", "could_not_run", "not_run"]
+          },
+          "start": { "type": "string" },
+          "duration_ms": { "type": "integer", "minimum": 0 },
+          "expectations": {
+            "type": "object",
+            "required": ["passed", "failed"],
+            "additionalProperties": false,
+            "properties": {
+              "passed": { "type": "integer", "minimum": 0 },
+              "failed": { "type": "integer", "minimum": 0 }
+            }
+          },
+          "failures": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "at",
+                "line",
+                "subject",
+                "check",
+                "expected",
+                "actual",
+                "read_at"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "pattern": "^(when\\[\\d+\\]\\.)?then\\[\\d+\\]$|^when\\[\\d+\\]$"
+                },
+                "line": { "type": "integer", "minimum": 1 },
+                "subject": { "type": "string", "minLength": 1 },
+                "check": {
+                  "type": "string",
+                  "pattern": "^(state|stays|triggered|called|limit|step|attribute:.+)$"
+                },
+                "expected": {},
+                "actual": {},
+                "reason": {
+                  "enum": [
+                    "entity_missing",
+                    "not_a_number",
+                    "changed_during_span",
+                    "time_limit",
+                    "recording_limit",
+                    "action_failed",
+                    "advance_to_past"
+                  ]
+                },
+                "read_at": { "type": "string", "minLength": 1 },
+                "calls": {
+                  "type": "array",
+                  "maxItems": 10,
+                  "items": {
+                    "type": "object",
+                    "required": ["at", "data", "absent"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "at": { "type": "string" },
+                      "data": { "type": "object" },
+                      "absent": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "reason": {
+            "type": "object",
+            "required": ["code", "message"],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "enum": [
+                  "config_invalid",
+                  "runtime_missing",
+                  "channel_unresolved",
+                  "image_unavailable",
+                  "not_ready",
+                  "instance_stopped",
+                  "stand_in_exists",
+                  "stand_in_kind_unsupported",
+                  "action_offered",
+                  "actions_unavailable",
+                  "time_unavailable",
+                  "starting_point_not_held",
+                  "virtual_unavailable"
+                ]
+              },
+              "message": { "type": "string" }
+            }
+          },
+          "instance_errors": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": ["logger", "message"],
+              "additionalProperties": false,
+              "properties": {
+                "logger": { "type": "string" },
+                "message": { "type": "string", "maxLength": 300 }
+              }
+            }
+          },
+          "activity": {
+            "type": "object",
+            "required": ["triggered", "called", "more"],
+            "additionalProperties": false,
+            "properties": {
+              "triggered": {
+                "type": "object",
+                "maxProperties": 20,
+                "additionalProperties": { "type": "integer", "minimum": 1 }
+              },
+              "called": {
+                "type": "object",
+                "maxProperties": 20,
+                "additionalProperties": { "type": "integer", "minimum": 1 }
+              },
+              "more": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "outcome": { "const": "failed" } },
+              "required": ["outcome"]
+            },
+            "else": {
+              "properties": {
+                "failures": false,
+                "instance_errors": false,
+                "activity": false
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": { "outcome": { "const": "could_not_run" } },
+              "required": ["outcome"]
+            },
+            "then": {
+              "required": ["reason"],
+              "properties": { "reason": true }
+            },
+            "else": { "properties": { "reason": false } }
+          }
+        ]
+      }
+    }
+  }
+}

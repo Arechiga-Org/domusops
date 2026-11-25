@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "domusops.scenario/0.1",
+  "title": "domusops.scenario/0.1",
+  "type": "object",
+  "required": ["format"],
+  "properties": { "format": { "const": "domusops.scenario/0.1" } },
+  "oneOf": [
+    {
+      "required": ["scenario", "given", "when", "then"],
+      "properties": {
+        "format": { "const": "domusops.scenario/0.1" },
+        "scenario": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_]{0,63}$"
+        },
+        "description": { "type": "string" },
+        "given": { "$ref": "#/$defs/given" },
+        "when": {
+          "anyOf": [
+            { "$ref": "#/$defs/step" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/step" }
+            }
+          ]
+        },
+        "then": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/expectation" }
+        },
+        "timeout": { "type": "number", "minimum": 30, "maximum": 3600 },
+        "settle": { "$ref": "#/$defs/settle" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "required": ["scenarios"],
+      "properties": {
+        "format": { "const": "domusops.scenario/0.1" },
+        "scenarios": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["scenario", "given", "when", "then"],
+            "properties": {
+              "scenario": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_]{0,63}$"
+              },
+              "description": { "type": "string" },
+              "given": { "$ref": "#/$defs/given" },
+              "when": {
+                "anyOf": [
+                  { "$ref": "#/$defs/step" },
+                  {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": { "$ref": "#/$defs/step" }
+                  }
+                ]
+              },
+              "then": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "$ref": "#/$defs/expectation" }
+              },
+              "timeout": { "type": "number", "minimum": 30, "maximum": 3600 },
+              "settle": { "$ref": "#/$defs/settle" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "entityId": { "type": "string", "pattern": "^[a-z0-9_]+\\.[a-z0-9_]+$" },
+    "automationId": {
+      "type": "string",
+      "pattern": "^automation\\.[a-z0-9_]+$"
+    },
+    "settle": { "type": "number", "exclusiveMinimum": 0, "maximum": 3600 },
+    "times": { "type": "integer", "minimum": 0 },
+    "entityValue": {
+      "anyOf": [
+        { "type": ["string", "number", "boolean"] },
+        {
+          "type": "object",
+          "required": ["state"],
+          "properties": {
+            "state": { "type": ["string", "number", "boolean"] },
+            "attributes": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "given": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "time": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d(:[0-5]\\d)?$"
+        }
+      },
+      "patternProperties": {
+        "^[a-z0-9_]+\\.[a-z0-9_]+$": { "$ref": "#/$defs/entityValue" }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "anyOf": [
+        { "$ref": "#/$defs/entityId" },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/entityId" }
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "entity_id": {
+              "anyOf": [
+                { "$ref": "#/$defs/entityId" },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/entityId" }
+                }
+              ]
+            },
+            "device_id": {
+              "anyOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ]
+            },
+            "area_id": {
+              "anyOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["action"],
+          "properties": {
+            "action": { "$ref": "#/$defs/entityId" },
+            "target": { "$ref": "#/$defs/target" },
+            "data": { "type": "object" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["event"],
+          "properties": {
+            "event": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+            "data": { "type": "object" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z0-9_]+\\.[a-z0-9_]+$": { "$ref": "#/$defs/entityValue" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "comparison": {
+      "anyOf": [
+        { "type": ["string", "number", "boolean", "null", "array"] },
+        {
+          "type": "object",
+          "propertyNames": {
+            "not": { "enum": ["not", "in", "at_least", "at_most", "between"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["not"],
+          "maxProperties": 1,
+          "properties": { "not": {} }
+        },
+        {
+          "type": "object",
+          "required": ["in"],
+          "maxProperties": 1,
+          "properties": { "in": { "type": "array", "minItems": 1 } }
+        },
+        {
+          "type": "object",
+          "required": ["at_least"],
+          "maxProperties": 1,
+          "properties": { "at_least": { "type": "number" } }
+        },
+        {
+          "type": "object",
+          "required": ["at_most"],
+          "maxProperties": 1,
+          "properties": { "at_most": { "type": "number" } }
+        },
+        {
+          "type": "object",
+          "required": ["between"],
+          "maxProperties": 1,
+          "properties": {
+            "between": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          }
+        }
+      ]
+    },
+    "expectedEntityValue": {
+      "anyOf": [
+        { "type": ["string", "number", "boolean", "null"] },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "properties": {
+            "attributes": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/comparison" }
+            }
+          },
+          "additionalProperties": { "$ref": "#/$defs/comparison" }
+        }
+      ]
+    },
+    "expectation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 1,
+          "required": [],
+          "patternProperties": {
+            "^[a-z0-9_]+\\.[a-z0-9_]+$": {
+              "$ref": "#/$defs/expectedEntityValue"
+            }
+          },
+          "properties": { "settle": { "$ref": "#/$defs/settle" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "minProperties": 2,
+          "maxProperties": 2,
+          "required": ["settle"],
+          "patternProperties": {
+            "^[a-z0-9_]+\\.[a-z0-9_]+$": {
+              "$ref": "#/$defs/expectedEntityValue"
+            }
+          },
+          "properties": { "settle": { "$ref": "#/$defs/settle" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["triggered"],
+          "properties": {
+            "triggered": { "$ref": "#/$defs/automationId" },
+            "times": { "$ref": "#/$defs/times" },
+            "settle": { "$ref": "#/$defs/settle" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["called"],
+          "properties": {
+            "called": { "$ref": "#/$defs/entityId" },
+            "target": { "$ref": "#/$defs/target" },
+            "data": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/comparison" }
+            },
+            "times": { "$ref": "#/$defs/times" },
+            "settle": { "$ref": "#/$defs/settle" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["not_called"],
+          "properties": {
+            "not_called": { "$ref": "#/$defs/entityId" },
+            "target": { "$ref": "#/$defs/target" },
+            "data": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/comparison" }
+            },
+            "settle": { "$ref": "#/$defs/settle" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

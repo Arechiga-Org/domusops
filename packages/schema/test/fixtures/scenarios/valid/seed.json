@@ -1,0 +1,23 @@
+{
+  "format": "domusops.scenario/0.1",
+  "scenario": "hallway_night_motion",
+  "given": {
+    "time": "03:00",
+    "presence.house": "away"
+  },
+  "when": {
+    "binary_sensor.hallway_motion": "on"
+  },
+  "then": [
+    {
+      "light.hallway": {
+        "state": "on",
+        "brightness_pct": 15
+      }
+    },
+    {
+      "called": "media_player.turn_off",
+      "target": "media_player.living_room"
+    }
+  ]
+}

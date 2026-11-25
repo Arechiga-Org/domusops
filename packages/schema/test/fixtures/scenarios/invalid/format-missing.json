@@ -1,0 +1,12 @@
+{
+  "scenario": "s",
+  "given": {},
+  "when": {
+    "binary_sensor.x": "on"
+  },
+  "then": [
+    {
+      "light.x": "on"
+    }
+  ]
+}

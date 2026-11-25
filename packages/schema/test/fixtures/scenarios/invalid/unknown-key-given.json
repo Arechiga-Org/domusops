@@ -1,0 +1,17 @@
+{
+  "format": "domusops.scenario/0.1",
+  "scenario": "s",
+  "given": {
+    "stand_ins": {
+      "light.x": {}
+    }
+  },
+  "when": {
+    "binary_sensor.x": "on"
+  },
+  "then": [
+    {
+      "light.x": "on"
+    }
+  ]
+}

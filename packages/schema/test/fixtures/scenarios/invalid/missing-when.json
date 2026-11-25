@@ -1,0 +1,10 @@
+{
+  "format": "domusops.scenario/0.1",
+  "scenario": "s",
+  "given": {},
+  "then": [
+    {
+      "light.x": "on"
+    }
+  ]
+}

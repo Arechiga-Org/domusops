@@ -1,0 +1,42 @@
+{
+  "format": "domusops.scenario/0.1",
+  "scenario": "s",
+  "given": {},
+  "when": [
+    {
+      "binary_sensor.a": "off",
+      "input_number.b": {
+        "state": 21.5,
+        "unit": "C",
+        "attributes": {
+          "state": "kept"
+        }
+      }
+    },
+    {
+      "action": "input_boolean.turn_on",
+      "target": {
+        "entity_id": ["input_boolean.a", "input_boolean.b"],
+        "area_id": "kitchen"
+      },
+      "data": {
+        "x": 1
+      }
+    },
+    {
+      "action": "light.turn_off",
+      "target": "light.a"
+    },
+    {
+      "event": "doorbell_pressed",
+      "data": {
+        "door": "front"
+      }
+    }
+  ],
+  "then": [
+    {
+      "light.x": "on"
+    }
+  ]
+}
