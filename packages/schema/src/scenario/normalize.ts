@@ -27,16 +27,21 @@ const at = (base: string, key: string | number): string =>
 
 function entityValue(value: unknown): EntityValue {
   if (!isObject(value)) return { state: value as Scalar, attributes: {} };
-  const attributes: Record<string, Json> = {};
+  // `Object.fromEntries` defines own properties, so a `__proto__` key stays data and never
+  // replaces the prototype of the attributes.
+  const entries: [string, Json][] = [];
   for (const [key, item] of Object.entries(value)) {
     if (key === "state") continue;
     if (key === "attributes" && isObject(item)) {
-      Object.assign(attributes, item);
+      entries.push(...(Object.entries(item) as [string, Json][]));
     } else {
-      attributes[key] = item as Json;
+      entries.push([key, item as Json]);
     }
   }
-  return { state: value["state"] as Scalar, attributes };
+  return {
+    state: value["state"] as Scalar,
+    attributes: Object.fromEntries(entries),
+  };
 }
 
 function comparison(value: unknown): Comparison {
@@ -225,7 +230,8 @@ function scenario(value: Obj, base: string): ScenarioDraft {
 /**
  * The scenarios of one document that `checkScenarioDocument` accepted, in the shape the runner
  * executes (data-model §1). The defaults that depend on the rest of the suite (the date and time
- * of the starting point, the time limit) are filled by `resolveSuite`.
+ * of the starting point, the time limit) are filled by `resolveSuite`. It does not check its
+ * input: a document that was not accepted may make it throw a `TypeError`.
  */
 export function normalizeScenarioDocument(value: unknown): ScenarioFile {
   const doc = value as Obj;

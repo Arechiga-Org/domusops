@@ -298,4 +298,16 @@ describe("normalizeScenarioDocument", () => {
     ]);
     expect(file.startingPoints).toEqual([]);
   });
+
+  it("keeps a __proto__ key as data and never changes the prototype of the attributes", () => {
+    const parsed = JSON.parse(
+      '{"scenario":"s","given":{"light.x":{"state":"on","__proto__":{"injected":1},"attributes":{"__proto__":{"also":2}}}},"when":{"binary_sensor.x":"on"},"then":[{"light.x":"on"}]}',
+    ) as Record<string, unknown>;
+    const [entry] = one(parsed).given.entities;
+    const attributes = entry?.[1].attributes ?? {};
+    expect(Object.getPrototypeOf(attributes)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>)["injected"]).toBeUndefined();
+    expect((attributes as Record<string, unknown>)["injected"]).toBeUndefined();
+    expect(Object.keys(attributes)).toEqual(["__proto__"]);
+  });
 });
