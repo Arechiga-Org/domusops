@@ -29,7 +29,8 @@ export function normalizeScenarioDocument(value: unknown): ScenarioFile;
  * Applies `use` references across the files of a suite; returns issues for unknown references,
  * cycles and duplicate names, or each scenario's resolved starting point, with the date, the
  * time and the time limit filled. `defaultTimeout` is the run's limit for a scenario that states
- * none; a scenario's own `timeout` wins over it.
+ * none; a scenario's own `timeout` wins over it. A `defaultTimeout` outside 30 to 3600 throws a
+ * `RangeError`: it is a usage mistake, not a problem of the files.
  */
 export function resolveSuite(
   files: { file: string; document: ScenarioFile }[],

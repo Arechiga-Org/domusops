@@ -103,6 +103,19 @@ describe("resolveSuite", () => {
     expect(across.issues[0]?.message).toContain("sub/b.yaml at /scenarios/1");
   });
 
+  it("applies a default time limit within the range of a scenario's own, and throws outside it", () => {
+    const files = [file("a.yaml", scenario("a"))];
+    for (const good of [30, 600, 3600]) {
+      const result = resolveSuite(files, { defaultTimeout: good });
+      expect(result.ok && result.scenarios[0]?.timeout).toBe(good);
+    }
+    for (const bad of [0, -1, 29, 3601, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => resolveSuite(files, { defaultTimeout: bad })).toThrow(
+        RangeError,
+      );
+    }
+  });
+
   it("names a one-scenario file by its path alone", () => {
     const single = {
       file: "one.yaml",

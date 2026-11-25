@@ -2,6 +2,8 @@ import {
   DEFAULT_SCENARIO_DATE,
   DEFAULT_SCENARIO_TIME,
   DEFAULT_SCENARIO_TIMEOUT_SECONDS,
+  MAX_SCENARIO_TIMEOUT_SECONDS,
+  MIN_SCENARIO_TIMEOUT_SECONDS,
   type ResolvedScenario,
   type ScenarioFile,
   type ScenarioIssue,
@@ -14,7 +16,10 @@ export type ResolvedSuite =
   | { ok: false; issues: SuiteIssue[] };
 
 export interface ResolveOptions {
-  /** The run's time limit for a scenario that states none, in real seconds. */
+  /**
+   * The run's time limit for a scenario that states none, in real seconds, within the range a
+   * scenario's own `timeout` may take. `resolveSuite` throws a `RangeError` for any other value.
+   */
   defaultTimeout?: number;
 }
 
@@ -30,6 +35,18 @@ export function resolveSuite(
   files: { file: string; document: ScenarioFile }[],
   options: ResolveOptions = {},
 ): ResolvedSuite {
+  const { defaultTimeout } = options;
+  if (
+    defaultTimeout !== undefined &&
+    !(
+      defaultTimeout >= MIN_SCENARIO_TIMEOUT_SECONDS &&
+      defaultTimeout <= MAX_SCENARIO_TIMEOUT_SECONDS
+    )
+  ) {
+    throw new RangeError(
+      `defaultTimeout is a number of seconds, ${MIN_SCENARIO_TIMEOUT_SECONDS} to ${MAX_SCENARIO_TIMEOUT_SECONDS}`,
+    );
+  }
   const issues: SuiteIssue[] = [];
   const scenarios: ResolvedScenario[] = [];
   const seen = new Map<string, string>();

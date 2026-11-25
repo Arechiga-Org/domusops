@@ -9,6 +9,8 @@ export const DEFAULT_SCENARIO_DATE = "2026-04-15";
 export const DEFAULT_SCENARIO_TIME = "12:00:00";
 /** Real seconds a scenario may take before it fails with `time_limit`. */
 export const DEFAULT_SCENARIO_TIMEOUT_SECONDS = 300;
+export const MIN_SCENARIO_TIMEOUT_SECONDS = 30;
+export const MAX_SCENARIO_TIMEOUT_SECONDS = 3600;
 /** Real seconds an expectation is retried before it fails. */
 export const DEFAULT_SETTLE_SECONDS = 5;
 
