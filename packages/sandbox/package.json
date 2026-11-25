@@ -22,7 +22,8 @@
     "src",
     "companion",
     "fixtures",
-    "schema"
+    "schema",
+    "docs"
   ],
   "scripts": {
     "build": "tsc -b",
@@ -31,8 +32,10 @@
   },
   "dependencies": {
     "@domusops/mcp": "workspace:*",
+    "@domusops/schema": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "tar": "^7.4.3"
+    "tar": "^7.4.3",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
     "ajv": "^8.20.0"
