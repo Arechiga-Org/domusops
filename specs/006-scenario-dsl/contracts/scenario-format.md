@@ -172,6 +172,8 @@ A list. Each item is one expectation of one of these forms, plus optional `withi
 - not_called: siren.turn_on # same as `called` with `times: 0`
 ```
 
+- `entity_id: all` and `entity_id: none` (alone, not in a list) are Home Assistant's own keywords
+  and are accepted in any `target`; they are matched as written.
 - `data` lists only the fields to check; each is a comparison of §5.1. `target` matches when every
   listed ID is among the call's.
 - Calls count from the first step of `when`.

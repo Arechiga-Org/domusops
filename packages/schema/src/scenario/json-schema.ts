@@ -1,5 +1,9 @@
 import { COMPARISON_KEYS } from "./check.js";
-import { SCENARIO_FORMAT } from "./format.js";
+import {
+  MAX_SCENARIO_TIMEOUT_SECONDS,
+  MIN_SCENARIO_TIMEOUT_SECONDS,
+  SCENARIO_FORMAT,
+} from "./format.js";
 
 const ENTITY_ID = "^[a-z0-9_]+\\.[a-z0-9_]+$";
 const ref = (name: string) => ({ $ref: `#/$defs/${name}` });
@@ -9,6 +13,9 @@ const scalar = { type: ["string", "number", "boolean"] } as const;
 const idOrList = (item: object) => ({
   anyOf: [item, { type: "array", minItems: 1, items: item }],
 });
+
+// Home Assistant's keywords for every entity and no entity, valid alone as a target.
+const targetKeyword = { enum: ["all", "none"] } as const;
 
 const nonEmptyText = { type: "string", minLength: 1 } as const;
 
@@ -37,7 +44,11 @@ const scenarioProperties = {
     anyOf: [ref("step"), { type: "array", minItems: 1, items: ref("step") }],
   },
   then: { type: "array", minItems: 1, items: ref("expectation") },
-  timeout: { type: "number", minimum: 30, maximum: 3600 },
+  timeout: {
+    type: "number",
+    minimum: MIN_SCENARIO_TIMEOUT_SECONDS,
+    maximum: MAX_SCENARIO_TIMEOUT_SECONDS,
+  },
   settle: ref("settle"),
 } as const;
 
@@ -51,7 +62,6 @@ const required = ["scenario", "given", "when", "then"];
  */
 export const scenarioJsonSchema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: SCENARIO_FORMAT,
   title: SCENARIO_FORMAT,
   type: "object",
   required: ["format"],
@@ -113,12 +123,13 @@ export const scenarioJsonSchema = {
     target: {
       anyOf: [
         ref("entityId"),
+        targetKeyword,
         { type: "array", minItems: 1, items: ref("entityId") },
         {
           type: "object",
           minProperties: 1,
           properties: {
-            entity_id: idOrList(ref("entityId")),
+            entity_id: { anyOf: [targetKeyword, idOrList(ref("entityId"))] },
             device_id: idOrList(nonEmptyText),
             area_id: idOrList(nonEmptyText),
           },

@@ -240,6 +240,18 @@ describe("checkScenarioDocument", () => {
         step({ entity_id: "light.x", device_id: ["d1"], area_id: "kitchen" }),
       ),
     ).toEqual([]);
+    expect(issues(step("all"))).toEqual([]);
+    expect(issues(step({ entity_id: "none" }))).toEqual([]);
+    expect(issues(step(["all"]))).toEqual([
+      ["bad_entity_id", "/when/target/0"],
+    ]);
+    expect(issues(step({ entity_id: ["all"] }))).toEqual([
+      ["bad_entity_id", "/when/target/entity_id/0"],
+    ]);
+    expect(issues(step({ device_id: "all" }))).toEqual([]);
+    expect(
+      issues(withKey("then", [{ called: "light.turn_off", target: "all" }])),
+    ).toEqual([]);
     expect(issues(step("Light.X"))).toEqual([
       ["bad_entity_id", "/when/target"],
     ]);

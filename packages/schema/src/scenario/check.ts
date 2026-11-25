@@ -1,4 +1,9 @@
-import { SCENARIO_FORMAT, type ScenarioIssue } from "./format.js";
+import {
+  MAX_SCENARIO_TIMEOUT_SECONDS,
+  MIN_SCENARIO_TIMEOUT_SECONDS,
+  SCENARIO_FORMAT,
+  type ScenarioIssue,
+} from "./format.js";
 import type { ScenarioIssueCode } from "./format.js";
 import {
   isAction,
@@ -139,12 +144,22 @@ function checkEntityValue(value: unknown, path: string, out: Issues): void {
   }
 }
 
+/** Home Assistant's own keywords for "every entity" and "no entity", valid alone as `entity_id`. */
+const TARGET_ENTITY_KEYWORDS = ["all", "none"];
+
 function checkIdList(
   value: unknown,
   path: string,
   out: Issues,
   entity: boolean,
 ): void {
+  if (
+    entity &&
+    typeof value === "string" &&
+    TARGET_ENTITY_KEYWORDS.includes(value)
+  ) {
+    return;
+  }
   const items = Array.isArray(value) ? value : [value];
   if (items.length === 0) {
     out.add(path, "empty_list", "the list is empty");
@@ -479,11 +494,17 @@ function checkScenario(
   }
   if ("timeout" in value) {
     const timeout = value["timeout"];
-    if (typeof timeout !== "number" || !(timeout >= 30 && timeout <= 3600)) {
+    if (
+      typeof timeout !== "number" ||
+      !(
+        timeout >= MIN_SCENARIO_TIMEOUT_SECONDS &&
+        timeout <= MAX_SCENARIO_TIMEOUT_SECONDS
+      )
+    ) {
       out.add(
         at(base, "timeout"),
         "bad_duration",
-        "`timeout` is a number of seconds, 30 to 3600",
+        `\`timeout\` is a number of seconds, ${MIN_SCENARIO_TIMEOUT_SECONDS} to ${MAX_SCENARIO_TIMEOUT_SECONDS}`,
       );
     }
   }
