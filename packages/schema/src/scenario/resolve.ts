@@ -46,6 +46,9 @@ export function resolveSuite(
         continue;
       }
       seen.set(draft.name, place(file, draft.path));
+      // `use`, `stand_ins` and `absent_actions` arrive with US5 and the runner: until then the
+      // checker refuses them (`unknown_key`), so these are empty and every `use` would be
+      // unknown. The grammar grows by story (plan decision 9).
       for (const name of draft.given.use) {
         issues.push({
           file,
